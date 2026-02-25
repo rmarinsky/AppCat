@@ -24,6 +24,14 @@ final class AppState {
         browsers.filter { $0.isVisible && !$0.isIgnored }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    var pickerBrowsers: [InstalledBrowser] {
+        browsers
+            .filter { browser in
+                !browser.isIgnored && (browser.isVisible || browser.profiles.contains(where: { $0.isVisible }))
+            }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     var ignoredBrowsers: [InstalledBrowser] {
         browsers.filter(\.isIgnored).sorted { $0.sortOrder < $1.sortOrder }
     }
