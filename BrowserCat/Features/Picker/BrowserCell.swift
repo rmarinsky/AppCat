@@ -53,7 +53,7 @@ struct BrowserCell: View {
 
                     // Hotkey keycap badge
                     if let hotkey = displayHotkey {
-                        hotkeyKeycap(hotkey, compact: true)
+                        HotkeyKeycapView(hotkey: hotkey, compact: true)
                             .offset(x: 4, y: -4)
                     }
                 }
@@ -102,7 +102,7 @@ struct BrowserCell: View {
 
                 // Hotkey badge
                 if let hotkey = displayHotkey {
-                    hotkeyKeycap(hotkey)
+                    HotkeyKeycapView(hotkey: hotkey)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -146,8 +146,13 @@ struct BrowserCell: View {
     private func avatarColor(for name: String) -> Color {
         .profileAvatar(for: name)
     }
+}
 
-    private func hotkeyKeycap(_ hotkey: Character, compact: Bool = false) -> some View {
+struct HotkeyKeycapView: View {
+    let hotkey: Character
+    var compact: Bool = false
+
+    var body: some View {
         Text(String(hotkey).uppercased())
             .font(.system(size: compact ? 11 : 10, weight: .semibold, design: .rounded))
             .foregroundStyle(Color.white.opacity(0.95))

@@ -98,8 +98,7 @@ final class PickerWindowController: NSObject {
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         let browsers = appState.pickerBrowsers
-        let allApps = appState.visibleApps
-        let matchingApps = PickerItem.matchingApps(for: appState.pendingURL, in: allApps)
+        let matchingApps = PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
         let prioritizedAppIDs = Set(matchingApps.map(\.id))
         let items = PickerItem.buildItems(
             browsers: browsers,
@@ -155,7 +154,7 @@ final class PickerWindowController: NSObject {
             let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
 
             // Check app hotkeys first
-            for app in allApps {
+            for app in matchingApps {
                 if let code = app.hotkeyKeyCode, code == pressedKeyCode {
                     coordinator.openURL(with: app, state: appState)
                     return true

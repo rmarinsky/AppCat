@@ -63,6 +63,10 @@ while [[ $# -gt 0 ]]; do
                 echo "--install-name requires a value"
                 exit 1
             fi
+            if [[ -z "${2//[[:space:]]/}" ]]; then
+                echo "--install-name requires a non-empty value"
+                exit 1
+            fi
             if [[ "$2" == */* || "$2" == *..* ]]; then
                 echo "--install-name must be a simple name (no path separators or traversal patterns)"
                 exit 1

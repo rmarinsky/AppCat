@@ -332,7 +332,7 @@ struct AppCell: View {
 
             // Hotkey badge
             if let hotkey = app.hotkey {
-                hotkeyKeycap(hotkey, compact: true)
+                HotkeyKeycapView(hotkey: hotkey, compact: true)
                     .offset(x: 4, y: -4)
             }
         }
@@ -363,7 +363,7 @@ struct AppCell: View {
 
                 // Hotkey badge
                 if let hotkey = app.hotkey {
-                    hotkeyKeycap(hotkey)
+                    HotkeyKeycapView(hotkey: hotkey)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -384,22 +384,5 @@ struct AppCell: View {
                 .strokeBorder(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
         )
         .contentShape(Rectangle())
-    }
-
-    private func hotkeyKeycap(_ hotkey: Character, compact: Bool = false) -> some View {
-        Text(String(hotkey).uppercased())
-            .font(.system(size: compact ? 11 : 10, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color.white.opacity(0.95))
-            .padding(.horizontal, compact ? 4 : 3)
-            .frame(height: compact ? 20 : 18)
-            .background(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.95))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 0.7)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 1.2, x: 0, y: 1)
     }
 }
