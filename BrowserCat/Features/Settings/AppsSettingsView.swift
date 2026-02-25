@@ -244,8 +244,7 @@ struct AppsSettingsView: View {
             Toggle("", isOn: Binding(
                 get: { browser.isVisible },
                 set: { newValue in
-                    appState.browsers[index].isVisible = newValue
-                    browserManager?.save(appState.browsers)
+                    setBrowserVisibility(newValue, at: index)
                 }
             ))
             .toggleStyle(.switch)
@@ -454,6 +453,18 @@ struct AppsSettingsView: View {
                 clearedTarget = nil
             }
         }
+    }
+
+    private func setBrowserVisibility(_ isVisible: Bool, at index: Int) {
+        appState.browsers[index].isVisible = isVisible
+
+        if !isVisible {
+            for profileIndex in appState.browsers[index].profiles.indices {
+                appState.browsers[index].profiles[profileIndex].isVisible = false
+            }
+        }
+
+        browserManager?.save(appState.browsers)
     }
 
     // MARK: - Profile Avatar

@@ -22,7 +22,7 @@ final class PickerWindowController: NSObject {
 
     func show() {
         if panel == nil {
-            let newPanel = makePanel()
+            let newPanel = makePanel(size: panelSize(isCompact: appState.compactPickerView))
             self.panel = newPanel
 
             let hostingView = NSHostingView(
@@ -39,6 +39,7 @@ final class PickerWindowController: NSObject {
         }
 
         guard let panel else { return }
+        resizePanelIfNeeded(panel)
 
         positionNearCursor(panel)
 
@@ -96,9 +97,14 @@ final class PickerWindowController: NSObject {
     // MARK: - Key Handling
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        let browsers = appState.visibleBrowsers
-        let allApps = appState.visibleApps
-        let items = PickerItem.buildItems(browsers: browsers, apps: allApps)
+        let browsers = appState.pickerBrowsers
+        let matchingApps = PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
+        let prioritizedAppIDs = Set(matchingApps.map(\.id))
+        let items = PickerItem.buildItems(
+            browsers: browsers,
+            apps: matchingApps,
+            prioritizedAppIDs: prioritizedAppIDs
+        )
 
         switch Int(event.keyCode) {
         case 53: // Escape
@@ -148,7 +154,7 @@ final class PickerWindowController: NSObject {
             let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
 
             // Check app hotkeys first
-            for app in allApps {
+            for app in matchingApps {
                 if let code = app.hotkeyKeyCode, code == pressedKeyCode {
                     coordinator.openURL(with: app, state: appState)
                     return true
@@ -165,6 +171,7 @@ final class PickerWindowController: NSObject {
             // Check profile hotkeys (more specific)
             for browser in browsers {
                 if let profile = browser.profiles.first(where: { p in
+                    guard p.isVisible else { return false }
                     if let code = p.hotkeyKeyCode { return code == pressedKeyCode }
                     guard let hotkey = p.hotkey, let keyChar else { return false }
                     return Character(String(hotkey).lowercased()) == keyChar
@@ -176,6 +183,7 @@ final class PickerWindowController: NSObject {
 
             // Then check browser hotkeys
             if let index = browsers.firstIndex(where: { browser in
+                guard browser.isVisible else { return false }
                 if let code = browser.hotkeyKeyCode { return code == pressedKeyCode }
                 guard let hotkey = browser.hotkey, let keyChar else { return false }
                 return Character(String(hotkey).lowercased()) == keyChar
@@ -206,13 +214,15 @@ final class PickerWindowController: NSObject {
 
     // MARK: - Panel
 
-    private func makePanel() -> NSPanel {
-        let isCompact = appState.compactPickerView
+    private func panelSize(isCompact: Bool) -> NSSize {
         let panelWidth: CGFloat = isCompact ? 600 : 380
-        let panelHeight: CGFloat = isCompact ? 140 : 300
+        let panelHeight: CGFloat = isCompact ? 176 : 300
+        return NSSize(width: panelWidth, height: panelHeight)
+    }
 
+    private func makePanel(size: NSSize) -> NSPanel {
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
@@ -226,7 +236,7 @@ final class PickerWindowController: NSObject {
         panel.hidesOnDeactivate = false
 
         // Use NSVisualEffectView as the content view for proper vibrancy
-        let visualEffect = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight))
+        let visualEffect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
         visualEffect.material = .hudWindow
         visualEffect.state = .active
         visualEffect.wantsLayer = true
@@ -237,6 +247,19 @@ final class PickerWindowController: NSObject {
         panel.delegate = self
 
         return panel
+    }
+
+    private func resizePanelIfNeeded(_ panel: NSPanel) {
+        let targetSize = panelSize(isCompact: appState.compactPickerView)
+        guard panel.frame.size != targetSize else { return }
+
+        panel.setContentSize(targetSize)
+        if let contentView = panel.contentView {
+            contentView.frame = NSRect(origin: .zero, size: targetSize)
+            for subview in contentView.subviews {
+                subview.frame = contentView.bounds
+            }
+        }
     }
 
     private func positionNearCursor(_ panel: NSPanel) {

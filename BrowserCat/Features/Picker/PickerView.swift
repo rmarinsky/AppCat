@@ -51,12 +51,27 @@ struct PickerItem: Identifiable {
     }
 
     /// Build the ordered picker item list.
-    /// Priority: profile-with-hotkey first, then apps/browsers with hotkeys, then the rest.
-    static func buildItems(browsers: [InstalledBrowser], apps: [InstalledApp]) -> [PickerItem] {
+    /// Priority:
+    /// 1) if provided, matching apps for the current URL
+    /// 2) profile-with-hotkey
+    /// 3) app/browser with hotkey
+    /// 4) the rest
+    static func buildItems(
+        browsers: [InstalledBrowser],
+        apps: [InstalledApp],
+        prioritizedAppIDs: Set<String> = []
+    ) -> [PickerItem] {
         var all: [PickerItem] = apps.map { PickerItem(app: $0) }
-        all += browsers.map { PickerItem(browser: $0) }
+
         for browser in browsers {
-            for profile in browser.profiles where profile.hotkey != nil && profile.isVisible {
+            let visibleProfiles = browser.profiles.filter(\.isVisible)
+
+            // If browser has enabled profiles, show only profiles in picker.
+            if visibleProfiles.isEmpty, browser.isVisible {
+                all.append(PickerItem(browser: browser))
+            }
+
+            for profile in visibleProfiles {
                 all.append(PickerItem(browser: browser, profile: profile))
             }
         }
@@ -64,7 +79,26 @@ struct PickerItem: Identifiable {
         let profileWithHotkey = all.filter { $0.profile != nil && $0.hotkey != nil }
         let otherWithHotkey = all.filter { $0.profile == nil && $0.hotkey != nil }
         let withoutHotkey = all.filter { $0.hotkey == nil }
-        return profileWithHotkey + otherWithHotkey + withoutHotkey
+        let ordered = profileWithHotkey + otherWithHotkey + withoutHotkey
+
+        guard !prioritizedAppIDs.isEmpty else {
+            return ordered
+        }
+
+        let prioritized = ordered.filter { item in
+            guard let appID = item.app?.id else { return false }
+            return prioritizedAppIDs.contains(appID)
+        }
+        let rest = ordered.filter { item in
+            guard let appID = item.app?.id else { return true }
+            return !prioritizedAppIDs.contains(appID)
+        }
+        return prioritized + rest
+    }
+
+    static func matchingApps(for url: URL?, in apps: [InstalledApp]) -> [InstalledApp] {
+        guard let url else { return [] }
+        return apps.filter { $0.matchesHost(of: url) }
     }
 }
 
@@ -76,17 +110,24 @@ struct PickerView: View {
     @State private var profilePopoverBrowserID: String?
 
     private var browsers: [InstalledBrowser] {
-        appState.visibleBrowsers
+        appState.pickerBrowsers
     }
 
-    /// Only apps that match the pending URL's host or scheme
+    /// Only apps that match the pending URL's host.
     private var matchingApps: [InstalledApp] {
-        guard let url = appState.pendingURL else { return [] }
-        return appState.visibleApps.filter { $0.matchesHost(of: url) }
+        PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
+    }
+
+    private var prioritizedAppIDs: Set<String> {
+        Set(matchingApps.map(\.id))
     }
 
     private var pickerItems: [PickerItem] {
-        PickerItem.buildItems(browsers: browsers, apps: matchingApps)
+        PickerItem.buildItems(
+            browsers: browsers,
+            apps: matchingApps,
+            prioritizedAppIDs: prioritizedAppIDs
+        )
     }
 
     var body: some View {
@@ -142,6 +183,9 @@ struct PickerView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
             }
+
+            // Hint bar
+            hintBar
         }
         .onAppear {
             appState.focusedBrowserIndex = 0
@@ -150,12 +194,14 @@ struct PickerView: View {
 
     @ViewBuilder
     private func pickerCell(item: PickerItem, index: Int, compact: Bool = false) -> some View {
+        let hasVisibleProfiles = item.browser?.profiles.contains(where: \.isVisible) == true
+
         PickerCell(item: item, isFocused: appState.focusedBrowserIndex == index || hoveredIndex == index, compact: compact)
             .onTapGesture {
                 handleItemTap(item)
             }
             .popover(isPresented: Binding(
-                get: { item.browser != nil && item.profile == nil && profilePopoverBrowserID == item.browser?.id },
+                get: { item.browser != nil && item.profile == nil && hasVisibleProfiles && profilePopoverBrowserID == item.browser?.id },
                 set: { if !$0 { profilePopoverBrowserID = nil } }
             )) {
                 if let browser = item.browser {
@@ -184,7 +230,7 @@ struct PickerView: View {
                             pickerCoordinator?.openURL(with: browser, mode: .privateMode, profile: item.profile, state: appState)
                         }
                     }
-                    if item.profile == nil && browser.hasProfiles {
+                    if item.profile == nil && hasVisibleProfiles {
                         Divider()
                         Menu("Open with Profile") {
                             ForEach(browser.profiles.filter(\.isVisible)) { profile in
@@ -229,7 +275,7 @@ struct PickerView: View {
             pickerCoordinator?.openURL(with: app, state: appState)
         } else if let profile = item.profile, let browser = item.browser {
             pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
-        } else if let browser = item.browser, browser.hasProfiles {
+        } else if let browser = item.browser, browser.profiles.contains(where: \.isVisible) {
             profilePopoverBrowserID = browser.id
         } else if let browser = item.browser {
             pickerCoordinator?.openURL(with: browser, mode: .normal, state: appState)
@@ -269,9 +315,9 @@ struct AppCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize: CGFloat = 96
-        let compactFallbackIconSize: CGFloat = 72
-        let compactCellSize: CGFloat = 108
+        let compactIconSize: CGFloat = 84
+        let compactFallbackIconSize: CGFloat = 58
+        let compactCellSize: CGFloat = 98
 
         return ZStack(alignment: .topTrailing) {
             if let icon = app.icon {
@@ -286,11 +332,7 @@ struct AppCell: View {
 
             // Hotkey badge
             if let hotkey = app.hotkey {
-                Text(String(hotkey).uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 4))
+                HotkeyKeycapView(hotkey: hotkey, compact: true)
                     .offset(x: 4, y: -4)
             }
         }
@@ -321,11 +363,7 @@ struct AppCell: View {
 
                 // Hotkey badge
                 if let hotkey = app.hotkey {
-                    Text(String(hotkey).uppercased())
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(width: 18, height: 18)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 4))
+                    HotkeyKeycapView(hotkey: hotkey)
                         .offset(x: 4, y: -4)
                 }
             }

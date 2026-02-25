@@ -26,37 +26,45 @@ struct BrowserCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize: CGFloat = 96
-        let compactFallbackIconSize: CGFloat = 72
-        let compactCellSize: CGFloat = 108
+        let compactIconSize: CGFloat = 84
+        let compactFallbackIconSize: CGFloat = 58
+        let compactCellSize: CGFloat = 98
 
-        return ZStack(alignment: .topTrailing) {
-            ZStack(alignment: .bottomLeading) {
-                if let icon = browser.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: compactIconSize, height: compactIconSize)
-                } else {
-                    Image(systemName: "globe")
-                        .font(.system(size: compactFallbackIconSize))
-                        .frame(width: compactIconSize, height: compactIconSize)
+        return ZStack {
+            VStack(spacing: 3) {
+                ZStack(alignment: .topTrailing) {
+                    ZStack(alignment: .bottomLeading) {
+                        if let icon = browser.icon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: compactIconSize, height: compactIconSize)
+                        } else {
+                            Image(systemName: "globe")
+                                .font(.system(size: compactFallbackIconSize))
+                                .frame(width: compactIconSize, height: compactIconSize)
+                        }
+
+                        // Profile avatar badge
+                        if let profile {
+                            profileBadge(for: profile)
+                                .offset(x: -3, y: 3)
+                        }
+                    }
+
+                    // Hotkey keycap badge
+                    if let hotkey = displayHotkey {
+                        HotkeyKeycapView(hotkey: hotkey, compact: true)
+                            .offset(x: 4, y: -4)
+                    }
                 }
 
-                // Profile avatar badge
-                if let profile {
-                    profileBadge(for: profile)
-                        .offset(x: -3, y: 3)
-                }
-            }
-
-            // Hotkey badge
-            if let hotkey = displayHotkey {
-                Text(String(hotkey).uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 4))
-                    .offset(x: 4, y: -4)
+                Text(profile?.displayName ?? browser.displayName)
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.68))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: compactIconSize + 2)
+                    .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
             }
         }
         .frame(width: compactCellSize, height: compactCellSize)
@@ -94,11 +102,7 @@ struct BrowserCell: View {
 
                 // Hotkey badge
                 if let hotkey = displayHotkey {
-                    Text(String(hotkey).uppercased())
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .frame(width: 18, height: 18)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 4))
+                    HotkeyKeycapView(hotkey: hotkey)
                         .offset(x: 4, y: -4)
                 }
             }
@@ -109,7 +113,7 @@ struct BrowserCell: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                if profile == nil && browser.hasProfiles {
+                if profile == nil && browser.profiles.contains(where: \.isVisible) {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 7, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -141,6 +145,28 @@ struct BrowserCell: View {
 
     private func avatarColor(for name: String) -> Color {
         .profileAvatar(for: name)
+    }
+}
+
+struct HotkeyKeycapView: View {
+    let hotkey: Character
+    var compact: Bool = false
+
+    var body: some View {
+        Text(String(hotkey).uppercased())
+            .font(.system(size: compact ? 11 : 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color.white.opacity(0.95))
+            .padding(.horizontal, compact ? 4 : 3)
+            .frame(height: compact ? 20 : 18)
+            .background(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.95))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 0.7)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 1.2, x: 0, y: 1)
     }
 }
 
