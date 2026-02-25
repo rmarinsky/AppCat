@@ -20,6 +20,38 @@ struct RulesSettingsView: View {
 
             bottomBar
         }
+        .sheet(item: $editingRule) { rule in
+            RuleEditorSheet(
+                rule: rule,
+                browsers: appState.browsers,
+                apps: appState.visibleApps,
+                onSave: { updatedRule in
+                    if let idx = appState.urlRules.firstIndex(where: { $0.id == updatedRule.id }) {
+                        appState.urlRules[idx] = updatedRule
+                    }
+                    urlRulesManager?.save(appState.urlRules)
+                    editingRule = nil
+                },
+                onCancel: {
+                    editingRule = nil
+                }
+            )
+        }
+        .sheet(isPresented: $isAddingNew) {
+            RuleEditorSheet(
+                rule: URLRule(sortOrder: appState.urlRules.count),
+                browsers: appState.browsers,
+                apps: appState.visibleApps,
+                onSave: { newRule in
+                    appState.urlRules.append(newRule)
+                    urlRulesManager?.save(appState.urlRules)
+                    isAddingNew = false
+                },
+                onCancel: {
+                    isAddingNew = false
+                }
+            )
+        }
     }
 
     private var emptyState: some View {
@@ -101,38 +133,6 @@ struct RulesSettingsView: View {
             }
         }
         .listStyle(.inset(alternatesRowBackgrounds: true))
-        .sheet(item: $editingRule) { rule in
-            RuleEditorSheet(
-                rule: rule,
-                browsers: appState.browsers,
-                apps: appState.visibleApps,
-                onSave: { updatedRule in
-                    if let idx = appState.urlRules.firstIndex(where: { $0.id == updatedRule.id }) {
-                        appState.urlRules[idx] = updatedRule
-                    }
-                    urlRulesManager?.save(appState.urlRules)
-                    editingRule = nil
-                },
-                onCancel: {
-                    editingRule = nil
-                }
-            )
-        }
-        .sheet(isPresented: $isAddingNew) {
-            RuleEditorSheet(
-                rule: URLRule(sortOrder: appState.urlRules.count),
-                browsers: appState.browsers,
-                apps: appState.visibleApps,
-                onSave: { newRule in
-                    appState.urlRules.append(newRule)
-                    urlRulesManager?.save(appState.urlRules)
-                    isAddingNew = false
-                },
-                onCancel: {
-                    isAddingNew = false
-                }
-            )
-        }
     }
 
     private var bottomBar: some View {
