@@ -59,14 +59,18 @@ struct MenuBarContentView: View {
 
                 Divider()
 
-                SettingsLink {
+                Button {
+                    SettingsWindowManager.showSettingsWindow()
+                } label: {
                     Text("Open History...")
                 }
             }
 
             Divider()
 
-            SettingsLink {
+            Button {
+                SettingsWindowManager.showSettingsWindow()
+            } label: {
                 Text("Settings...")
             }
             .keyboardShortcut(",", modifiers: .command)
