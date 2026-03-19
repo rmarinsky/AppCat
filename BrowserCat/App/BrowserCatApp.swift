@@ -7,7 +7,8 @@ struct BrowserCatApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarContentView(
-                onReopenURL: { urlString in appDelegate.pickerCoordinator.reopenURL(urlString, state: appDelegate.appState) }
+                onReopenURL: { urlString in appDelegate.pickerCoordinator.reopenURL(urlString, state: appDelegate.appState) },
+                onCheckForUpdates: { appDelegate.updaterManager.checkForUpdates() }
             )
             .environment(appDelegate.appState)
         } label: {

@@ -4,6 +4,7 @@ struct MenuBarContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openSettings) private var openSettings
     var onReopenURL: (String) -> Void
+    var onCheckForUpdates: () -> Void
 
     private var recentEntries: [HistoryEntry] {
         let seen = NSMutableOrderedSet()
@@ -68,6 +69,10 @@ struct MenuBarContentView: View {
             }
 
             Divider()
+
+            Button("Check for Updates...") {
+                onCheckForUpdates()
+            }
 
             Button {
                 openSettings()

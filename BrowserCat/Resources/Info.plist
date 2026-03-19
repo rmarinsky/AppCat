@@ -28,6 +28,12 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>SUFeedURL</key>
+    <string>https://rmarinsky.github.io/BrowserCat/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>E+U25RLLvknFBaJXFMZ5YnpN4gRJLsavDNEGc+M2xk0=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

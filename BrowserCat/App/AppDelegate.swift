@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let defaultBrowserManager = DefaultBrowserManager()
     let pickerCoordinator = PickerCoordinator()
     let historyManager = HistoryManager()
+    lazy var updaterManager = UpdaterManager()
 
     // MARK: - Lifecycle
 
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defaultBrowserManager.checkIsDefault(state: appState)
         historyManager.load(into: appState)
         pickerCoordinator.historyManager = historyManager
+        _ = updaterManager
 
         Log.app.info("BrowserCat launched")
     }
