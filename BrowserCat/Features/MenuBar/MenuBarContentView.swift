@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openSettings) private var openSettings
     var onReopenURL: (String) -> Void
 
     private var recentEntries: [HistoryEntry] {
@@ -60,7 +61,7 @@ struct MenuBarContentView: View {
                 Divider()
 
                 Button {
-                    SettingsWindowManager.showSettingsWindow()
+                    openSettings()
                 } label: {
                     Text("Open History...")
                 }
@@ -69,7 +70,7 @@ struct MenuBarContentView: View {
             Divider()
 
             Button {
-                SettingsWindowManager.showSettingsWindow()
+                openSettings()
             } label: {
                 Text("Settings...")
             }

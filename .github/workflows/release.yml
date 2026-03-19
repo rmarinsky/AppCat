@@ -148,7 +148,6 @@ jobs:
             "build/${DISPLAY_NAME}-${VERSION}.dmg" \
             "$EXPORT_DIR/"
 
-          cp "build/${DISPLAY_NAME}-${VERSION}.dmg" "build/${DISPLAY_NAME}-latest.dmg"
           shasum -a 256 "build/${DISPLAY_NAME}-${VERSION}.dmg" | awk '{print $1}' > "build/${DISPLAY_NAME}-${VERSION}.sha256"
 
       - name: Create GitHub release
@@ -159,7 +158,6 @@ jobs:
 
           gh release create "${GITHUB_REF_NAME}" \
             "build/${DISPLAY_NAME}-${VERSION}.dmg" \
-            "build/${DISPLAY_NAME}-latest.dmg" \
             "build/${DISPLAY_NAME}-${VERSION}.sha256" \
             --title "${APP_NAME} ${VERSION}" \
             --generate-notes
