@@ -15,7 +15,7 @@ packages:
     from: 1.0.0
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: 2.6.0
+    from: 2.9.0
 
 configs:
   Debug: debug

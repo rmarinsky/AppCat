@@ -118,37 +118,38 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
-      - name: Export and re-sign app
+      - name: Create export options plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          mkdir -p "$EXPORT_DIR"
-          ditto "$ARCHIVE_PATH/Products/Applications/$APP_BUNDLE_NAME" "$EXPORT_DIR/$APP_BUNDLE_NAME"
+          cat > build/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export signed app
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist build/ExportOptions.plist
 
           echo "Architectures:"
           lipo -archs "$EXPORT_DIR/$APP_BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 
-          # Deep re-sign: find ALL Mach-O binaries and sign inside-out
-          APP_PATH="$EXPORT_DIR/$APP_BUNDLE_NAME"
-          SIGN_IDENTITY="Developer ID Application"
-
-          # Find and sign every Mach-O file in Frameworks (innermost first via -depth)
-          find "$APP_PATH/Contents/Frameworks" -depth -type f | while read -r f; do
-            if file "$f" | grep -q "Mach-O"; then
-              echo "Signing: $f"
-              codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
-            fi
-          done
-
-          # Sign bundle containers (XPC, .app, .framework) inside-out
-          find "$APP_PATH/Contents/Frameworks" -depth -type d \( -name "*.xpc" -o -name "*.app" -o -name "*.framework" \) | while read -r bundle; do
-            echo "Signing bundle: $bundle"
-            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bundle"
-          done
-
-          # Re-sign the main app
-          codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
-
-          # Verify
-          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$EXPORT_DIR/$APP_BUNDLE_NAME"
 
       - name: Notarize and staple
         run: |
@@ -200,7 +201,7 @@ jobs:
           DMG_PATH="build/${DISPLAY_NAME}-${VERSION}.dmg"
 
           # Download Sparkle tools
-          SPARKLE_VERSION="2.6.4"
+          SPARKLE_VERSION="2.9.0"
           curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
           mkdir -p sparkle_tools
           tar -xf sparkle.tar.xz -C sparkle_tools
