@@ -146,6 +146,11 @@ jobs:
             -exportPath "$EXPORT_DIR" \
             -exportOptionsPlist build/ExportOptions.plist
 
+          # Remove export artifacts that would end up in the DMG
+          rm -f "$EXPORT_DIR/DistributionSummary.plist" \
+                "$EXPORT_DIR/ExportOptions.plist" \
+                "$EXPORT_DIR/Packaging.log"
+
           echo "Architectures:"
           lipo -archs "$EXPORT_DIR/$APP_BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 
