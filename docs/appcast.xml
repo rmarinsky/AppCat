@@ -4,5 +4,17 @@
     <title>BrowserCat Updates</title>
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
+    <item>
+        <title>Version 1.6.2</title>
+        <pubDate>Thu, 20 Mar 2026 16:44:34 +0000</pubDate>
+        <sparkle:version>35</sparkle:version>
+        <sparkle:shortVersionString>1.6.2</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure
+          url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.6.2/BrowserCat-1.6.2.dmg"
+          sparkle:edSignature="+tRDmeksZfXSnbjdEsW8+LW9v7LQZAgkVC0CRXSDyvq0bZ8XKGZtxWMGZHb4vNsW7SFAimf6IC76jX8glqrpBQ=="
+          length="2387190"
+          type="application/octet-stream" />
+      </item>
   </channel>
 </rss>
