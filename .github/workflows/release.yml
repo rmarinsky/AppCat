@@ -132,10 +132,23 @@ jobs:
         run: |
           ditto -c -k --keepParent "$EXPORT_DIR/$APP_BUNDLE_NAME" "build/${APP_NAME}-notary.zip"
 
-          xcrun notarytool submit "build/${APP_NAME}-notary.zip" \
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "build/${APP_NAME}-notary.zip" \
             --keychain-profile "$APP_NAME" \
             --keychain "$KEYCHAIN_NAME" \
-            --wait
+            --wait 2>&1) || true
+          echo "$SUBMIT_OUTPUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          STATUS=$(echo "$SUBMIT_OUTPUT" | grep "status:" | head -1 | awk '{print $2}')
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization failed with status: $STATUS"
+            echo "--- Notarization Log ---"
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --keychain-profile "$APP_NAME" \
+              --keychain "$KEYCHAIN_NAME" || true
+            exit 1
+          fi
 
           xcrun stapler staple "$EXPORT_DIR/$APP_BUNDLE_NAME"
           spctl --assess --type exec --verbose "$EXPORT_DIR/$APP_BUNDLE_NAME"
