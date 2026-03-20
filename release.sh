@@ -146,6 +146,9 @@ VERSION=$(defaults read "${APP_PATH}/Contents/Info.plist" CFBundleShortVersionSt
 BUILD_NUM=$(defaults read "${APP_PATH}/Contents/Info.plist" CFBundleVersion)
 DMG_PATH="${BUILD_DIR}/${DISPLAY_NAME}-${VERSION}.dmg"
 
+# Clean export artifacts that shouldn't be in the DMG
+rm -f "${EXPORT_PATH}"/*.plist "${EXPORT_PATH}"/*.log
+
 echo -e "${YELLOW}[7/7] Creating DMG...${NC}"
 
 if ! command -v create-dmg &> /dev/null; then
