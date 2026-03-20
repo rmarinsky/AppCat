@@ -126,40 +126,22 @@ jobs:
           echo "Architectures:"
           lipo -archs "$EXPORT_DIR/$APP_BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 
-          # Deep re-sign all nested binaries (Sparkle framework, XPC services, etc.)
+          # Deep re-sign: find ALL Mach-O binaries and sign inside-out
           APP_PATH="$EXPORT_DIR/$APP_BUNDLE_NAME"
           SIGN_IDENTITY="Developer ID Application"
 
-          # Sign nested XPC services
-          find "$APP_PATH/Contents/Frameworks" -name "*.xpc" -type d | while read -r xpc; do
-            echo "Signing XPC: $xpc"
-            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$xpc"
-          done
-
-          # Sign nested apps (e.g., Sparkle Updater.app)
-          find "$APP_PATH/Contents/Frameworks" -name "*.app" -type d | while read -r app; do
-            echo "Signing nested app: $app"
-            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$app"
-          done
-
-          # Sign standalone binaries in frameworks (e.g., Autoupdate)
-          find "$APP_PATH/Contents/Frameworks" -type f -perm +111 ! -name "*.dylib" ! -path "*.app/*" ! -path "*.xpc/*" | while read -r bin; do
-            if file "$bin" | grep -q "Mach-O"; then
-              echo "Signing binary: $bin"
-              codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bin"
+          # Find and sign every Mach-O file in Frameworks (innermost first via -depth)
+          find "$APP_PATH/Contents/Frameworks" -depth -type f | while read -r f; do
+            if file "$f" | grep -q "Mach-O"; then
+              echo "Signing: $f"
+              codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
             fi
           done
 
-          # Sign dylibs
-          find "$APP_PATH/Contents/Frameworks" -name "*.dylib" -type f | while read -r dylib; do
-            echo "Signing dylib: $dylib"
-            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$dylib"
-          done
-
-          # Sign frameworks
-          find "$APP_PATH/Contents/Frameworks" -name "*.framework" -type d | while read -r fw; do
-            echo "Signing framework: $fw"
-            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$fw"
+          # Sign bundle containers (XPC, .app, .framework) inside-out
+          find "$APP_PATH/Contents/Frameworks" -depth -type d \( -name "*.xpc" -o -name "*.app" -o -name "*.framework" \) | while read -r bundle; do
+            echo "Signing bundle: $bundle"
+            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bundle"
           done
 
           # Re-sign the main app
