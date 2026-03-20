@@ -241,7 +241,20 @@ jobs:
           echo "Updated appcast.xml with version ${VERSION}"
           cat docs/appcast.xml
 
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+
+          gh release create "${GITHUB_REF_NAME}" \
+            "build/${DISPLAY_NAME}-${VERSION}.dmg" \
+            "build/${DISPLAY_NAME}-${VERSION}.sha256" \
+            --title "${APP_NAME} ${VERSION}" \
+            --generate-notes
+
       - name: Commit and push appcast.xml
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -255,18 +268,6 @@ jobs:
           else
             echo "No changes to appcast.xml, skipping commit"
           fi
-
-      - name: Create GitHub release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-
-          gh release create "${GITHUB_REF_NAME}" \
-            "build/${DISPLAY_NAME}-${VERSION}.dmg" \
-            "build/${DISPLAY_NAME}-${VERSION}.sha256" \
-            --title "${APP_NAME} ${VERSION}" \
-            --generate-notes
 
       - name: Cleanup signing artifacts
         if: always()
