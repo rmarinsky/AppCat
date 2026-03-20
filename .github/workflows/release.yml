@@ -118,7 +118,7 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
-      - name: Export and verify app
+      - name: Export and re-sign app
         run: |
           mkdir -p "$EXPORT_DIR"
           ditto "$ARCHIVE_PATH/Products/Applications/$APP_BUNDLE_NAME" "$EXPORT_DIR/$APP_BUNDLE_NAME"
@@ -126,7 +126,47 @@ jobs:
           echo "Architectures:"
           lipo -archs "$EXPORT_DIR/$APP_BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 
-          codesign --verify --deep --strict --verbose=2 "$EXPORT_DIR/$APP_BUNDLE_NAME"
+          # Deep re-sign all nested binaries (Sparkle framework, XPC services, etc.)
+          APP_PATH="$EXPORT_DIR/$APP_BUNDLE_NAME"
+          SIGN_IDENTITY="Developer ID Application"
+
+          # Sign nested XPC services
+          find "$APP_PATH/Contents/Frameworks" -name "*.xpc" -type d | while read -r xpc; do
+            echo "Signing XPC: $xpc"
+            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$xpc"
+          done
+
+          # Sign nested apps (e.g., Sparkle Updater.app)
+          find "$APP_PATH/Contents/Frameworks" -name "*.app" -type d | while read -r app; do
+            echo "Signing nested app: $app"
+            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$app"
+          done
+
+          # Sign standalone binaries in frameworks (e.g., Autoupdate)
+          find "$APP_PATH/Contents/Frameworks" -type f -perm +111 ! -name "*.dylib" ! -path "*.app/*" ! -path "*.xpc/*" | while read -r bin; do
+            if file "$bin" | grep -q "Mach-O"; then
+              echo "Signing binary: $bin"
+              codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bin"
+            fi
+          done
+
+          # Sign dylibs
+          find "$APP_PATH/Contents/Frameworks" -name "*.dylib" -type f | while read -r dylib; do
+            echo "Signing dylib: $dylib"
+            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$dylib"
+          done
+
+          # Sign frameworks
+          find "$APP_PATH/Contents/Frameworks" -name "*.framework" -type d | while read -r fw; do
+            echo "Signing framework: $fw"
+            codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$fw"
+          done
+
+          # Re-sign the main app
+          codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
+
+          # Verify
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
       - name: Notarize and staple
         run: |
