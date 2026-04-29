@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let defaultBrowserManager = DefaultBrowserManager()
     let pickerCoordinator = PickerCoordinator()
     let historyManager = HistoryManager()
+    let suggestionsManager = SuggestionsManager()
     lazy var updaterManager = UpdaterManager()
 
     // MARK: - Lifecycle
@@ -29,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defaultBrowserManager.checkIsDefault(state: appState)
         historyManager.load(into: appState)
         pickerCoordinator.historyManager = historyManager
+        pickerCoordinator.suggestionsManager = suggestionsManager
+        suggestionsManager.loadCached(into: appState)
+        suggestionsManager.analyseIfNeeded(state: appState)
         _ = updaterManager
 
         Log.app.info("BrowserCat launched")
@@ -38,14 +42,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReply _: NSAppleEventDescriptor) {
         guard let urlString = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-              let url = URL(string: urlString)
+              let rawURL = URL(string: urlString)
         else {
             Log.app.error("Received invalid URL event")
             return
         }
 
-        Log.app.info("Received URL: \(urlString)")
+        let url = URLUnwrapper.unwrap(rawURL)
+        if url != rawURL {
+            Log.app.info("Unwrapped URL: \(rawURL.absoluteString) → \(url.absoluteString)")
+        } else {
+            Log.app.info("Received URL: \(urlString)")
+        }
         appState.pendingURL = url
+        appState.pendingOriginalURL = (url != rawURL) ? rawURL : nil
         appState.pendingURLTitle = nil
         fetchTitle(for: url)
 

@@ -26,6 +26,10 @@ private struct HistoryManagerKey: EnvironmentKey {
     static let defaultValue: HistoryManager? = nil
 }
 
+private struct SuggestionsManagerKey: EnvironmentKey {
+    static let defaultValue: SuggestionsManager? = nil
+}
+
 // MARK: - Environment Values
 
 extension EnvironmentValues {
@@ -57,5 +61,10 @@ extension EnvironmentValues {
     var historyManager: HistoryManager? {
         get { self[HistoryManagerKey.self] }
         set { self[HistoryManagerKey.self] = newValue }
+    }
+
+    var suggestionsManager: SuggestionsManager? {
+        get { self[SuggestionsManagerKey.self] }
+        set { self[SuggestionsManagerKey.self] = newValue }
     }
 }

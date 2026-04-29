@@ -3,8 +3,11 @@ import SwiftUI
 struct HistorySettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.historyManager) private var historyManager
+    @Environment(\.urlRulesManager) private var urlRulesManager
 
     @State private var selection = Set<UUID>()
+    @State private var ruleFromHistory: URLRule?
+    private let ruleMatcher = URLRuleMatcher()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,6 +20,23 @@ struct HistorySettingsView: View {
             Divider()
 
             bottomBar
+        }
+        .sheet(item: $ruleFromHistory) { rule in
+            RuleEditorSheet(
+                rule: rule,
+                browsers: appState.browsers,
+                apps: appState.visibleApps,
+                onSave: { newRule in
+                    var newRule = newRule
+                    newRule.sortOrder = appState.urlRules.count
+                    appState.urlRules.append(newRule)
+                    urlRulesManager?.save(appState.urlRules)
+                    ruleFromHistory = nil
+                },
+                onCancel: {
+                    ruleFromHistory = nil
+                }
+            )
         }
     }
 
@@ -46,6 +66,11 @@ struct HistorySettingsView: View {
                     ForEach(group.entries) { entry in
                         historyRow(entry)
                             .tag(entry.id)
+                            .contextMenu {
+                                Button(String(localized: "Create Rule…")) {
+                                    ruleFromHistory = makeRule(from: entry)
+                                }
+                            }
                     }
                 }
             }
@@ -54,7 +79,10 @@ struct HistorySettingsView: View {
     }
 
     private func historyRow(_ entry: HistoryEntry) -> some View {
-        HStack(spacing: 10) {
+        let hasRule = ruleAlreadyCovers(entry)
+        let canCreate = entry.browserID != nil || legacyTargetResolves(for: entry)
+
+        return HStack(spacing: 10) {
             FaviconView(urlString: entry.url, fallbackDomain: entry.domain, size: 20)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -83,8 +111,47 @@ struct HistorySettingsView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
+
+            createRuleButton(for: entry, hasRule: hasRule, canCreate: canCreate)
         }
         .padding(.vertical, 2)
+    }
+
+    private func createRuleButton(for entry: HistoryEntry, hasRule: Bool, canCreate: Bool) -> some View {
+        Button {
+            ruleFromHistory = makeRule(from: entry)
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(hasRule || !canCreate ? .secondary : .primary)
+                if !hasRule, canCreate {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.green)
+                        .background(Circle().fill(Color(NSColor.controlBackgroundColor)).padding(-1))
+                        .offset(x: 4, y: 3)
+                }
+            }
+            .frame(width: 22, height: 18)
+        }
+        .buttonStyle(.borderless)
+        .disabled(hasRule || !canCreate)
+        .help(hasRule
+            ? String(localized: "A rule already covers this URL")
+            : (canCreate
+                ? String(localized: "Create Rule…")
+                : String(localized: "Cannot create rule — original target unavailable")))
+    }
+
+    private func ruleAlreadyCovers(_ entry: HistoryEntry) -> Bool {
+        guard let url = URL(string: entry.url) else { return false }
+        return ruleMatcher.findMatchingRule(for: url, rules: appState.urlRules) != nil
+    }
+
+    private func legacyTargetResolves(for entry: HistoryEntry) -> Bool {
+        appState.browsers.contains(where: { $0.displayName == entry.appName })
+            || appState.apps.contains(where: { $0.displayName == entry.appName })
     }
 
     // MARK: - Bottom Bar
@@ -106,6 +173,61 @@ struct HistorySettingsView: View {
             .disabled(selection.isEmpty)
         }
         .padding(8)
+    }
+
+    // MARK: - Rule from history
+
+    private func makeRule(from entry: HistoryEntry) -> URLRule {
+        // Direct ID match (entries written by current app version)
+        if let browserID = entry.browserID {
+            return URLRule(
+                pattern: entry.domain,
+                matchType: .host,
+                browserID: browserID,
+                profileDirectoryName: entry.profileDirectoryName,
+                targetType: entry.targetType ?? .browser,
+                isEnabled: true,
+                sortOrder: appState.urlRules.count
+            )
+        }
+
+        // Legacy fallback: resolve by display name against currently installed browsers/apps
+        if let browser = appState.browsers.first(where: { $0.displayName == entry.appName }) {
+            let profileDir = entry.profileName.flatMap { name in
+                browser.profiles.first(where: { $0.displayName == name })?.directoryName
+            }
+            return URLRule(
+                pattern: entry.domain,
+                matchType: .host,
+                browserID: browser.id,
+                profileDirectoryName: profileDir,
+                targetType: .browser,
+                isEnabled: true,
+                sortOrder: appState.urlRules.count
+            )
+        }
+        if let app = appState.apps.first(where: { $0.displayName == entry.appName }) {
+            return URLRule(
+                pattern: entry.domain,
+                matchType: .host,
+                browserID: app.id,
+                profileDirectoryName: nil,
+                targetType: .app,
+                isEnabled: true,
+                sortOrder: appState.urlRules.count
+            )
+        }
+
+        // Last resort: prefill the pattern, let the user pick the browser/app in the editor
+        return URLRule(
+            pattern: entry.domain,
+            matchType: .host,
+            browserID: "",
+            profileDirectoryName: nil,
+            targetType: .browser,
+            isEnabled: true,
+            sortOrder: appState.urlRules.count
+        )
     }
 
     // MARK: - Grouping

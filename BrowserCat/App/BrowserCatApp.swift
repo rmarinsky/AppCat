@@ -25,6 +25,7 @@ struct BrowserCatApp: App {
                 .environment(\.defaultBrowserManager, appDelegate.defaultBrowserManager)
                 .environment(\.pickerCoordinator, appDelegate.pickerCoordinator)
                 .environment(\.historyManager, appDelegate.historyManager)
+                .environment(\.suggestionsManager, appDelegate.suggestionsManager)
         }
     }
 }

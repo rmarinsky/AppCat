@@ -84,6 +84,34 @@
 "Press a key..." = "Натисніть клавішу...";
 "Clear" = "Очистити";
 
-"Host" = "Хост";
-"Host Contains" = "Хост містить";
-"Regex" = "Регулярний вираз";
+"Exact site" = "Точний сайт";
+"Part of site address" = "Частина адреси сайту";
+"Part of link" = "Частина посилання";
+"Advanced pattern" = "Складний шаблон";
+"Matches the exact site address (e.g. github.com or any subdomain)." = "Збігається з точною адресою сайту (наприклад, github.com та його піддомени).";
+"Matches when the site address contains the text." = "Збігається, коли адреса сайту містить вказаний текст.";
+"Matches when any part of the link — including the path after / — contains the text." = "Збігається, коли будь-яка частина посилання — включно зі шляхом після / — містить вказаний текст.";
+"Regular expression for advanced users." = "Регулярний вираз для досвідчених користувачів.";
+
+"Examples" = "Приклади";
+"OR — any of the options" = "АБО — будь-який з варіантів";
+"Use | between options. This matches links that contain gitlab.com OR github.com." = "Використовуй | між варіантами. Спрацює, коли посилання містить gitlab.com АБО github.com.";
+"AND — all options at once" = "ТА — усі варіанти одночасно";
+"Matches when the link contains BOTH \"work\" AND \"gitlab\", in any order." = "Спрацює, коли посилання містить ОДНОЧАСНО і «work», і «gitlab» — у будь-якому порядку.";
+"Starts with" = "Починається з";
+"The link must start with this. ^ means \"beginning\"." = "Посилання має починатися саме з цього. Символ ^ означає «початок».";
+"Ends with" = "Закінчується на";
+"The link must end with this. $ means \"end\"." = "Посилання має закінчуватися саме на цьому. Символ $ означає «кінець».";
+"Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash." = "Підказка: крапка і слеш мають спеціальне значення. Пиши \\. та \\/ щоб знайти саме крапку або саме слеш.";
+"Use" = "Підставити";
+"Insert this pattern into the field above" = "Підставити цей шаблон у поле вище";
+
+"Suggestions" = "Пропозиції";
+"Create Rule" = "Створити правило";
+"Create Rule…" = "Створити правило…";
+"Dismiss" = "Відхилити";
+"Frequently opened in %@" = "Часто відкривається в %@";
+"Frequently opened in %@ (%@)" = "Часто відкривається в %@ (%@)";
+"\"Any Profile\" uses the browser's last-used profile." = "«Будь-який профіль» використовує останній відкритий профіль браузера.";
+"A rule already covers this URL" = "Для цього посилання вже є правило";
+"Cannot create rule — original target unavailable" = "Не можна створити правило — цільовий застосунок недоступний";

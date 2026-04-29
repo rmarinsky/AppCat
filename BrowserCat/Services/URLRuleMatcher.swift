@@ -24,9 +24,16 @@ final class URLRuleMatcher {
             return matchesHost(url: url, pattern: rule.pattern)
         case .hostContains:
             return matchesHostContains(url: url, pattern: rule.pattern)
+        case .urlContains:
+            return matchesURLContains(url: url, pattern: rule.pattern)
         case .regex:
             return matchesRegex(url: url, pattern: rule.pattern)
         }
+    }
+
+    private func matchesURLContains(url: URL, pattern: String) -> Bool {
+        guard !pattern.isEmpty else { return false }
+        return url.absoluteString.lowercased().contains(pattern.lowercased())
     }
 
     private func matchesHost(url: URL, pattern: String) -> Bool {

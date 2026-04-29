@@ -27,6 +27,14 @@ struct RuleEditorSheet: View {
                         Text(type.displayName).tag(type)
                     }
                 }
+                Text(rule.matchType.helpText)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if rule.matchType == .regex {
+                    regexExamples
+                }
 
                 // Target type
                 Picker("Open In", selection: $rule.targetType) {
@@ -51,13 +59,16 @@ struct RuleEditorSheet: View {
                     }
 
                     // Profile
-                    if let browser = selectedBrowser, browser.hasProfiles {
+                    if let browser = selectedBrowser, !browser.profiles.isEmpty {
                         Picker("Profile", selection: profileBinding) {
                             Text("Any Profile").tag(String?.none)
                             ForEach(browser.profiles) { profile in
                                 Text(profileLabel(profile)).tag(Optional(profile.directoryName))
                             }
                         }
+                        Text("\"Any Profile\" uses the browser's last-used profile.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
 
                 case .app:
@@ -88,7 +99,74 @@ struct RuleEditorSheet: View {
             }
         }
         .padding()
-        .frame(width: 400, height: 380)
+        .frame(width: 460, height: rule.matchType == .regex && showRegexExamples ? 700 : 500)
+    }
+
+    @State private var showRegexExamples: Bool = false
+
+    private var regexExamples: some View {
+        DisclosureGroup(isExpanded: $showRegexExamples) {
+            VStack(alignment: .leading, spacing: 10) {
+                regexExampleRow(
+                    title: String(localized: "OR — any of the options"),
+                    pattern: #"gitlab\.com|github\.com"#,
+                    description: String(localized: "Use | between options. This matches links that contain gitlab.com OR github.com.")
+                )
+                regexExampleRow(
+                    title: String(localized: "AND — all options at once"),
+                    pattern: #"(?=.*work)(?=.*gitlab)"#,
+                    description: String(localized: "Matches when the link contains BOTH \"work\" AND \"gitlab\", in any order.")
+                )
+                regexExampleRow(
+                    title: String(localized: "Starts with"),
+                    pattern: #"^https://github\.com"#,
+                    description: String(localized: "The link must start with this. ^ means \"beginning\".")
+                )
+                regexExampleRow(
+                    title: String(localized: "Ends with"),
+                    pattern: #"/work$"#,
+                    description: String(localized: "The link must end with this. $ means \"end\".")
+                )
+                Text("Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 6)
+        } label: {
+            Text("Examples")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func regexExampleRow(title: String, pattern: String, description: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+            HStack {
+                Text(pattern)
+                    .font(.system(size: 11, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.gray.opacity(0.18))
+                    .cornerRadius(4)
+                    .textSelection(.enabled)
+                Spacer()
+                Button {
+                    rule.pattern = pattern
+                } label: {
+                    Text("Use")
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(.borderless)
+                .help(String(localized: "Insert this pattern into the field above"))
+            }
+            Text(description)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var profileBinding: Binding<String?> {

@@ -5,7 +5,12 @@ import os
 @Observable
 @MainActor
 final class AppState {
+    /// Unwrapped URL — used for rule matching, history, picker display, and suggestion analysis.
     var pendingURL: URL?
+    /// Original URL as received from the system — sent to the browser when launching, so wrappers
+    /// (Slack click tracking, Teams Safe Links security scan, OIDC handshake) still see the click.
+    /// `nil` when the URL didn't need unwrapping.
+    var pendingOriginalURL: URL?
     var pendingURLTitle: String?
     var browsers: [InstalledBrowser] = []
     var apps: [InstalledApp] = []
@@ -16,6 +21,7 @@ final class AppState {
 
     var urlRules: [URLRule] = []
     var history: [HistoryEntry] = []
+    var suggestions: [RuleSuggestion] = []
     var recentLinksCount: Int = 3
     var compactPickerView: Bool = false
     var appLanguage: AppLanguage = .default
