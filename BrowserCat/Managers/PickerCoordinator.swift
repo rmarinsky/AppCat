@@ -25,7 +25,11 @@ final class PickerCoordinator {
 
     func openURL(with browser: InstalledBrowser, mode: BrowserLauncher.OpenMode = .normal, profile: BrowserProfile? = nil, state: AppState) {
         guard let url = state.pendingURL else { return }
-        browserLauncher.open(url: url, with: browser, mode: mode, profile: profile)
+        // Launch the original (wrapped) URL so Slack click tracking, Teams Safe Links security
+        // scanning, OIDC handshakes, etc. still see the click. The unwrapped URL is only used
+        // internally for rule matching, history, and suggestions.
+        let urlForLaunch = state.pendingOriginalURL ?? url
+        browserLauncher.open(url: urlForLaunch, with: browser, mode: mode, profile: profile)
         historyManager?.record(
             url: url,
             title: state.pendingURLTitle,
@@ -41,7 +45,8 @@ final class PickerCoordinator {
 
     func openURL(with app: InstalledApp, state: AppState) {
         guard let url = state.pendingURL else { return }
-        browserLauncher.open(url: url, with: app)
+        let urlForLaunch = state.pendingOriginalURL ?? url
+        browserLauncher.open(url: urlForLaunch, with: app)
         historyManager?.record(
             url: url,
             title: state.pendingURLTitle,
@@ -58,6 +63,7 @@ final class PickerCoordinator {
     func reopenURL(_ urlString: String, state: AppState) {
         guard let url = URL(string: urlString) else { return }
         state.pendingURL = url
+        state.pendingOriginalURL = nil
         showPicker(state: state)
     }
 
@@ -65,6 +71,7 @@ final class PickerCoordinator {
         state.lastOpenedURL = url.absoluteString
         SettingsStorage.shared.lastURL = url.absoluteString
         state.pendingURL = nil
+        state.pendingOriginalURL = nil
         state.pendingURLTitle = nil
         dismissPicker(state: state)
         suggestionsManager?.recompute(state: state)

@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.app.info("Received URL: \(urlString)")
         }
         appState.pendingURL = url
+        appState.pendingOriginalURL = (url != rawURL) ? rawURL : nil
         appState.pendingURLTitle = nil
         fetchTitle(for: url)
 
