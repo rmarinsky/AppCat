@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   APP_NAME: BrowserCat
@@ -260,6 +261,12 @@ jobs:
 
       - name: Commit and push appcast.xml
         continue-on-error: true
+        env:
+          # RELEASE_PAT is a fine-grained PAT with Contents: write on this repo —
+          # required because branch protection on `main` rejects direct pushes from
+          # the default GITHUB_TOKEN. Falls back to GITHUB_TOKEN, which still works
+          # if github-actions[bot] is in the branch-protection bypass list.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -267,12 +274,34 @@ jobs:
           git checkout main
           cp /tmp/appcast.xml docs/appcast.xml
           git add docs/appcast.xml
-          if ! git diff --quiet --cached -- docs/appcast.xml; then
-            git commit -m "Update appcast.xml for ${GITHUB_REF_NAME}"
-            git push origin main
-          else
-            echo "No changes to appcast.xml, skipping commit"
+          if git diff --quiet --cached -- docs/appcast.xml; then
+            echo "No changes to appcast.xml, skipping"
+            exit 0
           fi
+          git commit -m "Update appcast.xml for ${GITHUB_REF_NAME}"
+
+          # Use the (potentially elevated) token for git push.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git push origin main; then
+            echo "Pushed appcast directly to main"
+            exit 0
+          fi
+
+          # Branch protection rejected the direct push — fall back to PR + admin merge.
+          # Requires RELEASE_PAT (admin scope) for the --admin merge flag to work.
+          echo "Direct push to main rejected (branch protection). Opening PR + auto-merge..."
+          BRANCH="appcast/${GITHUB_REF_NAME}"
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Update appcast.xml for ${GITHUB_REF_NAME}" \
+            --body "Automated appcast update for ${GITHUB_REF_NAME} release."
+
+          gh pr merge "$BRANCH" --admin --merge --delete-branch
 
       - name: Cleanup signing artifacts
         if: always()
