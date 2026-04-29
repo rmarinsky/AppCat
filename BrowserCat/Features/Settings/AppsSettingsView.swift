@@ -1,4 +1,3 @@
-import Pow
 import SwiftUI
 
 struct AppsSettingsView: View {
@@ -59,8 +58,8 @@ struct AppsSettingsView: View {
                         }
                         .transition(
                             .asymmetric(
-                                insertion: .movingParts.move(edge: .leading),
-                                removal: .movingParts.move(edge: .trailing)
+                                insertion: .move(edge: .leading).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
                             )
                         )
                         .contextMenu {
@@ -110,7 +109,7 @@ struct AppsSettingsView: View {
                                     .controlSize(.small)
                                 }
                                 .padding(.vertical, 4)
-                                .transition(.movingParts.blur)
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
                         .padding(.horizontal, 16)

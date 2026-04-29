@@ -84,6 +84,32 @@
 "Press a key..." = "Press a key...";
 "Clear" = "Clear";
 
-"Host" = "Host";
-"Host Contains" = "Host Contains";
-"Regex" = "Regex";
+"Exact site" = "Exact site";
+"Part of site address" = "Part of site address";
+"Part of link" = "Part of link";
+"Advanced pattern" = "Advanced pattern";
+"Matches the exact site address (e.g. github.com or any subdomain)." = "Matches the exact site address (e.g. github.com or any subdomain).";
+"Matches when the site address contains the text." = "Matches when the site address contains the text.";
+"Matches when any part of the link — including the path after / — contains the text." = "Matches when any part of the link — including the path after / — contains the text.";
+"Regular expression for advanced users." = "Regular expression for advanced users.";
+
+"Examples" = "Examples";
+"OR — any of the options" = "OR — any of the options";
+"Use | between options. This matches links that contain gitlab.com OR github.com." = "Use | between options. This matches links that contain gitlab.com OR github.com.";
+"AND — all options at once" = "AND — all options at once";
+"Matches when the link contains BOTH \"work\" AND \"gitlab\", in any order." = "Matches when the link contains BOTH \"work\" AND \"gitlab\", in any order.";
+"Starts with" = "Starts with";
+"The link must start with this. ^ means \"beginning\"." = "The link must start with this. ^ means \"beginning\".";
+"Ends with" = "Ends with";
+"The link must end with this. $ means \"end\"." = "The link must end with this. $ means \"end\".";
+"Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash." = "Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash.";
+"Use" = "Use";
+"Insert this pattern into the field above" = "Insert this pattern into the field above";
+
+"Suggestions" = "Suggestions";
+"Create Rule" = "Create Rule";
+"Create Rule…" = "Create Rule…";
+"Dismiss" = "Dismiss";
+"Frequently opened in %@" = "Frequently opened in %@";
+"Frequently opened in %@ (%@)" = "Frequently opened in %@ (%@)";
+"\"Any Profile\" uses the browser's last-used profile." = "\"Any Profile\" uses the browser's last-used profile.";

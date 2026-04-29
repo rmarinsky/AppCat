@@ -3,6 +3,7 @@ import SwiftUI
 struct RulesSettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.urlRulesManager) private var urlRulesManager
+    @Environment(\.suggestionsManager) private var suggestionsManager
 
     @State private var selectedRuleID: UUID?
     @State private var editingRule: URLRule?
@@ -10,6 +11,11 @@ struct RulesSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !appState.suggestions.isEmpty {
+                suggestionsSection
+                Divider()
+            }
+
             if appState.urlRules.isEmpty {
                 emptyState
             } else {
@@ -28,6 +34,8 @@ struct RulesSettingsView: View {
                 onSave: { updatedRule in
                     if let idx = appState.urlRules.firstIndex(where: { $0.id == updatedRule.id }) {
                         appState.urlRules[idx] = updatedRule
+                    } else {
+                        appState.urlRules.append(updatedRule)
                     }
                     urlRulesManager?.save(appState.urlRules)
                     editingRule = nil
@@ -52,6 +60,77 @@ struct RulesSettingsView: View {
                 }
             )
         }
+    }
+
+    private var suggestionsSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tint)
+                Text("Suggestions")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+
+            ForEach(appState.suggestions) { suggestion in
+                suggestionRow(suggestion)
+            }
+        }
+        .padding(.bottom, 6)
+    }
+
+    private func suggestionRow(_ suggestion: RuleSuggestion) -> some View {
+        let scopeLabel = suggestion.scope.displayHost + (suggestion.scope.pathSuffix.map { "/\($0)" } ?? "")
+        let browserName = appState.browsers.first(where: { $0.id == suggestion.browserID })?.displayName ?? suggestion.browserID
+        let profileDisplay: String? = {
+            guard let dirName = suggestion.profileDirectoryName,
+                  let browser = appState.browsers.first(where: { $0.id == suggestion.browserID }),
+                  let profile = browser.profiles.first(where: { $0.directoryName == dirName })
+            else { return nil }
+            return profile.displayName
+        }()
+
+        return HStack(spacing: 10) {
+            FaviconView(urlString: "https://\(suggestion.scope.displayHost)/", fallbackDomain: suggestion.scope.displayHost, size: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(scopeLabel)
+                    .font(.system(size: 12, weight: .medium))
+                if let profileDisplay {
+                    Text("Frequently opened in \(browserName) (\(profileDisplay))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("Frequently opened in \(browserName)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Create Rule") {
+                let newRule = suggestionsManager?.accept(suggestion, sortOrder: appState.urlRules.count)
+                editingRule = newRule
+                suggestionsManager?.dismiss(suggestion, state: appState)
+            }
+            .controlSize(.small)
+
+            Button {
+                suggestionsManager?.dismiss(suggestion, state: appState)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Dismiss"))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
     }
 
     private var emptyState: some View {

@@ -13,13 +13,24 @@ struct URLRule: Identifiable, Codable, Equatable {
     enum MatchType: String, Codable, CaseIterable {
         case host
         case hostContains
+        case urlContains
         case regex
 
         var displayName: String {
             switch self {
-            case .host: String(localized: "Host")
-            case .hostContains: String(localized: "Host Contains")
-            case .regex: String(localized: "Regex")
+            case .host: String(localized: "Exact site")
+            case .hostContains: String(localized: "Part of site address")
+            case .urlContains: String(localized: "Part of link")
+            case .regex: String(localized: "Advanced pattern")
+            }
+        }
+
+        var helpText: String {
+            switch self {
+            case .host: String(localized: "Matches the exact site address (e.g. github.com or any subdomain).")
+            case .hostContains: String(localized: "Matches when the site address contains the text.")
+            case .urlContains: String(localized: "Matches when any part of the link — including the path after / — contains the text.")
+            case .regex: String(localized: "Regular expression for advanced users.")
             }
         }
     }

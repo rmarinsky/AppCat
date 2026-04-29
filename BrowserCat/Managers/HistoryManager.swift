@@ -14,14 +14,26 @@ final class HistoryManager {
         state.history = entries
     }
 
-    func record(url: URL, title: String?, appName: String, profileName: String?, state: AppState) {
+    func record(
+        url: URL,
+        title: String?,
+        appName: String,
+        profileName: String?,
+        browserID: String?,
+        profileDirectoryName: String?,
+        targetType: URLRule.TargetType?,
+        state: AppState
+    ) {
         let domain = url.host ?? url.absoluteString
         let entry = HistoryEntry(
             url: url.absoluteString,
             domain: domain,
             title: title,
             appName: appName,
-            profileName: profileName
+            profileName: profileName,
+            browserID: browserID,
+            profileDirectoryName: profileDirectoryName,
+            targetType: targetType
         )
         state.history.insert(entry, at: 0)
         if state.history.count > maxHistoryEntries {

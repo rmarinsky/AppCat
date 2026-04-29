@@ -16,6 +16,7 @@ final class AppState {
 
     var urlRules: [URLRule] = []
     var history: [HistoryEntry] = []
+    var suggestions: [RuleSuggestion] = []
     var recentLinksCount: Int = 3
     var compactPickerView: Bool = false
     var appLanguage: AppLanguage = .default

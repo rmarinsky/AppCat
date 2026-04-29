@@ -6,6 +6,7 @@ final class PickerCoordinator {
     private let browserLauncher = BrowserLauncher()
     private var pickerController: PickerWindowController?
     var historyManager: HistoryManager?
+    var suggestionsManager: SuggestionsManager?
 
     func showPicker(state: AppState) {
         guard state.pendingURL != nil else { return }
@@ -25,14 +26,32 @@ final class PickerCoordinator {
     func openURL(with browser: InstalledBrowser, mode: BrowserLauncher.OpenMode = .normal, profile: BrowserProfile? = nil, state: AppState) {
         guard let url = state.pendingURL else { return }
         browserLauncher.open(url: url, with: browser, mode: mode, profile: profile)
-        historyManager?.record(url: url, title: state.pendingURLTitle, appName: browser.displayName, profileName: profile?.displayName, state: state)
+        historyManager?.record(
+            url: url,
+            title: state.pendingURLTitle,
+            appName: browser.displayName,
+            profileName: profile?.displayName,
+            browserID: browser.id,
+            profileDirectoryName: profile?.directoryName,
+            targetType: .browser,
+            state: state
+        )
         completeURLOpen(url, state: state)
     }
 
     func openURL(with app: InstalledApp, state: AppState) {
         guard let url = state.pendingURL else { return }
         browserLauncher.open(url: url, with: app)
-        historyManager?.record(url: url, title: state.pendingURLTitle, appName: app.displayName, profileName: nil, state: state)
+        historyManager?.record(
+            url: url,
+            title: state.pendingURLTitle,
+            appName: app.displayName,
+            profileName: nil,
+            browserID: app.id,
+            profileDirectoryName: nil,
+            targetType: .app,
+            state: state
+        )
         completeURLOpen(url, state: state)
     }
 
@@ -48,5 +67,6 @@ final class PickerCoordinator {
         state.pendingURL = nil
         state.pendingURLTitle = nil
         dismissPicker(state: state)
+        suggestionsManager?.recompute(state: state)
     }
 }
