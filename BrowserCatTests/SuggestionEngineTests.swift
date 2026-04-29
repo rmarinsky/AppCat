@@ -81,9 +81,9 @@ final class SuggestionEngineTests: XCTestCase {
 
     // MARK: - Distinct days gate
 
-    func testManyOpensSameDayBlocked() {
-        // 10 opens, all on the same day — should fail distinct-days gate (default 2)
-        let history = (0 ..< 10).map { _ in
+    func testFewOpensSameDayBlocked() {
+        // 4 opens on the same day — fails both gates (< 2 distinct days AND < 5 same-day opens)
+        let history = (0 ..< 4).map { _ in
             makeEntry(url: "https://example.com/", browserID: chromeID, profileDir: "Default", daysAgo: 0.001)
         }
         let result = SuggestionEngine.suggest(
@@ -94,6 +94,22 @@ final class SuggestionEngineTests: XCTestCase {
             now: now
         )
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func testHeavySameDayUsageProducesSuggestion() {
+        // 6 opens, all on the same day — passes the same-day-occurrences gate (>=5)
+        // even though distinct-days is only 1. Heavy single-day usage shouldn't be suppressed.
+        let history = (0 ..< 6).map { _ in
+            makeEntry(url: "https://example.com/", browserID: chromeID, profileDir: "Default", daysAgo: 0.001)
+        }
+        let result = SuggestionEngine.suggest(
+            history: history,
+            rules: [],
+            matcher: URLRuleMatcher(),
+            dismissedKeys: [],
+            now: now
+        )
+        XCTAssertFalse(result.isEmpty, "Heavy same-day usage (>=5 opens) should still produce a suggestion")
     }
 
     // MARK: - Dominance gate

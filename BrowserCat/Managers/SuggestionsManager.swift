@@ -41,10 +41,13 @@ final class SuggestionsManager {
             dismissedKeys: dismissedKeys,
             now: now
         )
+        let changed = suggestions != state.suggestions
         state.suggestions = suggestions
         lastAnalyzedAt = state.history.first?.openedAt ?? lastAnalyzedAt
-        persist(state: state)
-        Log.app.debug("Recomputed \(suggestions.count) rule suggestions")
+        if changed {
+            persist(state: state)
+        }
+        Log.app.debug("Recomputed \(suggestions.count) rule suggestions (changed: \(changed))")
     }
 
     func dismiss(_ suggestion: RuleSuggestion, state: AppState) {

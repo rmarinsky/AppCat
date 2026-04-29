@@ -5,7 +5,10 @@ enum SuggestionEngine {
         var halfLifeDays: Double = 7.0
         var scoreThreshold: Double = 3.0
         var dominanceThreshold: Double = 0.7
+        /// Minimum distinct calendar days OR minimum same-day occurrences — whichever fires first.
+        /// Either condition unlocks suggestions, so heavy single-day usage isn't suppressed.
         var minDistinctDays: Int = 2
+        var minSameDayOccurrences: Int = 5
         var maxPathSegments: Int = 2
 
         static let `default` = Config()
@@ -84,7 +87,8 @@ enum SuggestionEngine {
             guard let total = scopeTotals[key.scope], total > 0 else { continue }
             if stats.score < config.scoreThreshold { continue }
             if stats.score / total < config.dominanceThreshold { continue }
-            if stats.distinctDays.count < config.minDistinctDays { continue }
+            if stats.distinctDays.count < config.minDistinctDays
+                && stats.occurrenceCount < config.minSameDayOccurrences { continue }
             if let rep = representativeURL(for: key.scope),
                matcher.findMatchingRule(for: rep, rules: rules) != nil { continue }
 
@@ -125,7 +129,8 @@ enum SuggestionEngine {
             guard let total = scopeTotals[key.scope], total > 0 else { continue }
             if stats.score < config.scoreThreshold { continue }
             if stats.score / total < config.dominanceThreshold { continue }
-            if stats.distinctDays.count < config.minDistinctDays { continue }
+            if stats.distinctDays.count < config.minDistinctDays
+                && stats.occurrenceCount < config.minSameDayOccurrences { continue }
             if let rep = representativeURL(for: key.scope),
                matcher.findMatchingRule(for: rep, rules: rules) != nil { continue }
 

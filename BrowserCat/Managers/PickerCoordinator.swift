@@ -4,6 +4,7 @@ import os
 @MainActor
 final class PickerCoordinator {
     private let browserLauncher = BrowserLauncher()
+    private let urlResolver = URLResolver()
     private var pickerController: PickerWindowController?
     var historyManager: HistoryManager?
     var suggestionsManager: SuggestionsManager?
@@ -30,7 +31,7 @@ final class PickerCoordinator {
         // internally for rule matching, history, and suggestions.
         let urlForLaunch = state.pendingOriginalURL ?? url
         browserLauncher.open(url: urlForLaunch, with: browser, mode: mode, profile: profile)
-        historyManager?.record(
+        let entryID = historyManager?.record(
             url: url,
             title: state.pendingURLTitle,
             appName: browser.displayName,
@@ -40,6 +41,7 @@ final class PickerCoordinator {
             targetType: .browser,
             state: state
         )
+        resolveFinalURL(forEntry: entryID, sourceURL: urlForLaunch, displayURL: url, state: state)
         completeURLOpen(url, state: state)
     }
 
@@ -47,7 +49,7 @@ final class PickerCoordinator {
         guard let url = state.pendingURL else { return }
         let urlForLaunch = state.pendingOriginalURL ?? url
         browserLauncher.open(url: urlForLaunch, with: app)
-        historyManager?.record(
+        let entryID = historyManager?.record(
             url: url,
             title: state.pendingURLTitle,
             appName: app.displayName,
@@ -57,6 +59,7 @@ final class PickerCoordinator {
             targetType: .app,
             state: state
         )
+        resolveFinalURL(forEntry: entryID, sourceURL: urlForLaunch, displayURL: url, state: state)
         completeURLOpen(url, state: state)
     }
 
@@ -75,5 +78,22 @@ final class PickerCoordinator {
         state.pendingURLTitle = nil
         dismissPicker(state: state)
         suggestionsManager?.recompute(state: state)
+    }
+
+    /// Follows server redirects in the background and updates the recorded history
+    /// entry to reflect where the user actually lands (e.g. office.com → microsoft.com).
+    /// No-ops when the resolved URL is the same as what we already recorded.
+    private func resolveFinalURL(forEntry entryID: UUID?, sourceURL: URL, displayURL: URL, state: AppState) {
+        guard let entryID else { return }
+        let resolver = urlResolver
+        Task { @MainActor [weak self] in
+            guard let final = await resolver.resolveFinalURL(for: sourceURL) else { return }
+            // Skip if the chain landed back at the URL we already recorded — avoids
+            // a redundant write and a redundant suggestion recompute.
+            if final.absoluteString == displayURL.absoluteString { return }
+            guard let self else { return }
+            self.historyManager?.updateURL(id: entryID, finalURL: final, state: state)
+            self.suggestionsManager?.recompute(state: state)
+        }
     }
 }

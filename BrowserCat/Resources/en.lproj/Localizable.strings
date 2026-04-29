@@ -113,3 +113,5 @@
 "Frequently opened in %@" = "Frequently opened in %@";
 "Frequently opened in %@ (%@)" = "Frequently opened in %@ (%@)";
 "\"Any Profile\" uses the browser's last-used profile." = "\"Any Profile\" uses the browser's last-used profile.";
+"A rule already covers this URL" = "A rule already covers this URL";
+"Cannot create rule — original target unavailable" = "Cannot create rule — original target unavailable";

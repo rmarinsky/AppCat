@@ -14,6 +14,7 @@
 		09C2C42D2E05479AC5FACBF0 /* AppsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264E63E168650F465B84E907 /* AppsSettingsView.swift */; };
 		0A08E816B77C962E41408600 /* SuggestionDismissalStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA4D58CFE1B7EF7419E7616 /* SuggestionDismissalStorage.swift */; };
 		0A33D2BBB997B5E41111A10B /* FaviconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE2C239703CCAA2E3C464E0 /* FaviconManager.swift */; };
+		0E7B37E70FD1E4428DE7EA02 /* URLResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A57DD031700C0C54F1B3D35 /* URLResolver.swift */; };
 		0F6552EE70B68D366EE793E6 /* SuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04C4F8715FA0389A8A73415 /* SuggestionEngine.swift */; };
 		128EF0CC32337B08BEFEA264 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = A0E486996E9DE38D851F91A6 /* LaunchAtLogin */; };
 		13F524943A7E3DA7636437C1 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C5D53588C9BA3889415BA12 /* SettingsView.swift */; };
@@ -93,6 +94,7 @@
 		0D0C74B37E60FEDC7A931995 /* BrowserCat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BrowserCat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		12B338E654D0EA330977540C /* SuggestionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionEngineTests.swift; sourceTree = "<group>"; };
 		15D579EEA70DF8B2B9A28E59 /* HotkeyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
+		1A57DD031700C0C54F1B3D35 /* URLResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLResolver.swift; sourceTree = "<group>"; };
 		1CF03F001F36CAF948D04A9A /* PickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerView.swift; sourceTree = "<group>"; };
 		1EE21EEB88854BC2685C50AA /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		1F53ECFF56533673400B1105 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 				EAA4D58CFE1B7EF7419E7616 /* SuggestionDismissalStorage.swift */,
 				A04C4F8715FA0389A8A73415 /* SuggestionEngine.swift */,
 				0BA7F21CB2CDEC97585CD16A /* SuggestionStateStorage.swift */,
+				1A57DD031700C0C54F1B3D35 /* URLResolver.swift */,
 				03A4FC0564FB1087FBB64389 /* URLRuleMatcher.swift */,
 				9DA6D8F2AFAF4416E6BEFE80 /* URLUnwrapper.swift */,
 			);
@@ -527,6 +530,7 @@
 				7313F5D907EFC51BB3DB65FB /* SuggestionStateStorage.swift in Sources */,
 				68D7125386E97E973267F4B1 /* SuggestionsManager.swift in Sources */,
 				6F07F9EB2F97B3BDB77D7272 /* URLBar.swift in Sources */,
+				0E7B37E70FD1E4428DE7EA02 /* URLResolver.swift in Sources */,
 				E625C798F01739C5B757762E /* URLRule.swift in Sources */,
 				2C60236CC64B85E15527F7C9 /* URLRuleMatcher.swift in Sources */,
 				8E23EF9A09F33B028865D7DE /* URLRulesManager.swift in Sources */,

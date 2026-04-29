@@ -2,8 +2,8 @@ import Foundation
 
 struct HistoryEntry: Identifiable, Codable, Equatable {
     let id: UUID
-    let url: String
-    let domain: String
+    var url: String
+    var domain: String
     let title: String?
     let appName: String
     let profileName: String?

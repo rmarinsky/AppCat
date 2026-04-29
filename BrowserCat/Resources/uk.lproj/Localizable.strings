@@ -113,3 +113,5 @@
 "Frequently opened in %@" = "Часто відкривається в %@";
 "Frequently opened in %@ (%@)" = "Часто відкривається в %@ (%@)";
 "\"Any Profile\" uses the browser's last-used profile." = "«Будь-який профіль» використовує останній відкритий профіль браузера.";
+"A rule already covers this URL" = "Для цього посилання вже є правило";
+"Cannot create rule — original target unavailable" = "Не можна створити правило — цільовий застосунок недоступний";
