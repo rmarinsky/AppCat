@@ -23,6 +23,86 @@ final class URLUnwrapperTests: XCTestCase {
         XCTAssertEqual(unwrap(wrapped), "https://github.com/org/repo")
     }
 
+    // MARK: - Slack OIDC desktop redirect (JWT login_hint)
+
+    private func makeSlackOIDCJWT(targetURI: String) -> String {
+        let header = ["alg": "RS256", "typ": "JWT"]
+        let payload: [String: Any] = [
+            "iss": "https://slack.com",
+            "sub": "user@example.com",
+            "aud": "1234567890.0987654321",
+            "exp": 1_777_460_323,
+            "iat": 1_777_460_316,
+            "https://slack.com/target_uri": targetURI,
+        ]
+        return [header, payload]
+            .map { try! JSONSerialization.data(withJSONObject: $0) }
+            .map { $0.base64EncodedString() }
+            .map { $0.replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
+            .joined(separator: ".")
+            + ".fake-signature"
+    }
+
+    func testSlackOIDCJWTRedirect() {
+        let target = "https://travisperkins.atlassian.net/wiki/spaces/QA/pages/123/Test"
+        let jwt = makeSlackOIDCJWT(targetURI: target)
+        let wrapped = "https://slack.com/openid/connect/login_initiate_redirect?login_hint=\(jwt)"
+        XCTAssertEqual(unwrap(wrapped), target)
+    }
+
+    func testSlackOIDCNonRedirectPathUnchanged() {
+        // No JWT in query → no unwrap, regardless of path
+        let plain = "https://slack.com/messages/general"
+        XCTAssertEqual(unwrap(plain), plain)
+    }
+
+    func testJWTHeuristicSurvivesHostOrPathChange() {
+        // If Slack changes the host/path, we still unwrap as long as the JWT carries the claim
+        let target = "https://github.com/foo"
+        let jwt = makeSlackOIDCJWT(targetURI: target)
+        XCTAssertEqual(unwrap("https://app.slack.com/some/new/path?login_hint=\(jwt)"), target)
+        XCTAssertEqual(unwrap("https://workspace.slack.com/openid/v2/redirect?token=\(jwt)"), target)
+    }
+
+    func testGenericRedirectURIClaim() {
+        // OIDC standard `redirect_uri` claim should also work
+        let header = ["alg": "RS256", "typ": "JWT"]
+        let payload: [String: Any] = ["redirect_uri": "https://example.org/dest"]
+        let jwt = [header, payload]
+            .map { try! JSONSerialization.data(withJSONObject: $0) }
+            .map { $0.base64EncodedString().replacingOccurrences(of: "=", with: "") }
+            .joined(separator: ".") + ".sig"
+        XCTAssertEqual(unwrap("https://anything.example.com/x?login_hint=\(jwt)"), "https://example.org/dest")
+    }
+
+    func testJWTWithIssClaimDoesNotFalsePositive() {
+        // A JWT with an `iss` claim (issuer URL) should NOT be treated as a redirect
+        let header = ["alg": "RS256", "typ": "JWT"]
+        let payload: [String: Any] = ["iss": "https://login.example.com", "sub": "user"]
+        let jwt = [header, payload]
+            .map { try! JSONSerialization.data(withJSONObject: $0) }
+            .map { $0.base64EncodedString().replacingOccurrences(of: "=", with: "") }
+            .joined(separator: ".") + ".sig"
+        let plain = "https://example.com/auth?id_token=\(jwt)"
+        XCTAssertEqual(unwrap(plain), plain)
+    }
+
+    func testSlackOIDCMissingTargetClaimReturnsOriginal() {
+        let header = ["alg": "RS256", "typ": "JWT"]
+        let payload: [String: Any] = ["iss": "https://slack.com", "sub": "no-target"]
+        let jwt = [header, payload]
+            .map { try! JSONSerialization.data(withJSONObject: $0) }
+            .map { $0.base64EncodedString().replacingOccurrences(of: "=", with: "") }
+            .joined(separator: ".") + ".sig"
+        let wrapped = "https://slack.com/openid/connect/login_initiate_redirect?login_hint=\(jwt)"
+        XCTAssertEqual(unwrap(wrapped), wrapped)
+    }
+
+    func testSlackOIDCMalformedJWTReturnsOriginal() {
+        let wrapped = "https://slack.com/openid/connect/login_initiate_redirect?login_hint=not-a-jwt"
+        XCTAssertEqual(unwrap(wrapped), wrapped)
+    }
+
     // MARK: - Outlook Safe Links
 
     func testOutlookSafeLinks() {
