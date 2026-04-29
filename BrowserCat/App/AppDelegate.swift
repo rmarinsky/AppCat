@@ -42,13 +42,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReply _: NSAppleEventDescriptor) {
         guard let urlString = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-              let url = URL(string: urlString)
+              let rawURL = URL(string: urlString)
         else {
             Log.app.error("Received invalid URL event")
             return
         }
 
-        Log.app.info("Received URL: \(urlString)")
+        let url = URLUnwrapper.unwrap(rawURL)
+        if url != rawURL {
+            Log.app.info("Unwrapped URL: \(rawURL.absoluteString) → \(url.absoluteString)")
+        } else {
+            Log.app.info("Received URL: \(urlString)")
+        }
         appState.pendingURL = url
         appState.pendingURLTitle = nil
         fetchTitle(for: url)
