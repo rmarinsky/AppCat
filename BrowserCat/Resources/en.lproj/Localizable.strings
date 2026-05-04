@@ -115,3 +115,22 @@
 "\"Any Profile\" uses the browser's last-used profile." = "\"Any Profile\" uses the browser's last-used profile.";
 "A rule already covers this URL" = "A rule already covers this URL";
 "Cannot create rule — original target unavailable" = "Cannot create rule — original target unavailable";
+
+"Stats" = "Stats";
+"Day" = "Day";
+"Week" = "Week";
+"Month" = "Month";
+"All time" = "All time";
+"saved today" = "saved today";
+"saved this week" = "saved this week";
+"saved this month" = "saved this month";
+"saved in total" = "saved in total";
+"vs last month" = "vs last month";
+"Last 30 days" = "Last 30 days";
+"Top rules" = "Top rules";
+"Add a URL rule to see auto-routing stats here." = "Add a URL rule to see auto-routing stats here.";
+"Removed rule" = "Removed rule";
+"Tracking since %@" = "Tracking since %@";
+"Total: %@" = "Total: %@";
+"No stats yet" = "No stats yet";
+"Open some links and BrowserCat will show how much time it saves you." = "Open some links and BrowserCat will show how much time it saves you.";

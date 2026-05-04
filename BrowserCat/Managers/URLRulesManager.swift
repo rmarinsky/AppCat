@@ -24,11 +24,11 @@ final class URLRulesManager {
                 let profile = rule.profileDirectoryName.flatMap { dirName in
                     browser.profiles.first { $0.directoryName == dirName }
                 }
-                return .browser(browser, profile: profile)
+                return .browser(browser, profile: profile, ruleID: rule.id)
             }
         case .app:
             if let app = apps.first(where: { $0.id == rule.browserID }) {
-                return .app(app)
+                return .app(app, ruleID: rule.id)
             }
         }
 
@@ -37,6 +37,13 @@ final class URLRulesManager {
 }
 
 enum URLRuleMatch {
-    case browser(InstalledBrowser, profile: BrowserProfile?)
-    case app(InstalledApp)
+    case browser(InstalledBrowser, profile: BrowserProfile?, ruleID: UUID)
+    case app(InstalledApp, ruleID: UUID)
+
+    var ruleID: UUID {
+        switch self {
+        case let .browser(_, _, ruleID): ruleID
+        case let .app(_, ruleID): ruleID
+        }
+    }
 }

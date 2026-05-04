@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.statsManager) private var statsManager
     @Environment(\.openSettings) private var openSettings
     var onReopenURL: (String) -> Void
     var onCheckForUpdates: () -> Void
@@ -23,8 +24,30 @@ struct MenuBarContentView: View {
         return appState.history.filter { calendar.isDateInToday($0.openedAt) }
     }
 
+    private var statsTeaserText: String? {
+        guard let stats = statsManager else { return nil }
+        let week = stats.secondsSavedThisWeek
+        if week >= 60 {
+            return "\(TimeSavedFormatter.teaser(seconds: week)) \(String(localized: "saved this week"))"
+        }
+        let total = stats.secondsSavedTotal
+        if total >= 60 {
+            return "\(TimeSavedFormatter.teaser(seconds: total)) \(String(localized: "saved in total"))"
+        }
+        return nil
+    }
+
     var body: some View {
         Group {
+            if let teaser = statsTeaserText {
+                Button {
+                    openSettings()
+                } label: {
+                    Label(teaser, systemImage: "clock.badge.checkmark")
+                }
+                Divider()
+            }
+
             if recentEntries.isEmpty {
                 Text("No recent URLs")
                     .foregroundStyle(.secondary)

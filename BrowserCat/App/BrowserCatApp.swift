@@ -11,6 +11,7 @@ struct BrowserCatApp: App {
                 onCheckForUpdates: { appDelegate.updaterManager.checkForUpdates() }
             )
             .environment(appDelegate.appState)
+            .environment(\.statsManager, appDelegate.statsManager)
         } label: {
             MenuBarIconView()
         }
@@ -26,6 +27,7 @@ struct BrowserCatApp: App {
                 .environment(\.pickerCoordinator, appDelegate.pickerCoordinator)
                 .environment(\.historyManager, appDelegate.historyManager)
                 .environment(\.suggestionsManager, appDelegate.suggestionsManager)
+                .environment(\.statsManager, appDelegate.statsManager)
         }
     }
 }

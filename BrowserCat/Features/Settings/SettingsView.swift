@@ -21,6 +21,11 @@ struct SettingsView: View {
                     Label("Rules", systemImage: "arrow.triangle.branch")
                 }
 
+            StatsSettingsView()
+                .tabItem {
+                    Label("Stats", systemImage: "chart.bar.xaxis")
+                }
+
             HistorySettingsView()
                 .tabItem {
                     Label("History", systemImage: "clock")

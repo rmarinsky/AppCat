@@ -156,14 +156,14 @@ final class PickerWindowController: NSObject {
             // Check app hotkeys first
             for app in matchingApps {
                 if let code = app.hotkeyKeyCode, code == pressedKeyCode {
-                    coordinator.openURL(with: app, state: appState)
+                    coordinator.openURL(with: app, state: appState, source: .pickerHotkey)
                     return true
                 }
                 // Fallback: character match for configs saved before keyCode support
                 if app.hotkeyKeyCode == nil, let hotkey = app.hotkey, let keyChar,
                    Character(String(hotkey).lowercased()) == keyChar
                 {
-                    coordinator.openURL(with: app, state: appState)
+                    coordinator.openURL(with: app, state: appState, source: .pickerHotkey)
                     return true
                 }
             }
@@ -176,7 +176,7 @@ final class PickerWindowController: NSObject {
                     guard let hotkey = p.hotkey, let keyChar else { return false }
                     return Character(String(hotkey).lowercased()) == keyChar
                 }) {
-                    coordinator.openURL(with: browser, mode: mode, profile: profile, state: appState)
+                    coordinator.openURL(with: browser, mode: mode, profile: profile, state: appState, source: .pickerHotkey)
                     return true
                 }
             }
@@ -188,7 +188,7 @@ final class PickerWindowController: NSObject {
                 guard let hotkey = browser.hotkey, let keyChar else { return false }
                 return Character(String(hotkey).lowercased()) == keyChar
             }) {
-                coordinator.openURL(with: browsers[index], mode: mode, state: appState)
+                coordinator.openURL(with: browsers[index], mode: mode, state: appState, source: .pickerHotkey)
                 return true
             }
             return false

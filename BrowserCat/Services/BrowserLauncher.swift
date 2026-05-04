@@ -62,6 +62,7 @@ final class BrowserLauncher {
         do {
             try process.run()
             Log.browser.info("Opened \(url) with \(browser.displayName) in private mode")
+            activateRunningApp(bundleID: browser.id)
         } catch {
             Log.browser.error("Failed to open private mode for \(browser.displayName): \(error.localizedDescription)")
             // Fallback to normal open
@@ -101,6 +102,7 @@ final class BrowserLauncher {
         do {
             try process.run()
             Log.browser.info("Opened \(url) with \(browser.displayName) profile '\(profile.displayName)'")
+            activateRunningApp(bundleID: browser.id)
         } catch {
             Log.browser.error("Failed to open with profile for \(browser.displayName): \(error.localizedDescription)")
             openNormal(url: url, browser: browser, inBackground: false)
@@ -166,6 +168,19 @@ final class BrowserLauncher {
     }
 
     // MARK: - Helpers
+
+    private func activateRunningApp(bundleID: String) {
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        if let app = running.first {
+            app.activate(options: .activateIgnoringOtherApps)
+        } else {
+            // Browser is still launching — wait briefly then activate
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                    .first?.activate(options: .activateIgnoringOtherApps)
+            }
+        }
+    }
 
     private func executableName(for browser: InstalledBrowser) -> String {
         // Read the executable name from the app bundle's Info.plist

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let pickerCoordinator = PickerCoordinator()
     let historyManager = HistoryManager()
     let suggestionsManager = SuggestionsManager()
+    let statsManager = StatsManager()
     lazy var updaterManager = UpdaterManager()
 
     // MARK: - Lifecycle
@@ -29,8 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         urlRulesManager.load(into: appState)
         defaultBrowserManager.checkIsDefault(state: appState)
         historyManager.load(into: appState)
+        statsManager.load()
+        statsManager.backfillIfNeeded(history: appState.history, rules: appState.urlRules)
         pickerCoordinator.historyManager = historyManager
         pickerCoordinator.suggestionsManager = suggestionsManager
+        pickerCoordinator.statsManager = statsManager
         suggestionsManager.loadCached(into: appState)
         suggestionsManager.analyseIfNeeded(state: appState)
         _ = updaterManager
@@ -66,12 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             apps: appState.apps,
             rules: appState.urlRules
         ) {
+            let source = OpenSource.autoRoute(ruleID: match.ruleID)
             switch match {
-            case let .browser(browser, profile):
-                pickerCoordinator.openURL(with: browser, profile: profile, state: appState)
+            case let .browser(browser, profile, _):
+                pickerCoordinator.openURL(with: browser, profile: profile, state: appState, source: source)
                 return
-            case let .app(app):
-                pickerCoordinator.openURL(with: app, state: appState)
+            case let .app(app, _):
+                pickerCoordinator.openURL(with: app, state: appState, source: source)
                 return
             }
         }
