@@ -172,12 +172,12 @@ final class BrowserLauncher {
     private func activateRunningApp(bundleID: String) {
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         if let app = running.first {
-            app.activate(options: .activateIgnoringOtherApps)
+            app.activate()
         } else {
             // Browser is still launching — wait briefly then activate
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-                    .first?.activate(options: .activateIgnoringOtherApps)
+                    .first?.activate()
             }
         }
     }
