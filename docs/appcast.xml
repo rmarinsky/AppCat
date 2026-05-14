@@ -28,5 +28,17 @@
           length="2387190"
           type="application/octet-stream" />
       </item>
+      <item>
+    <title>Version 1.7.2</title>
+    <pubDate>Thu, 14 May 2026 14:58:32 +0000</pubDate>
+    <sparkle:version>50</sparkle:version>
+    <sparkle:shortVersionString>1.7.2</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+      url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.7.2/BrowserCat-1.7.2.dmg"
+      sparkle:edSignature="rqSwkkxJNqVc7IXZZfMf8XId9xY4w7kfaCIP6idJPyamYR2jfqRGiB832xXwjO1pmttkhG6DvC/rBHOdxV+5Aw=="
+      length="2019619"
+      type="application/octet-stream" />
+  </item>
   </channel>
 </rss>
