@@ -10,6 +10,7 @@ BrowserCat is a macOS menu bar app that acts as the system default browser. When
 - **Bundle ID:** `ua.com.rmarinsky.browsercat` (release) / `ua.com.rmarinsky.browsercat.dev` (debug)
 - **Sandbox:** Disabled (required for URL interception and launching other apps)
 - **Localization:** Ukrainian (default) and English
+- **Distribution:** notarized DMG via GitHub Releases + Sparkle auto-update (see Release process)
 
 ## Build Commands
 
