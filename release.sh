@@ -114,6 +114,27 @@ if [ ! -d "${APP_PATH}" ]; then
 fi
 echo -e "${GREEN}  App exported${NC}"
 
+# ── Step 4.5: Strip unused localizations ────────────────────────────
+echo -e "${YELLOW}[*] Stripping unused localizations...${NC}"
+KEEP_LANGS="Base en uk"
+find "${APP_PATH}" -name "*.lproj" -type d | while read -r lproj; do
+    lang="$(basename "$lproj" .lproj)"
+    case " ${KEEP_LANGS} " in
+        *" ${lang} "*) ;;
+        *) rm -rf "$lproj" ;;
+    esac
+done
+# Removing resources from inside Sparkle.framework breaks its signature,
+# so re-sign the framework, then the outer .app (preserving entitlements).
+codesign --force --options runtime --timestamp \
+    --sign "Developer ID Application" \
+    "${APP_PATH}/Contents/Frameworks/Sparkle.framework"
+codesign --force --options runtime --timestamp \
+    --preserve-metadata=entitlements,requirements,flags \
+    --sign "Developer ID Application" \
+    "${APP_PATH}"
+echo -e "${GREEN}  Localizations stripped, app re-signed${NC}"
+
 # ── Step 5: Verify ──────────────────────────────────────────────────
 echo -e "${YELLOW}[5/7] Verifying build...${NC}"
 echo -n "  Architectures: "
