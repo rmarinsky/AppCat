@@ -62,7 +62,7 @@ git tag** — `project.yml`'s `MARKETING_VERSION` is only a placeholder.
 
 Workflows: `.github/workflows/release-label-check.yml` (PR gate),
 `prepare-release.yml` (tag on merge), `release.yml` (build + publish).
-Version math: `scripts/release/next-version.sh`.
+Version math: `scripts/next-version.sh`.
 
 ## Architecture
 

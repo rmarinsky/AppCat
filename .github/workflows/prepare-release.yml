@@ -53,7 +53,7 @@ jobs:
           BUMP: ${{ steps.bump.outputs.bump }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          TAG="$(scripts/release/next-version.sh "$BUMP")"
+          TAG="$(scripts/next-version.sh "$BUMP")"
           echo "Next release: $TAG (from release:$BUMP)"
 
           if git rev-parse "$TAG" >/dev/null 2>&1; then

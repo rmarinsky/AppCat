@@ -46,6 +46,6 @@ jobs:
           if   echo "$LABELS" | grep -q '"release:major"'; then bump=major
           elif echo "$LABELS" | grep -q '"release:minor"'; then bump=minor
           else bump=patch; fi
-          TAG="$(scripts/release/next-version.sh "$bump")"
+          TAG="$(scripts/next-version.sh "$bump")"
           gh pr comment "$PR" --edit-last --create-if-none \
             --body "🔖 On merge this PR will release **$TAG** (\`release:$bump\`)."
