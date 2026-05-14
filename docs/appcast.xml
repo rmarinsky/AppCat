@@ -5,6 +5,18 @@
     <description>Most recent changes with links to updates.</description>
     <language>en</language>
     <item>
+        <title>Version 1.7.2</title>
+        <pubDate>Thu, 14 May 2026 14:59:10 +0000</pubDate>
+        <sparkle:version>50</sparkle:version>
+        <sparkle:shortVersionString>1.7.2</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure
+          url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.7.2/BrowserCat-1.7.2.dmg"
+          sparkle:edSignature="B+4Z94oL2ryr/bAMTOHfgzGHaI1ePzOpnR8SeyMyVqyvek6HxOd9jzvBbLI27L4RCponLK2dZDXiGpFZUHpcCg=="
+          length="2019635"
+          type="application/octet-stream" />
+      </item>
+    <item>
         <title>Version 1.7.0</title>
         <pubDate>Wed, 29 Apr 2026 15:06:20 +0000</pubDate>
         <sparkle:version>44</sparkle:version>
