@@ -16,5 +16,17 @@
       length="2019639"
       type="application/octet-stream" />
   </item>
+      <item>
+    <title>Version 1.8.0</title>
+    <pubDate>Wed, 03 Jun 2026 20:09:30 +0000</pubDate>
+    <sparkle:version>55</sparkle:version>
+    <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+      url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.8.0/BrowserCat-1.8.0.dmg"
+      sparkle:edSignature="3WnHi9VT0sPBJFYnScmxvt9CN1L03VY06IXj4xeL0jrfI0MVMu7+D3MsCUrqDPOgxk+6bi0Ww3i7f5xoXC4qDg=="
+      length="2094458"
+      type="application/octet-stream" />
+  </item>
   </channel>
 </rss>
