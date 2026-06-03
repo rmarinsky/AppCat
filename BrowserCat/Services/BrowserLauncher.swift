@@ -10,43 +10,53 @@ final class BrowserLauncher {
     }
 
     func open(url: URL, with browser: InstalledBrowser, mode: OpenMode = .normal, profile: BrowserProfile? = nil) {
+        open(urls: [url], with: browser, mode: mode, profile: profile)
+    }
+
+    func open(urls: [URL], with browser: InstalledBrowser, mode: OpenMode = .normal, profile: BrowserProfile? = nil) {
+        guard !urls.isEmpty else { return }
+
         if let profile {
-            openWithProfile(url: url, browser: browser, profile: profile, mode: mode)
+            openWithProfile(urls: urls, browser: browser, profile: profile, mode: mode)
             return
         }
 
         switch mode {
         case .normal:
-            openNormal(url: url, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false)
         case .background:
-            openNormal(url: url, browser: browser, inBackground: true)
+            openNormal(urls: urls, browser: browser, inBackground: true)
         case .privateMode:
-            openPrivate(url: url, browser: browser)
+            openPrivate(urls: urls, browser: browser)
         }
     }
 
     private func openNormal(url: URL, browser: InstalledBrowser, inBackground: Bool) {
+        openNormal(urls: [url], browser: browser, inBackground: inBackground)
+    }
+
+    private func openNormal(urls: [URL], browser: InstalledBrowser, inBackground: Bool) {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = !inBackground
 
         NSWorkspace.shared.open(
-            [url],
+            urls,
             withApplicationAt: browser.appURL,
             configuration: config
         ) { _, error in
             if let error {
-                Log.browser.error("Failed to open \(url) with \(browser.displayName): \(error.localizedDescription)")
+                Log.browser.error("Failed to open \(urls.count) URL(s) with \(browser.displayName): \(error.localizedDescription)")
             } else {
                 let mode = inBackground ? "background" : "foreground"
-                Log.browser.info("Opened \(url) with \(browser.displayName) in \(mode)")
+                Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in \(mode)")
             }
         }
     }
 
-    private func openPrivate(url: URL, browser: InstalledBrowser) {
+    private func openPrivate(urls: [URL], browser: InstalledBrowser) {
         guard let args = browser.privateModeArgs else {
             // Fallback to normal open if no private mode support
-            openNormal(url: url, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false)
             return
         }
 
@@ -57,20 +67,20 @@ final class BrowserLauncher {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = args + [url.absoluteString]
+        process.arguments = args + urls.map(\.absoluteString)
 
         do {
             try process.run()
-            Log.browser.info("Opened \(url) with \(browser.displayName) in private mode")
+            Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in private mode")
             activateRunningApp(bundleID: browser.id)
         } catch {
             Log.browser.error("Failed to open private mode for \(browser.displayName): \(error.localizedDescription)")
             // Fallback to normal open
-            openNormal(url: url, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false)
         }
     }
 
-    private func openWithProfile(url: URL, browser: InstalledBrowser, profile: BrowserProfile, mode: OpenMode) {
+    private func openWithProfile(urls: [URL], browser: InstalledBrowser, profile: BrowserProfile, mode: OpenMode) {
         let executablePath = browser.appURL
             .appendingPathComponent("Contents/MacOS")
             .appendingPathComponent(executableName(for: browser))
@@ -93,7 +103,7 @@ final class BrowserLauncher {
             args.append(contentsOf: privateArgs)
         }
 
-        args.append(url.absoluteString)
+        args.append(contentsOf: urls.map(\.absoluteString))
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
@@ -101,11 +111,11 @@ final class BrowserLauncher {
 
         do {
             try process.run()
-            Log.browser.info("Opened \(url) with \(browser.displayName) profile '\(profile.displayName)'")
+            Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) profile '\(profile.displayName)'")
             activateRunningApp(bundleID: browser.id)
         } catch {
             Log.browser.error("Failed to open with profile for \(browser.displayName): \(error.localizedDescription)")
-            openNormal(url: url, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false)
         }
     }
 
@@ -135,6 +145,10 @@ final class BrowserLauncher {
             configuration: config
         ) { _, error in
             if let error {
+                guard !url.isFileURL else {
+                    Log.apps.error("Failed to open file with \(app.displayName): \(error.localizedDescription)")
+                    return
+                }
                 Log.apps.warning("Direct open failed for \(app.displayName): \(error.localizedDescription), trying URL scheme")
                 // Step 3: Fallback to generic URL scheme transformation
                 Task { @MainActor in

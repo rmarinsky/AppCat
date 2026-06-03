@@ -38,6 +38,25 @@ struct InstalledApp: Identifiable, Equatable {
             return host == p || host.hasSuffix(".\(p)")
         }
     }
+
+    func matchesFile(_ url: URL) -> Bool {
+        AppDefinition.registryByID[id]?.matchesFile(url) == true
+    }
+
+    static func matchingFileApps(for url: URL, in apps: [InstalledApp]) -> [InstalledApp] {
+        guard url.isFileURL else { return [] }
+
+        return apps
+            .filter { $0.isVisible && $0.matchesFile(url) }
+            .sorted { lhs, rhs in
+                let lhsPriority = AppDefinition.registryByID[lhs.id]?.filePickerPriority ?? Int.max
+                let rhsPriority = AppDefinition.registryByID[rhs.id]?.filePickerPriority ?? Int.max
+                if lhsPriority != rhsPriority {
+                    return lhsPriority < rhsPriority
+                }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+    }
 }
 
 // MARK: - Codable support (without icon)

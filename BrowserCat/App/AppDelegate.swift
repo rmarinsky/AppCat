@@ -44,6 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - URL Handling
 
+    func application(_: NSApplication, open urls: [URL]) {
+        handleIncomingURLs(urls)
+    }
+
     @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReply _: NSAppleEventDescriptor) {
         guard let urlString = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
               let rawURL = URL(string: urlString)
@@ -52,18 +56,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let url = URLUnwrapper.unwrap(rawURL)
-        if url != rawURL {
-            Log.app.info("Unwrapped URL: \(rawURL.absoluteString) → \(url.absoluteString)")
-        } else {
-            Log.app.info("Received URL: \(urlString)")
-        }
-        appState.pendingURL = url
-        appState.pendingOriginalURL = (url != rawURL) ? rawURL : nil
-        appState.pendingURLTitle = nil
+        handleIncomingURLs([rawURL])
+    }
+
+    private func handleIncomingURLs(_ rawURLs: [URL]) {
+        let incomingURLs = rawURLs.map(normalizeIncomingURL)
+        let displayURLs = incomingURLs.map(\.displayURL)
+        let launchURLs = incomingURLs.map(\.launchURL)
+        guard let url = displayURLs.first else { return }
+
+        appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
         fetchTitle(for: url)
 
-        // Check URL rules before showing picker
+        if rawURLs.count > 1 {
+            Log.app.info("Received \(rawURLs.count) URL(s); primary: \(url.absoluteString)")
+        } else {
+            Log.app.info("Received URL: \(url.absoluteString)")
+        }
+
+        // Check URL rules before showing picker. Multi-file opens use the first file/URL
+        // as the routing signal, then launch the full batch in the chosen browser.
         if let match = urlRulesManager.findMatch(
             for: url,
             browsers: appState.browsers,
@@ -82,6 +94,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         pickerCoordinator.showPicker(state: appState)
+    }
+
+    private func normalizeIncomingURL(_ rawURL: URL) -> (displayURL: URL, launchURL: URL) {
+        let shortcutURL = FileShortcutResolver.resolve(rawURL)
+        let displayURL = URLUnwrapper.unwrap(shortcutURL)
+        let launchURL = shortcutURL == rawURL ? rawURL : shortcutURL
+
+        if shortcutURL != rawURL {
+            Log.app.info("Resolved shortcut: \(rawURL.absoluteString) → \(shortcutURL.absoluteString)")
+        }
+
+        if displayURL != shortcutURL {
+            Log.app.info("Unwrapped URL: \(shortcutURL.absoluteString) → \(displayURL.absoluteString)")
+        }
+
+        return (displayURL, launchURL)
     }
 
     // MARK: - Title Fetching

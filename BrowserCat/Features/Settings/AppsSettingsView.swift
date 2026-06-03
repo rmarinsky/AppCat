@@ -132,7 +132,7 @@ struct AppsSettingsView: View {
                             Text("Native Apps")
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
-                            Text("Shown only for links they support")
+                            Text("Shown for matching links and files")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }

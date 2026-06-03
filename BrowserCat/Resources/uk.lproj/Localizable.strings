@@ -1,5 +1,6 @@
 "General" = "Загальні";
 "Apps" = "Застосунки";
+"File Associations" = "Асоціації файлів";
 "Rules" = "Правила";
 "History" = "Історія";
 "About" = "Про програму";
@@ -8,12 +9,26 @@
 "BrowserCat is the default browser" = "BrowserCat — типовий браузер";
 "BrowserCat is not the default browser" = "BrowserCat не є типовим браузером";
 "Set as Default" = "Зробити типовим";
+"Set as Default also makes BrowserCat the handler for browser-readable web files." = "«Зробити типовим» також призначає BrowserCat обробником web-файлів, які читають браузери.";
+"Set as Default handles http/https links. File handlers are configured below." = "«Зробити типовим» обробляє http/https посилання. Обробники файлів налаштовуються нижче.";
+"Set as Default also configures supported web and dev file handlers." = "«Зробити типовим» також налаштовує підтримувані web і dev file handlers.";
+"Web Files" = "Web-файли";
+"Web & Dev Files" = "Web і dev-файли";
+"BrowserCat handles web files" = "BrowserCat обробляє web-файли";
+"BrowserCat handles web and dev files" = "BrowserCat обробляє web і dev-файли";
+"BrowserCat does not handle web files" = "BrowserCat не обробляє web-файли";
+"BrowserCat does not handle web and dev files" = "BrowserCat не обробляє web і dev-файли";
+"Set for Web Files" = "Зробити типовим для web-файлів";
+"Set for Files" = "Зробити типовим для файлів";
+"Applies to HTML, XHTML, SVG, web archive, web location, internet shortcut, and MHTML files." = "Застосовується до HTML, XHTML, SVG, web archive, web location, internet shortcut і MHTML файлів.";
+"Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Застосовується до файлів, які читають браузери, а також dev/config файлів: .env, YAML, shell scripts, Dockerfile, Makefile і systemd units.";
 "Startup" = "Запуск";
 "Launch at login" = "Запускати при вході";
 "Picker" = "Пікер";
 "Compact view" = "Компактний вигляд";
 "Menu Bar" = "Рядок меню";
 "Recent links" = "Останні посилання";
+"Recent items" = "Останні елементи";
 "Language" = "Мова";
 "App language" = "Мова застосунку";
 "Restart BrowserCat to apply language changes." = "Перезапустіть BrowserCat, щоб застосувати зміну мови.";
@@ -27,9 +42,33 @@
 "Ignored" = "Ігноровані";
 "Native Apps" = "Нативні застосунки";
 "Shown only for links they support" = "Показуються лише для підтримуваних посилань";
+"Shown for matching links and files" = "Показуються для відповідних посилань і файлів";
 "Rescan Apps" = "Пересканувати застосунки";
 "SET KEY" = "ВСТАНОВИТИ КЛАВІШУ";
 "Key was already in use and has been reassigned" = "Клавішу вже було призначено, її перевизначено";
+
+"File handlers registered" = "File handlers зареєстровані";
+"File handlers not registered" = "File handlers не зареєстровані";
+"Needed for Finder double-click on .env, YAML, Dockerfile, Makefile, and similar files." = "Потрібно для double-click у Finder на .env, YAML, Dockerfile, Makefile та схожих файлах.";
+"Register" = "Зареєструвати";
+"No File Associations" = "Немає асоціацій файлів";
+"Add presets or create a custom association for extensions, dotfiles, and Linux config files." = "Додай presets або створи власну асоціацію для розширень, dotfiles і Linux config файлів.";
+"Add Presets" = "Додати presets";
+"File Association" = "Асоціація файлів";
+"Default Behavior" = "Типова поведінка";
+"Default App" = "Типовий застосунок";
+"Default app" = "Типовий застосунок";
+"None" = "Немає";
+"Associated Apps" = "Асоційовані застосунки";
+"Add App" = "Додати застосунок";
+"No apps selected" = "Застосунки не вибрані";
+"Show picker" = "Показувати пікер";
+"Open default app" = "Відкривати типовий застосунок";
+"Exact filename" = "Точна назва файлу";
+"File type" = "Тип файлу";
+"Matches extensions and dotfile tokens, e.g. env, .env.local, yml, Dockerfile." = "Збігається з розширеннями і dotfile tokens, наприклад env, .env.local, yml, Dockerfile.";
+"Matches the full file name exactly, e.g. .gitignore or Dockerfile." = "Збігається з повною назвою файлу, наприклад .gitignore або Dockerfile.";
+"Matches a Uniform Type Identifier, e.g. public.yaml." = "Збігається з Uniform Type Identifier, наприклад public.yaml.";
 
 "No URL Rules" = "Немає URL-правил";
 "Add rules to automatically open URLs\nin a specific browser and profile." = "Додайте правила, щоб автоматично відкривати URL\nу певному браузері та профілі.";
@@ -52,6 +91,7 @@
 
 "No History" = "Немає історії";
 "URLs you open will appear here." = "Тут зʼявляться відкриті вами URL.";
+"Links and files you open will appear here." = "Тут зʼявляться відкриті посилання і файли.";
 "Clear All" = "Очистити все";
 "Remove Selected" = "Видалити вибрані";
 "Today" = "Сьогодні";
@@ -70,7 +110,9 @@
 "License" = "Ліцензія";
 
 "No recent URLs" = "Немає недавніх URL";
+"No recent items" = "Немає недавніх елементів";
 "No links today" = "Сьогодні посилань не було";
+"No items today" = "Сьогодні ще нічого не відкривали";
 "Open History..." = "Відкрити історію...";
 "Settings..." = "Налаштування...";
 "Quit BrowserCat" = "Вийти з BrowserCat";
@@ -81,17 +123,23 @@
 "Open in" = "Відкрити в";
 "+ key for private mode" = "+ клавіша для приватного режиму";
 "No URL" = "Немає URL";
+"No file" = "Немає файлу";
 "Press a key..." = "Натисніть клавішу...";
 "Clear" = "Очистити";
 
 "Exact site" = "Точний сайт";
 "Part of site address" = "Частина адреси сайту";
 "Part of link" = "Частина посилання";
+"Part of file path" = "Частина шляху файлу";
+"File extension" = "Розширення файлу";
 "Advanced pattern" = "Складний шаблон";
 "Matches the exact site address (e.g. github.com or any subdomain)." = "Збігається з точною адресою сайту (наприклад, github.com та його піддомени).";
 "Matches when the site address contains the text." = "Збігається, коли адреса сайту містить вказаний текст.";
 "Matches when any part of the link — including the path after / — contains the text." = "Збігається, коли будь-яка частина посилання — включно зі шляхом після / — містить вказаний текст.";
+"Matches when a local file path contains the text." = "Збігається, коли шлях локального файлу містить вказаний текст.";
+"Matches local files by extension, e.g. html or pdf." = "Збігається з локальними файлами за розширенням, наприклад html або pdf.";
 "Regular expression for advanced users." = "Регулярний вираз для досвідчених користувачів.";
+"Additional files" = "Додаткові файли";
 
 "Examples" = "Приклади";
 "OR — any of the options" = "АБО — будь-який з варіантів";

@@ -33,58 +33,69 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) {
         guard let url = state.pendingURL else { return }
-        // Launch the original (wrapped) URL so Slack click tracking, Teams Safe Links security
-        // scanning, OIDC handshakes, etc. still see the click. The unwrapped URL is only used
+        let displayURLs = state.pendingDisplayURLs
+        // Launch the original/wrapped URL(s) so Slack click tracking, Teams Safe Links security
+        // scanning, OIDC handshakes, etc. still see the click. The normalized URL is only used
         // internally for rule matching, history, and suggestions.
-        let urlForLaunch = state.pendingOriginalURL ?? url
-        browserLauncher.open(url: urlForLaunch, with: browser, mode: mode, profile: profile)
-        let entryID = historyManager?.record(
-            url: url,
-            title: state.pendingURLTitle,
-            appName: browser.displayName,
-            profileName: profile?.displayName,
-            browserID: browser.id,
-            profileDirectoryName: profile?.directoryName,
-            targetType: .browser,
-            state: state
-        )
+        let launchURLs = state.launchURLsForPendingOpen
+        browserLauncher.open(urls: launchURLs, with: browser, mode: mode, profile: profile)
+        let entryIDs = displayURLs.enumerated().map { index, displayURL in
+            historyManager?.record(
+                url: displayURL,
+                title: index == 0 ? state.pendingURLTitle : nil,
+                appName: browser.displayName,
+                profileName: profile?.displayName,
+                browserID: browser.id,
+                profileDirectoryName: profile?.directoryName,
+                targetType: .browser,
+                state: state
+            )
+        }
         statsManager?.record(source)
-        resolveFinalURL(forEntry: entryID, sourceURL: urlForLaunch, displayURL: url, state: state)
+        for (index, entryID) in entryIDs.enumerated() {
+            guard launchURLs.indices.contains(index), displayURLs.indices.contains(index) else { continue }
+            resolveFinalURL(forEntry: entryID, sourceURL: launchURLs[index], displayURL: displayURLs[index], state: state)
+        }
         completeURLOpen(url, state: state)
     }
 
     func openURL(with app: InstalledApp, state: AppState, source: OpenSource = .pickerClick) {
         guard let url = state.pendingURL else { return }
-        let urlForLaunch = state.pendingOriginalURL ?? url
-        browserLauncher.open(url: urlForLaunch, with: app)
-        let entryID = historyManager?.record(
-            url: url,
-            title: state.pendingURLTitle,
-            appName: app.displayName,
-            profileName: nil,
-            browserID: app.id,
-            profileDirectoryName: nil,
-            targetType: .app,
-            state: state
-        )
+        let displayURLs = state.pendingDisplayURLs
+        let launchURLs = state.launchURLsForPendingOpen
+        for launchURL in launchURLs {
+            browserLauncher.open(url: launchURL, with: app)
+        }
+        let entryIDs = displayURLs.enumerated().map { index, displayURL in
+            historyManager?.record(
+                url: displayURL,
+                title: index == 0 ? state.pendingURLTitle : nil,
+                appName: app.displayName,
+                profileName: nil,
+                browserID: app.id,
+                profileDirectoryName: nil,
+                targetType: .app,
+                state: state
+            )
+        }
         statsManager?.record(source)
-        resolveFinalURL(forEntry: entryID, sourceURL: urlForLaunch, displayURL: url, state: state)
+        for (index, entryID) in entryIDs.enumerated() {
+            guard launchURLs.indices.contains(index), displayURLs.indices.contains(index) else { continue }
+            resolveFinalURL(forEntry: entryID, sourceURL: launchURLs[index], displayURL: displayURLs[index], state: state)
+        }
         completeURLOpen(url, state: state)
     }
 
     func reopenURL(_ urlString: String, state: AppState) {
         guard let url = URL(string: urlString) else { return }
-        state.pendingURL = url
-        state.pendingOriginalURL = nil
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
         showPicker(state: state)
     }
 
     private func completeURLOpen(_ url: URL, state: AppState) {
         state.lastOpenedURL = url.absoluteString
         SettingsStorage.shared.lastURL = url.absoluteString
-        state.pendingURL = nil
-        state.pendingOriginalURL = nil
-        state.pendingURLTitle = nil
+        state.clearPendingOpen()
         dismissPicker(state: state)
         suggestionsManager?.recompute(state: state)
     }

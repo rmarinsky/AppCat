@@ -1,5 +1,6 @@
 import Foundation
 import os
+import UniformTypeIdentifiers
 
 @MainActor
 final class HistoryManager {
@@ -25,7 +26,8 @@ final class HistoryManager {
         targetType: URLRule.TargetType?,
         state: AppState
     ) -> UUID {
-        let domain = url.host ?? url.absoluteString
+        let metadata = metadata(for: url)
+        let domain = metadata.domain
         let entry = HistoryEntry(
             url: url.absoluteString,
             domain: domain,
@@ -34,14 +36,19 @@ final class HistoryManager {
             profileName: profileName,
             browserID: browserID,
             profileDirectoryName: profileDirectoryName,
-            targetType: targetType
+            targetType: targetType,
+            itemKind: metadata.itemKind,
+            fileName: metadata.fileName,
+            fileExtension: metadata.fileExtension,
+            fileFormat: metadata.fileFormat,
+            contentTypeIdentifier: metadata.contentTypeIdentifier
         )
         state.history.insert(entry, at: 0)
         if state.history.count > maxHistoryEntries {
             state.history = Array(state.history.prefix(maxHistoryEntries))
         }
         HistoryStorage.shared.save(state.history)
-        Log.history.debug("Recorded history entry for \(domain)")
+        log(entry)
         return entry.id
     }
 
@@ -67,5 +74,78 @@ final class HistoryManager {
         state.history.removeAll()
         HistoryStorage.shared.save(state.history)
         Log.history.debug("Cleared all history")
+    }
+
+    private struct EntryMetadata {
+        let itemKind: HistoryEntry.ItemKind
+        let domain: String
+        let fileName: String?
+        let fileExtension: String?
+        let fileFormat: String?
+        let contentTypeIdentifier: String?
+    }
+
+    private func metadata(for url: URL) -> EntryMetadata {
+        guard url.isFileURL else {
+            return EntryMetadata(
+                itemKind: .link,
+                domain: url.host ?? url.absoluteString,
+                fileName: nil,
+                fileExtension: nil,
+                fileFormat: nil,
+                contentTypeIdentifier: nil
+            )
+        }
+
+        let fileName = url.lastPathComponent.isEmpty ? url.standardizedFileURL.path : url.lastPathComponent
+        let fileExtension = normalizedFileExtension(for: url)
+        let contentType = contentType(for: url)
+        let fileFormat = fileFormat(for: url, fileExtension: fileExtension, contentType: contentType)
+
+        return EntryMetadata(
+            itemKind: .file,
+            domain: fileName,
+            fileName: fileName,
+            fileExtension: fileExtension,
+            fileFormat: fileFormat,
+            contentTypeIdentifier: contentType?.identifier
+        )
+    }
+
+    private func normalizedFileExtension(for url: URL) -> String? {
+        let value = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return value.isEmpty ? nil : value
+    }
+
+    private func contentType(for url: URL) -> UTType? {
+        if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
+            return type
+        }
+        if let fileExtension = normalizedFileExtension(for: url) {
+            return UTType(filenameExtension: fileExtension)
+        }
+        return nil
+    }
+
+    private func fileFormat(for url: URL, fileExtension: String?, contentType: UTType?) -> String? {
+        let fileName = url.lastPathComponent
+        if fileName.hasPrefix(".") || fileExtension == nil {
+            return fileName.isEmpty ? contentType?.identifier : fileName
+        }
+        if let fileExtension {
+            return ".\(fileExtension)"
+        }
+        return contentType?.identifier
+    }
+
+    private func log(_ entry: HistoryEntry) {
+        switch entry.itemKind {
+        case .link:
+            Log.history.info("Opened link \(entry.url) in \(entry.appName)")
+        case .file:
+            let format = entry.fileFormat ?? entry.contentTypeIdentifier ?? "unknown"
+            let fileName = entry.fileName ?? entry.url
+            Log.history.info("Opened file \(fileName) format=\(format) in \(entry.appName)")
+        }
     }
 }

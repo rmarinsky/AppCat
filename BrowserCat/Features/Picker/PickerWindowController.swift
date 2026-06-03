@@ -61,7 +61,7 @@ final class PickerWindowController: NSObject {
         panel?.orderOut(nil)
         NSApp.setActivationPolicy(.accessory)
         appState.isPickerVisible = false
-        appState.pendingURL = nil
+        appState.clearPendingOpen()
         Log.picker.debug("Picker dismissed")
     }
 
@@ -97,8 +97,11 @@ final class PickerWindowController: NSObject {
     // MARK: - Key Handling
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        let browsers = appState.pickerBrowsers
-        let matchingApps = PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
+        let browsers = PickerItem.matchingBrowsers(for: appState.pendingURL, in: appState.pickerBrowsers)
+        let matchingApps = PickerItem.matchingApps(
+            for: appState.pendingURL,
+            in: appState.visibleApps
+        )
         let prioritizedAppIDs = Set(matchingApps.map(\.id))
         let items = PickerItem.buildItems(
             browsers: browsers,

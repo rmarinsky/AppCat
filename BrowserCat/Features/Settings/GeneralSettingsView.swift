@@ -23,6 +23,32 @@ struct GeneralSettingsView: View {
                         }
                     }
                 }
+
+                Text("Set as Default also configures supported web and dev file handlers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Web & Dev Files") {
+                HStack {
+                    if appState.isDefaultWebFileHandler {
+                        Label("BrowserCat handles web and dev files", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("BrowserCat does not handle web and dev files", systemImage: "xmark.circle")
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button("Set for Files") {
+                            defaultBrowserManager?.setAsDefaultForWebFiles(state: appState)
+                        }
+                    }
+                }
+
+                Text("Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Startup") {
@@ -40,7 +66,7 @@ struct GeneralSettingsView: View {
             }
 
             Section("Menu Bar") {
-                Picker("Recent links", selection: Binding(
+                Picker("Recent items", selection: Binding(
                     get: { appState.recentLinksCount },
                     set: { newValue in
                         appState.recentLinksCount = newValue

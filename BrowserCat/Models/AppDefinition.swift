@@ -10,8 +10,167 @@ struct AppDefinition {
     /// Optional URL converter: transforms an HTTPS URL into a deep link URL.
     /// If nil, the HTTPS URL is passed directly to the app via `open -a`.
     let convertURL: ((URL) -> URL?)?
+    /// File picker support for developer/config files.
+    let filePatterns: [String]
+    let handlesAllFiles: Bool
+    let filePickerPriority: Int?
+
+    init(
+        bundleID: String,
+        displayName: String,
+        hostPatterns: [String] = [],
+        urlScheme: String? = nil,
+        convertURL: ((URL) -> URL?)? = nil,
+        filePatterns: [String] = [],
+        handlesAllFiles: Bool = false,
+        filePickerPriority: Int? = nil
+    ) {
+        self.bundleID = bundleID
+        self.displayName = displayName
+        self.hostPatterns = hostPatterns
+        self.urlScheme = urlScheme
+        self.convertURL = convertURL
+        self.filePatterns = filePatterns.map(Self.normalizeFilePattern)
+        self.handlesAllFiles = handlesAllFiles
+        self.filePickerPriority = filePickerPriority
+    }
+
+    func matchesFile(_ url: URL) -> Bool {
+        guard url.isFileURL, filePickerPriority != nil else { return false }
+        if handlesAllFiles { return true }
+
+        let patterns = Set(filePatterns)
+        guard !patterns.isEmpty else { return false }
+        return !BrowserFileType.fileMatchTokens(for: url).isDisjoint(with: patterns)
+            || BrowserFileType.isDeveloperFile(url)
+    }
+
+    private static func normalizeFilePattern(_ pattern: String) -> String {
+        let value = pattern.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return value.hasPrefix(".") ? String(value.dropFirst()) : value
+    }
 
     static let registry: [AppDefinition] = [
+        // Developer editors and IDEs
+        AppDefinition(
+            bundleID: "com.sublimetext.4",
+            displayName: "Sublime Text",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 0
+        ),
+        AppDefinition(
+            bundleID: "com.sublimetext.3",
+            displayName: "Sublime Text",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 1
+        ),
+        AppDefinition(
+            bundleID: "com.todesktop.230313mzl4w4u92",
+            displayName: "Cursor",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 10
+        ),
+        AppDefinition(
+            bundleID: "dev.zed.Zed",
+            displayName: "Zed",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 12
+        ),
+        AppDefinition(
+            bundleID: "com.microsoft.VSCodeInsiders",
+            displayName: "VS Code Insiders",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 15
+        ),
+        AppDefinition(
+            bundleID: "com.apple.dt.Xcode",
+            displayName: "Xcode",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            filePickerPriority: 30
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.intellij",
+            displayName: "IntelliJ IDEA",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 40
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.intellij.ce",
+            displayName: "IntelliJ IDEA CE",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 41
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.pycharm",
+            displayName: "PyCharm",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 42
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.pycharm.ce",
+            displayName: "PyCharm CE",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 43
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.WebStorm",
+            displayName: "WebStorm",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 44
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.goland",
+            displayName: "GoLand",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 45
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.CLion",
+            displayName: "CLion",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 46
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.rider",
+            displayName: "Rider",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 47
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.rubymine",
+            displayName: "RubyMine",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 48
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.PhpStorm",
+            displayName: "PhpStorm",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 49
+        ),
+        AppDefinition(
+            bundleID: "com.jetbrains.datagrip",
+            displayName: "DataGrip",
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 50
+        ),
+
         // Microsoft Teams
         AppDefinition(
             bundleID: "com.microsoft.teams2",
@@ -151,7 +310,10 @@ struct AppDefinition {
             displayName: "VS Code",
             hostPatterns: ["vscode.dev", "insiders.vscode.dev"],
             urlScheme: "vscode",
-            convertURL: nil
+            convertURL: nil,
+            filePatterns: BrowserFileType.developerFilePatterns,
+            handlesAllFiles: true,
+            filePickerPriority: 14
         ),
         // Obsidian
         AppDefinition(
