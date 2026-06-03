@@ -77,15 +77,12 @@ docs.google.com/a/company.com → Chrome Work
 
 ## ⚡ Quick Start
 
-### Install via Homebrew (Recommended)
-```bash
-brew install --cask rmarinsky/tap/browsercat
-```
-
-### Manual Installation
+### Installation
 1. Download the latest `.dmg` from [Releases](https://github.com/rmarinsky/BrowserCat/releases/latest)
 2. Drag **BrowserCat** to Applications
 3. Launch and set as default browser in Settings
+
+Updates are delivered automatically via Sparkle once installed.
 
 ### First-Time Setup
 1. **Set BrowserCat as default browser:**
@@ -270,4 +267,3 @@ If BrowserCat saves you 30+ context switches per day, consider:
 **Links:**
 - [GitHub Issues](https://github.com/rmarinsky/BrowserCat/issues)
 - [Releases](https://github.com/rmarinsky/BrowserCat/releases)
-- [Homebrew Tap](https://github.com/rmarinsky/homebrew-tap)
