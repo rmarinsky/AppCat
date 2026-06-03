@@ -31,7 +31,7 @@ final class URLRulesManagerTests: XCTestCase {
             apps: [],
             rules: [rule]
         )
-        guard case let .browser(b, profile)? = match else {
+        guard case let .browser(b, profile, _)? = match else {
             return XCTFail("Expected .browser match")
         }
         XCTAssertEqual(b.id, "com.google.Chrome")
@@ -55,7 +55,7 @@ final class URLRulesManagerTests: XCTestCase {
             apps: [],
             rules: [rule]
         )
-        guard case let .browser(_, profile)? = match else {
+        guard case let .browser(_, profile, _)? = match else {
             return XCTFail("Expected .browser match")
         }
         XCTAssertEqual(profile?.directoryName, "Profile 1")

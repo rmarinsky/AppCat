@@ -1,5 +1,6 @@
 "General" = "General";
 "Apps" = "Apps";
+"File Associations" = "File Associations";
 "Rules" = "Rules";
 "History" = "History";
 "About" = "About";
@@ -8,12 +9,26 @@
 "BrowserCat is the default browser" = "BrowserCat is the default browser";
 "BrowserCat is not the default browser" = "BrowserCat is not the default browser";
 "Set as Default" = "Set as Default";
+"Set as Default also makes BrowserCat the handler for browser-readable web files." = "Set as Default also makes BrowserCat the handler for browser-readable web files.";
+"Set as Default handles http/https links. File handlers are configured below." = "Set as Default handles http/https links. File handlers are configured below.";
+"Set as Default also configures supported web and dev file handlers." = "Set as Default also configures supported web and dev file handlers.";
+"Web Files" = "Web Files";
+"Web & Dev Files" = "Web & Dev Files";
+"BrowserCat handles web files" = "BrowserCat handles web files";
+"BrowserCat handles web and dev files" = "BrowserCat handles web and dev files";
+"BrowserCat does not handle web files" = "BrowserCat does not handle web files";
+"BrowserCat does not handle web and dev files" = "BrowserCat does not handle web and dev files";
+"Set for Web Files" = "Set for Web Files";
+"Set for Files" = "Set for Files";
+"Applies to HTML, XHTML, SVG, web archive, web location, internet shortcut, and MHTML files." = "Applies to HTML, XHTML, SVG, web archive, web location, internet shortcut, and MHTML files.";
+"Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units.";
 "Startup" = "Startup";
 "Launch at login" = "Launch at login";
 "Picker" = "Picker";
 "Compact view" = "Compact view";
 "Menu Bar" = "Menu Bar";
 "Recent links" = "Recent links";
+"Recent items" = "Recent items";
 "Language" = "Language";
 "App language" = "App language";
 "Restart BrowserCat to apply language changes." = "Restart BrowserCat to apply language changes.";
@@ -27,9 +42,33 @@
 "Ignored" = "Ignored";
 "Native Apps" = "Native Apps";
 "Shown only for links they support" = "Shown only for links they support";
+"Shown for matching links and files" = "Shown for matching links and files";
 "Rescan Apps" = "Rescan Apps";
 "SET KEY" = "SET KEY";
 "Key was already in use and has been reassigned" = "Key was already in use and has been reassigned";
+
+"File handlers registered" = "File handlers registered";
+"File handlers not registered" = "File handlers not registered";
+"Needed for Finder double-click on .env, YAML, Dockerfile, Makefile, and similar files." = "Needed for Finder double-click on .env, YAML, Dockerfile, Makefile, and similar files.";
+"Register" = "Register";
+"No File Associations" = "No File Associations";
+"Add presets or create a custom association for extensions, dotfiles, and Linux config files." = "Add presets or create a custom association for extensions, dotfiles, and Linux config files.";
+"Add Presets" = "Add Presets";
+"File Association" = "File Association";
+"Default Behavior" = "Default Behavior";
+"Default App" = "Default App";
+"Default app" = "Default app";
+"None" = "None";
+"Associated Apps" = "Associated Apps";
+"Add App" = "Add App";
+"No apps selected" = "No apps selected";
+"Show picker" = "Show picker";
+"Open default app" = "Open default app";
+"Exact filename" = "Exact filename";
+"File type" = "File type";
+"Matches extensions and dotfile tokens, e.g. env, .env.local, yml, Dockerfile." = "Matches extensions and dotfile tokens, e.g. env, .env.local, yml, Dockerfile.";
+"Matches the full file name exactly, e.g. .gitignore or Dockerfile." = "Matches the full file name exactly, e.g. .gitignore or Dockerfile.";
+"Matches a Uniform Type Identifier, e.g. public.yaml." = "Matches a Uniform Type Identifier, e.g. public.yaml.";
 
 "No URL Rules" = "No URL Rules";
 "Add rules to automatically open URLs\nin a specific browser and profile." = "Add rules to automatically open URLs\nin a specific browser and profile.";
@@ -52,6 +91,7 @@
 
 "No History" = "No History";
 "URLs you open will appear here." = "URLs you open will appear here.";
+"Links and files you open will appear here." = "Links and files you open will appear here.";
 "Clear All" = "Clear All";
 "Remove Selected" = "Remove Selected";
 "Today" = "Today";
@@ -70,7 +110,9 @@
 "License" = "License";
 
 "No recent URLs" = "No recent URLs";
+"No recent items" = "No recent items";
 "No links today" = "No links today";
+"No items today" = "No items today";
 "Open History..." = "Open History...";
 "Settings..." = "Settings...";
 "Quit BrowserCat" = "Quit BrowserCat";
@@ -81,17 +123,23 @@
 "Open in" = "Open in";
 "+ key for private mode" = "+ key for private mode";
 "No URL" = "No URL";
+"No file" = "No file";
 "Press a key..." = "Press a key...";
 "Clear" = "Clear";
 
 "Exact site" = "Exact site";
 "Part of site address" = "Part of site address";
 "Part of link" = "Part of link";
+"Part of file path" = "Part of file path";
+"File extension" = "File extension";
 "Advanced pattern" = "Advanced pattern";
 "Matches the exact site address (e.g. github.com or any subdomain)." = "Matches the exact site address (e.g. github.com or any subdomain).";
 "Matches when the site address contains the text." = "Matches when the site address contains the text.";
 "Matches when any part of the link — including the path after / — contains the text." = "Matches when any part of the link — including the path after / — contains the text.";
+"Matches when a local file path contains the text." = "Matches when a local file path contains the text.";
+"Matches local files by extension, e.g. html or pdf." = "Matches local files by extension, e.g. html or pdf.";
 "Regular expression for advanced users." = "Regular expression for advanced users.";
+"Additional files" = "Additional files";
 
 "Examples" = "Examples";
 "OR — any of the options" = "OR — any of the options";

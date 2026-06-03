@@ -30,7 +30,8 @@ enum SuggestionEngine {
         }
 
         let usable: [Usable] = history.compactMap { entry in
-            guard entry.targetType == .browser,
+            guard entry.itemKind == .link,
+                  entry.targetType == .browser,
                   let browserID = entry.browserID,
                   let url = URL(string: entry.url),
                   url.host != nil else { return nil }

@@ -49,7 +49,7 @@ struct HistorySettingsView: View {
                 .foregroundStyle(.secondary)
             Text("No History")
                 .font(.headline)
-            Text("URLs you open will appear here.")
+            Text("Links and files you open will appear here.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -67,8 +67,10 @@ struct HistorySettingsView: View {
                         historyRow(entry)
                             .tag(entry.id)
                             .contextMenu {
-                                Button(String(localized: "Create Rule…")) {
-                                    ruleFromHistory = makeRule(from: entry)
+                                if canCreateRule(from: entry), !ruleAlreadyCovers(entry) {
+                                    Button(String(localized: "Create Rule…")) {
+                                        ruleFromHistory = makeRule(from: entry)
+                                    }
                                 }
                             }
                     }
@@ -80,16 +82,16 @@ struct HistorySettingsView: View {
 
     private func historyRow(_ entry: HistoryEntry) -> some View {
         let hasRule = ruleAlreadyCovers(entry)
-        let canCreate = entry.browserID != nil || legacyTargetResolves(for: entry)
+        let canCreate = canCreateRule(from: entry)
 
         return HStack(spacing: 10) {
-            FaviconView(urlString: entry.url, fallbackDomain: entry.domain, size: 20)
+            entryIcon(entry)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.domain)
+                Text(primaryText(for: entry))
                     .font(.system(size: 12, weight: .medium))
-                if let title = entry.title, !title.isEmpty {
-                    Text(title)
+                if let subtitle = secondaryText(for: entry) {
+                    Text(subtitle)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -115,6 +117,42 @@ struct HistorySettingsView: View {
             createRuleButton(for: entry, hasRule: hasRule, canCreate: canCreate)
         }
         .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func entryIcon(_ entry: HistoryEntry) -> some View {
+        switch entry.itemKind {
+        case .link:
+            FaviconView(urlString: entry.url, fallbackDomain: entry.domain, size: 20)
+        case .file:
+            Image(systemName: "doc")
+                .font(.system(size: 18))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+        }
+    }
+
+    private func primaryText(for entry: HistoryEntry) -> String {
+        switch entry.itemKind {
+        case .link:
+            return entry.domain
+        case .file:
+            return entry.fileName ?? entry.domain
+        }
+    }
+
+    private func secondaryText(for entry: HistoryEntry) -> String? {
+        switch entry.itemKind {
+        case .link:
+            return normalized(entry.title)
+        case .file:
+            let format = entry.fileFormat ?? entry.contentTypeIdentifier
+            let path = URL(string: entry.url)?.path
+            if let format, let path {
+                return "\(format) · \(path)"
+            }
+            return format ?? path
+        }
     }
 
     private func createRuleButton(for entry: HistoryEntry, hasRule: Bool, canCreate: Bool) -> some View {
@@ -145,8 +183,13 @@ struct HistorySettingsView: View {
     }
 
     private func ruleAlreadyCovers(_ entry: HistoryEntry) -> Bool {
+        guard entry.itemKind == .link else { return false }
         guard let url = URL(string: entry.url) else { return false }
         return ruleMatcher.findMatchingRule(for: url, rules: appState.urlRules) != nil
+    }
+
+    private func canCreateRule(from entry: HistoryEntry) -> Bool {
+        entry.itemKind == .link && (entry.browserID != nil || legacyTargetResolves(for: entry))
     }
 
     private func legacyTargetResolves(for entry: HistoryEntry) -> Bool {
@@ -259,5 +302,11 @@ struct HistorySettingsView: View {
         if !yesterday.isEmpty { groups.append(DateGroup(label: String(localized: "Yesterday"), entries: yesterday)) }
         if !older.isEmpty { groups.append(DateGroup(label: String(localized: "Older"), entries: older)) }
         return groups
+    }
+
+    private func normalized(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

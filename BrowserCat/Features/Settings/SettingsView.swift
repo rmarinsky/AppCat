@@ -36,7 +36,7 @@ struct SettingsView: View {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 450, height: 550)
+        .frame(width: 620, height: 620)
         .background(SettingsWindowConfigurator().frame(width: 0, height: 0))
         .environment(\.locale, appState.appLanguage.locale)
     }

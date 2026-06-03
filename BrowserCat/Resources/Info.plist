@@ -34,6 +34,40 @@
     <string>E+U25RLLvknFBaJXFMZ5YnpN4gRJLsavDNEGc+M2xk0=</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>ua.com.rmarinsky.browsercat.env-config</string>
+            <key>UTTypeDescription</key>
+            <string>Environment Configuration</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.text</string>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>env.local</string>
+                    <string>env.development</string>
+                    <string>env.production</string>
+                    <string>env.staging</string>
+                    <string>env.test</string>
+                    <string>env.example</string>
+                    <string>env.sample</string>
+                    <string>local</string>
+                    <string>development</string>
+                    <string>production</string>
+                    <string>staging</string>
+                    <string>test</string>
+                    <string>example</string>
+                    <string>sample</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -52,7 +86,7 @@
     <array>
         <dict>
             <key>CFBundleTypeName</key>
-            <string>HTML Document</string>
+            <string>Browser-readable Document</string>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
             <key>LSHandlerRank</key>
@@ -61,7 +95,177 @@
             <array>
                 <string>public.html</string>
                 <string>public.xhtml</string>
+                <string>public.svg-image</string>
+                <string>public.xml</string>
+                <string>public.json</string>
+                <string>public.plain-text</string>
+                <string>com.adobe.pdf</string>
+                <string>com.apple.webarchive</string>
+                <string>com.apple.web-internet-location</string>
                 <string>public.url</string>
+                <string>com.microsoft.internet-shortcut</string>
+                <string>org.ietf.mhtml</string>
+                <string>public.yaml</string>
+                <string>public.source-code</string>
+                <string>public.script</string>
+                <string>public.shell-script</string>
+                <string>public.python-script</string>
+                <string>public.ruby-script</string>
+                <string>public.perl-script</string>
+                <string>public.php-script</string>
+                <string>public.c-source</string>
+                <string>public.c-plus-plus-source</string>
+                <string>public.c-header</string>
+                <string>public.c-plus-plus-header</string>
+                <string>public.objective-c-source</string>
+                <string>public.objective-c-plus-plus-source</string>
+                <string>public.swift-source</string>
+                <string>com.netscape.javascript-source</string>
+                <string>com.apple.property-list</string>
+                <string>com.apple.applescript.text</string>
+                <string>public.data</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>html</string>
+                <string>htm</string>
+                <string>xhtml</string>
+                <string>xht</string>
+                <string>svg</string>
+                <string>xml</string>
+                <string>json</string>
+                <string>txt</string>
+                <string>text</string>
+                <string>pdf</string>
+                <string>webarchive</string>
+                <string>webloc</string>
+                <string>url</string>
+                <string>mhtml</string>
+                <string>mht</string>
+                <string>.env</string>
+                <string>.env.local</string>
+                <string>.env.development</string>
+                <string>.env.production</string>
+                <string>.env.staging</string>
+                <string>.env.test</string>
+                <string>.env.example</string>
+                <string>.env.sample</string>
+                <string>.azure.yaml</string>
+                <string>.gitignore</string>
+                <string>.gitattributes</string>
+                <string>.gitconfig</string>
+                <string>.gitmodules</string>
+                <string>.dockerignore</string>
+                <string>.npmrc</string>
+                <string>.nvmrc</string>
+                <string>.yarnrc</string>
+                <string>.editorconfig</string>
+                <string>env</string>
+                <string>env.local</string>
+                <string>env.development</string>
+                <string>env.production</string>
+                <string>env.staging</string>
+                <string>env.test</string>
+                <string>env.example</string>
+                <string>env.sample</string>
+                <string>local</string>
+                <string>development</string>
+                <string>production</string>
+                <string>staging</string>
+                <string>test</string>
+                <string>example</string>
+                <string>sample</string>
+                <string>azure.yaml</string>
+                <string>yaml</string>
+                <string>yml</string>
+                <string>toml</string>
+                <string>ini</string>
+                <string>cfg</string>
+                <string>conf</string>
+                <string>config</string>
+                <string>properties</string>
+                <string>plist</string>
+                <string>editorconfig</string>
+                <string>gitignore</string>
+                <string>gitattributes</string>
+                <string>gitconfig</string>
+                <string>gitmodules</string>
+                <string>dockerignore</string>
+                <string>npmrc</string>
+                <string>nvmrc</string>
+                <string>yarnrc</string>
+                <string>tool-versions</string>
+                <string>bashrc</string>
+                <string>bash_profile</string>
+                <string>bash_aliases</string>
+                <string>profile</string>
+                <string>zprofile</string>
+                <string>zshenv</string>
+                <string>zshrc</string>
+                <string>zlogin</string>
+                <string>zlogout</string>
+                <string>fish</string>
+                <string>sh</string>
+                <string>bash</string>
+                <string>zsh</string>
+                <string>csh</string>
+                <string>ksh</string>
+                <string>service</string>
+                <string>timer</string>
+                <string>socket</string>
+                <string>target</string>
+                <string>mount</string>
+                <string>automount</string>
+                <string>path</string>
+                <string>Dockerfile</string>
+                <string>dockerfile</string>
+                <string>Dockerfile.dev</string>
+                <string>Dockerfile.prod</string>
+                <string>compose.yaml</string>
+                <string>compose.yml</string>
+                <string>docker-compose.yaml</string>
+                <string>docker-compose.yml</string>
+                <string>Makefile</string>
+                <string>makefile</string>
+                <string>GNUmakefile</string>
+                <string>gnumakefile</string>
+                <string>CMakeLists.txt</string>
+                <string>Jenkinsfile</string>
+                <string>jenkinsfile</string>
+                <string>Justfile</string>
+                <string>justfile</string>
+                <string>Taskfile</string>
+                <string>taskfile</string>
+                <string>Taskfile.yaml</string>
+                <string>Taskfile.yml</string>
+                <string>Procfile</string>
+                <string>procfile</string>
+                <string>Gemfile</string>
+                <string>gemfile</string>
+                <string>Rakefile</string>
+                <string>rakefile</string>
+                <string>Brewfile</string>
+                <string>brewfile</string>
+                <string>Vagrantfile</string>
+                <string>vagrantfile</string>
+                <string>Caddyfile</string>
+                <string>caddyfile</string>
+                <string>nginx.conf</string>
+                <string>httpd.conf</string>
+                <string>sql</string>
+                <string>graphql</string>
+                <string>tf</string>
+                <string>tfvars</string>
+                <string>hcl</string>
+                <string>nomad</string>
+                <string>gradle</string>
+                <string>kts</string>
+                <string>pom</string>
+                <string>jsonc</string>
+                <string>lock</string>
+                <string>md</string>
+                <string>markdown</string>
+                <string>log</string>
             </array>
         </dict>
     </array>

@@ -74,10 +74,9 @@ final class URLRuleMatcherTests: XCTestCase {
         let m = URLRuleMatcher()
         var firstRule = make(pattern: "example.com", matchType: .host)
         firstRule.sortOrder = 0
-        var secondRule = URLRule(pattern: "example.com", matchType: .host, browserID: "second", isEnabled: true, sortOrder: 1)
+        let secondRule = URLRule(pattern: "example.com", matchType: .host, browserID: "second", isEnabled: true, sortOrder: 1)
         // Whichever has the lower sortOrder wins
         let match = m.findMatchingRule(for: URL(string: "https://example.com/")!, rules: [secondRule, firstRule])
         XCTAssertEqual(match?.browserID, "test")
-        _ = secondRule
     }
 }

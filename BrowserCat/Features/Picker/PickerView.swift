@@ -96,9 +96,21 @@ struct PickerItem: Identifiable {
         return prioritized + rest
     }
 
-    static func matchingApps(for url: URL?, in apps: [InstalledApp]) -> [InstalledApp] {
+    static func matchingApps(
+        for url: URL?,
+        in apps: [InstalledApp]
+    ) -> [InstalledApp] {
         guard let url else { return [] }
+        if url.isFileURL {
+            return InstalledApp.matchingFileApps(for: url, in: apps)
+        }
         return apps.filter { $0.matchesHost(of: url) }
+    }
+
+    static func matchingBrowsers(for url: URL?, in browsers: [InstalledBrowser]) -> [InstalledBrowser] {
+        guard let url else { return browsers }
+        guard url.isFileURL else { return browsers }
+        return BrowserFileType.isBrowserReadableFile(url) ? browsers : []
     }
 }
 
@@ -110,12 +122,15 @@ struct PickerView: View {
     @State private var profilePopoverBrowserID: String?
 
     private var browsers: [InstalledBrowser] {
-        appState.pickerBrowsers
+        PickerItem.matchingBrowsers(for: appState.pendingURL, in: appState.pickerBrowsers)
     }
 
-    /// Only apps that match the pending URL's host.
+    /// Only apps that match the pending URL's host or local file type.
     private var matchingApps: [InstalledApp] {
-        PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
+        PickerItem.matchingApps(
+            for: appState.pendingURL,
+            in: appState.visibleApps
+        )
     }
 
     private var prioritizedAppIDs: Set<String> {
@@ -141,7 +156,11 @@ struct PickerView: View {
     private var normalBody: some View {
         VStack(spacing: 0) {
             // URL bar
-            URLBar(url: appState.pendingURL, title: appState.pendingURLTitle)
+            URLBar(
+                url: appState.pendingURL,
+                title: appState.pendingURLTitle,
+                additionalCount: appState.pendingAdditionalURLs.count
+            )
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
@@ -162,8 +181,9 @@ struct PickerView: View {
                 .padding(12)
             }
 
-            // Hint bar
-            hintBar
+            if appState.pendingURL?.isFileURL != true {
+                hintBar
+            }
         }
         .frame(minWidth: 380, maxWidth: 380, minHeight: 120, idealHeight: 300, maxHeight: 400)
         .onAppear {
@@ -184,8 +204,9 @@ struct PickerView: View {
                 .padding(.vertical, 12)
             }
 
-            // Hint bar
-            hintBar
+            if appState.pendingURL?.isFileURL != true {
+                hintBar
+            }
         }
         .onAppear {
             appState.focusedBrowserIndex = 0

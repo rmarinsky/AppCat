@@ -67,7 +67,8 @@ final class StatsManager {
         for entry in history {
             let key = DailyStats.dayKey(for: entry.openedAt)
             var day = byDay[key] ?? DailyStats(day: key)
-            if let url = URL(string: entry.url),
+            if entry.itemKind == .link,
+               let url = URL(string: entry.url),
                let rule = urlRuleMatcher.findMatchingRule(for: url, rules: rules)
             {
                 day.autoRouteCount += 1

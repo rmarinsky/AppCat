@@ -49,7 +49,7 @@ struct MenuBarContentView: View {
             }
 
             if recentEntries.isEmpty {
-                Text("No recent URLs")
+                Text("No recent items")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(recentEntries) { entry in
@@ -58,7 +58,7 @@ struct MenuBarContentView: View {
                     } label: {
                         Label(
                             "\(timeText(entry.openedAt)) · \(shortPreview(entry))",
-                            systemImage: iconForURL(entry.url)
+                            systemImage: iconForEntry(entry)
                         )
                     }
                 }
@@ -68,7 +68,7 @@ struct MenuBarContentView: View {
 
             Menu("History") {
                 if todayEntries.isEmpty {
-                    Text("No links today")
+                    Text("No items today")
                 } else {
                     ForEach(todayEntries) { entry in
                         Button {
@@ -76,7 +76,7 @@ struct MenuBarContentView: View {
                         } label: {
                             Label(
                                 "\(timeText(entry.openedAt)) · \(shortPreview(entry)) — \(entry.appName)",
-                                systemImage: iconForURL(entry.url)
+                                systemImage: iconForEntry(entry)
                             )
                         }
                     }
@@ -124,11 +124,20 @@ struct MenuBarContentView: View {
     }
 
     private func shortPreview(_ entry: HistoryEntry) -> String {
-        let value = normalized(entry.title)
-            ?? normalized(entry.domain)
-            ?? normalized(shortenURL(entry.url))
-            ?? String(localized: "No URL")
-        return truncate(value, maxLength: 54)
+        let value: String?
+        switch entry.itemKind {
+        case .link:
+            value = normalized(entry.title)
+                ?? normalized(entry.domain)
+                ?? normalized(shortenURL(entry.url))
+        case .file:
+            value = normalized(entry.fileName)
+                ?? normalized(entry.fileFormat)
+                ?? normalized(URL(string: entry.url)?.lastPathComponent)
+        }
+        let fallback = entry.itemKind == .file ? String(localized: "No file") : String(localized: "No URL")
+        let displayValue = value ?? fallback
+        return truncate(displayValue, maxLength: 54)
     }
 
     private func timeText(_ date: Date) -> String {
@@ -177,6 +186,11 @@ struct MenuBarContentView: View {
         ("mono", "banknote"),
         ("apple", "apple.logo"),
     ]
+
+    private func iconForEntry(_ entry: HistoryEntry) -> String {
+        guard entry.itemKind == .link else { return "doc" }
+        return iconForURL(entry.url)
+    }
 
     private func iconForURL(_ urlString: String) -> String {
         guard let host = URL(string: urlString)?.host?.lowercased() else { return "globe" }
