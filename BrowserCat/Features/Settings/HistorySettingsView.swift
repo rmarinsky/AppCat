@@ -7,12 +7,15 @@ struct HistorySettingsView: View {
 
     @State private var selection = Set<UUID>()
     @State private var ruleFromHistory: URLRule?
+    @State private var searchText: String = ""
     private let ruleMatcher = URLRuleMatcher()
 
     var body: some View {
         VStack(spacing: 0) {
             if appState.history.isEmpty {
                 emptyState
+            } else if groupedEntries.isEmpty {
+                ContentUnavailableView.search
             } else {
                 historyList
             }
@@ -21,6 +24,8 @@ struct HistorySettingsView: View {
 
             bottomBar
         }
+        .searchable(text: $searchText, prompt: String(localized: "Search history"))
+        .navigationTitle(String(localized: "History"))
         .sheet(item: $ruleFromHistory) { rule in
             RuleEditorSheet(
                 rule: rule,
@@ -166,7 +171,7 @@ struct HistorySettingsView: View {
                 if !hasRule, canCreate {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color("BrandAccentDeep"))
                         .background(Circle().fill(Color(NSColor.controlBackgroundColor)).padding(-1))
                         .offset(x: 4, y: 3)
                 }
@@ -280,6 +285,17 @@ struct HistorySettingsView: View {
         let entries: [HistoryEntry]
     }
 
+    private var filteredEntries: [HistoryEntry] {
+        guard !searchText.isEmpty else { return appState.history }
+        let query = searchText.lowercased()
+        return appState.history.filter {
+            $0.domain.lowercased().contains(query)
+                || ($0.title?.lowercased().contains(query) ?? false)
+                || $0.appName.lowercased().contains(query)
+                || $0.url.lowercased().contains(query)
+        }
+    }
+
     private var groupedEntries: [DateGroup] {
         let calendar = Calendar.current
 
@@ -287,7 +303,7 @@ struct HistorySettingsView: View {
         var yesterday: [HistoryEntry] = []
         var older: [HistoryEntry] = []
 
-        for entry in appState.history {
+        for entry in filteredEntries {
             if calendar.isDateInToday(entry.openedAt) {
                 today.append(entry)
             } else if calendar.isDateInYesterday(entry.openedAt) {

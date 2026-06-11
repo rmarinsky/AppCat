@@ -11,7 +11,7 @@ struct GeneralSettingsView: View {
                 HStack {
                     if appState.isDefaultBrowser {
                         Label("BrowserCat is the default browser", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color("BrandAccentDeep"))
                     } else {
                         Label("BrowserCat is not the default browser", systemImage: "xmark.circle")
                             .foregroundStyle(.secondary)
@@ -33,7 +33,7 @@ struct GeneralSettingsView: View {
                 HStack {
                     if appState.isDefaultWebFileHandler {
                         Label("BrowserCat handles web and dev files", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color("BrandAccentDeep"))
                     } else {
                         Label("BrowserCat does not handle web and dev files", systemImage: "xmark.circle")
                             .foregroundStyle(.secondary)
