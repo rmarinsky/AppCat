@@ -95,7 +95,7 @@ struct OverviewView: View {
         return HStack(spacing: 3) {
             Image(systemName: isUp ? "arrow.up.right" : "arrow.down.right")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(isUp ? .green : Color.secondary)
+                .foregroundStyle(isUp ? Color("BrandAccentDeep") : Color.secondary)
             Text(isUp ? "+\(percent)% vs last month" : "\(percent)% vs last month")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)

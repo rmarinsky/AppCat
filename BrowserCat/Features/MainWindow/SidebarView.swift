@@ -145,7 +145,7 @@ private struct DefaultBrowserFooter: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color("BrandAccentDeep"))
                 Text("Default browser")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)

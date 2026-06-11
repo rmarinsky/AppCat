@@ -157,7 +157,7 @@ struct RulesSettingsView: View {
                 HStack(spacing: 12) {
                     // Enabled indicator
                     Circle()
-                        .fill(rule.isEnabled ? Color.green : Color.gray)
+                        .fill(rule.isEnabled ? Color("BrandAccentDeep") : Color.gray)
                         .frame(width: 8, height: 8)
 
                     // Pattern
