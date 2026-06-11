@@ -49,7 +49,7 @@ struct URLBar: View {
             } label: {
                 Image(systemName: showCopied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 11))
-                    .foregroundStyle(showCopied ? .green : .secondary)
+                    .foregroundStyle(showCopied ? Color("BrandAccentDeep") : .secondary)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("c", modifiers: .command)

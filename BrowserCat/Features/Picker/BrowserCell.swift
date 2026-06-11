@@ -160,7 +160,7 @@ struct HotkeyKeycapView: View {
             .frame(height: compact ? 20 : 18)
             .background(
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.95))
+                    .fill(Color("BrandAccentDeep"))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
