@@ -27,7 +27,7 @@ struct MainWindowView: View {
     private var detailView: some View {
         switch appState.mainWindowSection {
         case .overview:
-            StatsSettingsView()
+            OverviewView()
         case .history:
             HistorySettingsView()
         case .suggestions:
