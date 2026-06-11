@@ -4,7 +4,7 @@ struct ProfilePopover: View {
     let browser: InstalledBrowser
     let onSelect: (BrowserProfile) -> Void
 
-    private let profileColors: [Color] = [.blue, .green, .orange, .purple, .red, .pink, .teal, .cyan]
+    private let profileColors: [Color] = [.orange, .green, .red, .pink, .teal, .cyan, .mint, .brown]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

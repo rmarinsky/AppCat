@@ -183,7 +183,7 @@ struct RulesSettingsView: View {
                             if rule.targetType == .app {
                                 Image(systemName: "arrow.up.forward.app.fill")
                                     .font(.system(size: 9))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color("BrandAccentDeep"))
                             }
                             Text(targetName)
                                 .font(.system(size: 12))

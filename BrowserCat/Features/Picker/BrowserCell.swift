@@ -174,7 +174,7 @@ struct HotkeyKeycapView: View {
 
 extension Color {
     static func profileAvatar(for name: String) -> Color {
-        let colors: [Color] = [.blue, .purple, .orange, .green, .pink, .teal, .indigo]
+        let colors: [Color] = [.orange, .red, .green, .pink, .teal, .mint, .brown]
         let hash = abs(name.hashValue)
         return colors[hash % colors.count]
     }
