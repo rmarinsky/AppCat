@@ -1,4 +1,5 @@
 import AppKit
+import LaunchAtLogin
 import os
 import SwiftUI
 
@@ -40,6 +41,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = updaterManager
 
         Log.app.info("BrowserCat launched")
+
+        // Open the main window on a normal launch so the app behaves like a regular app.
+        // Skip when launched at login or when a URL/picker is already in flight.
+        if !LaunchAtLogin.wasLaunchedAtLogin {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                guard let self else { return }
+                guard self.appState.pendingURL == nil, !self.appState.isPickerVisible else { return }
+                self.appState.mainWindowSection = .overview
+                NotificationCenter.default.post(name: .openMainWindow, object: nil)
+            }
+        }
     }
 
     // MARK: - URL Handling

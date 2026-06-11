@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -35,9 +36,20 @@ struct BrowserCatApp: App {
 }
 
 private struct MenuBarIconView: View {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
         Image(systemName: "cat.fill")
             .symbolRenderingMode(.hierarchical)
-        .accessibilityLabel("BrowserCat")
+            .accessibilityLabel("BrowserCat")
+            .onReceive(NotificationCenter.default.publisher(for: .openMainWindow)) { _ in
+                openWindow(id: "main-window")
+                NSApp.activate(ignoringOtherApps: true)
+            }
     }
+}
+
+extension Notification.Name {
+    /// Posted by AppDelegate to ask the always-alive menu-bar label to open the main window.
+    static let openMainWindow = Notification.Name("ua.com.rmarinsky.browsercat.openMainWindow")
 }

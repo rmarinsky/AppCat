@@ -7,11 +7,15 @@ struct MainWindowView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView()
-                .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+                .navigationSplitViewColumnWidth(240)
+                .toolbar(removing: .sidebarToggle)
+                .background(Color("SurfaceSidebar"))
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color("SurfaceWindow"))
         }
+        .navigationSplitViewStyle(.balanced)
         .environment(\.locale, appState.appLanguage.locale)
         .background(MainWindowSetup())
         .onAppear {
@@ -29,32 +33,66 @@ struct MainWindowView: View {
         case .overview:
             OverviewView()
         case .history:
-            HistorySettingsView()
+            section(HistorySettingsView())
         case .suggestions:
             SuggestionsView()
         case .settingsGeneral:
-            GeneralSettingsView()
+            section(GeneralSettingsView())
         case .settingsBrowsers:
-            AppsSettingsView()
+            section(AppsSettingsView())
         case .settingsRules:
-            RulesSettingsView()
+            section(RulesSettingsView())
         case .settingsShortcuts:
-            AppsSettingsView()
+            section(AppsSettingsView())
         case .settingsAccount:
-            AboutSettingsView()
+            section(AboutSettingsView())
         }
+    }
+
+    /// Wraps a detail view with the flat section header (title + hairline) used across
+    /// every non-Overview screen. Overview and Suggestions provide their own headers.
+    private func section(_ content: some View) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(appState.mainWindowSection.label)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 18)
+            .padding(.bottom, 14)
+
+            Rectangle()
+                .fill(Color("HairlineBorder"))
+                .frame(height: 1)
+
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(Color("SurfaceWindow"))
     }
 }
 
 // MARK: - One-time window setup
 
 private struct MainWindowSetup: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context _: Context) -> NSView {
         let view = NSView(frame: .zero)
         DispatchQueue.main.async {
             guard let win = view.window else { return }
             win.setFrameAutosaveName("BrowserCatMainWindow")
-            win.minSize = NSSize(width: 820, height: 580)
+            win.minSize = NSSize(width: 900, height: 620)
+
+            // Unified flat chrome — traffic lights float over the sidebar, no toolbar strip.
+            win.titlebarAppearsTransparent = true
+            win.titleVisibility = .hidden
+            win.styleMask.insert(.fullSizeContentView)
+            win.isMovableByWindowBackground = true
+            if let surface = NSColor(named: "SurfaceWindow") {
+                win.backgroundColor = surface
+            }
+
             var bh = win.collectionBehavior
             bh.insert(.moveToActiveSpace)
             bh.insert(.fullScreenPrimary)
@@ -63,5 +101,5 @@ private struct MainWindowSetup: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_: NSView, context: Context) {}
+    func updateNSView(_: NSView, context _: Context) {}
 }

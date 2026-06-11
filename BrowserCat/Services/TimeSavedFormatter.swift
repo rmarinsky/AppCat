@@ -33,4 +33,18 @@ enum TimeSavedFormatter {
         let remMin = minutes % 60
         return remMin == 0 ? "\(hours)h" : "\(hours)h \(remMin)m"
     }
+
+    /// Single big-unit hero form: returns the rounded value and its unit label,
+    /// e.g. `(value: "3.4", unit: "hrs")`. Used by the Overview hero number.
+    static func hero(seconds: Int) -> (value: String, unit: String) {
+        let s = max(0, seconds)
+        if s >= 3600 {
+            let hrs = Double(s) / 3600.0
+            return (String(format: hrs >= 10 ? "%.0f" : "%.1f", hrs), "hrs")
+        }
+        if s >= 60 {
+            return ("\(s / 60)", "min")
+        }
+        return ("\(s)", "sec")
+    }
 }

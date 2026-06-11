@@ -120,6 +120,42 @@ final class StatsManager {
         dailyStats.reduce(0) { $0 + $1.autoRouteCount + $1.pickerHotkeyCount + $1.pickerClickCount }
     }
 
+    /// Percentage of all opens that were auto-routed by a rule (0–100).
+    var autoRoutedPercent: Int {
+        let total = totalOpenCount
+        guard total > 0 else { return 0 }
+        let autoRouted = dailyStats.reduce(0) { $0 + $1.autoRouteCount }
+        return Int((Double(autoRouted) / Double(total) * 100).rounded())
+    }
+
+    var secondsSavedThisYear: Int {
+        let calendar = Calendar.current
+        let year = calendar.component(.year, from: Date())
+        return dailyStats.reduce(0) { acc, day in
+            guard let date = day.date, calendar.component(.year, from: date) == year else { return acc }
+            return acc + day.secondsSaved
+        }
+    }
+
+    /// Per-day total opens for the current calendar week (Monday→Sunday), with future
+    /// days flagged so the chart can render them as empty placeholders.
+    func currentWeekOpens() -> [(date: Date, count: Int, isFuture: Bool)] {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2 // Monday
+        let today = calendar.startOfDay(for: Date())
+        let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        let weekStart = calendar.date(from: comps) ?? today
+        var result: [(Date, Int, Bool)] = []
+        for offset in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
+            let key = DailyStats.dayKey(for: date)
+            let day = dailyStats.first(where: { $0.day == key })
+            let count = (day?.autoRouteCount ?? 0) + (day?.pickerHotkeyCount ?? 0) + (day?.pickerClickCount ?? 0)
+            result.append((date, count, date > today))
+        }
+        return result
+    }
+
     /// Last `days` days, oldest → newest. Days with no opens get a 0-second entry so charts
     /// render a continuous timeline.
     func dailySeries(lastDays: Int) -> [(date: Date, seconds: Int)] {
