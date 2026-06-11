@@ -3,7 +3,7 @@ import SwiftUI
 struct MenuBarContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.statsManager) private var statsManager
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     var onReopenURL: (String) -> Void
     var onCheckForUpdates: () -> Void
 
@@ -41,7 +41,8 @@ struct MenuBarContentView: View {
         Group {
             if let teaser = statsTeaserText {
                 Button {
-                    openSettings()
+                    appState.mainWindowSection = .overview
+                    openWindow(id: "main-window")
                 } label: {
                     Label(teaser, systemImage: "clock.badge.checkmark")
                 }
@@ -85,7 +86,8 @@ struct MenuBarContentView: View {
                 Divider()
 
                 Button {
-                    openSettings()
+                    appState.mainWindowSection = .history
+                    openWindow(id: "main-window")
                 } label: {
                     Text("Open History...")
                 }
@@ -98,7 +100,8 @@ struct MenuBarContentView: View {
             }
 
             Button {
-                openSettings()
+                appState.mainWindowSection = .settingsGeneral
+                openWindow(id: "main-window")
             } label: {
                 Text("Settings...")
             }

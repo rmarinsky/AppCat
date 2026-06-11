@@ -28,6 +28,7 @@ final class AppState {
     var recentLinksCount: Int = 3
     var compactPickerView: Bool = false
     var appLanguage: AppLanguage = .default
+    var mainWindowSection: MainWindowSection = .overview
 
     var visibleBrowsers: [InstalledBrowser] {
         browsers.filter { $0.isVisible && !$0.isIgnored }.sorted { $0.sortOrder < $1.sortOrder }

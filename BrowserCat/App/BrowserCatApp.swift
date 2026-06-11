@@ -17,8 +17,8 @@ struct BrowserCatApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Settings {
-            SettingsView()
+        Window("BrowserCat", id: "main-window") {
+            MainWindowView()
                 .environment(appDelegate.appState)
                 .environment(\.browserManager, appDelegate.browserManager)
                 .environment(\.appManager, appDelegate.appManager)
@@ -29,6 +29,8 @@ struct BrowserCatApp: App {
                 .environment(\.suggestionsManager, appDelegate.suggestionsManager)
                 .environment(\.statsManager, appDelegate.statsManager)
         }
+        .defaultSize(width: 1000, height: 680)
+        .windowResizability(.contentMinSize)
     }
 }
 
