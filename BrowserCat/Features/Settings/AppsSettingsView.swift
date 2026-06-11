@@ -207,6 +207,7 @@ struct AppsSettingsView: View {
             }
             .padding(8)
         }
+        .navigationTitle(String(localized: "Browsers & Apps"))
     }
 
     // MARK: - Browser Row

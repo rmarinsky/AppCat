@@ -111,5 +111,6 @@ struct AboutSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .navigationTitle(String(localized: "Account & About"))
     }
 }

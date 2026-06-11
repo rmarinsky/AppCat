@@ -109,5 +109,6 @@ struct GeneralSettingsView: View {
         .onAppear {
             defaultBrowserManager?.checkIsDefault(state: appState)
         }
+        .navigationTitle(String(localized: "General"))
     }
 }

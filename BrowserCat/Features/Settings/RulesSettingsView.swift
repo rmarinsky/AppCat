@@ -60,6 +60,7 @@ struct RulesSettingsView: View {
                 }
             )
         }
+        .navigationTitle(String(localized: "Rules"))
     }
 
     private var suggestionsSection: some View {
