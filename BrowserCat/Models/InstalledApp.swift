@@ -46,8 +46,15 @@ struct InstalledApp: Identifiable, Equatable {
     static func matchingFileApps(for url: URL, in apps: [InstalledApp]) -> [InstalledApp] {
         guard url.isFileURL else { return [] }
 
+        // Apps the system itself says can open this file (LaunchServices), so any installed
+        // app — not just the curated registry — becomes a target for files others can't open.
+        let capableIDs = Set(
+            NSWorkspace.shared.urlsForApplications(toOpen: url)
+                .compactMap { Bundle(url: $0)?.bundleIdentifier }
+        )
+
         return apps
-            .filter { $0.isVisible && $0.matchesFile(url) }
+            .filter { $0.isVisible && ($0.matchesFile(url) || capableIDs.contains($0.id)) }
             .sorted { lhs, rhs in
                 let lhsPriority = AppDefinition.registryByID[lhs.id]?.filePickerPriority ?? Int.max
                 let rhsPriority = AppDefinition.registryByID[rhs.id]?.filePickerPriority ?? Int.max

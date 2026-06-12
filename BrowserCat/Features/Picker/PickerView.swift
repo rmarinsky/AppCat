@@ -125,12 +125,16 @@ struct PickerView: View {
         PickerItem.matchingBrowsers(for: appState.pendingURL, in: appState.pickerBrowsers)
     }
 
-    /// Only apps that match the pending URL's host or local file type.
+    /// Apps that match the pending URL's host or can open the local file, ordered so the
+    /// apps you route to most often come first.
     private var matchingApps: [InstalledApp] {
-        PickerItem.matchingApps(
-            for: appState.pendingURL,
-            in: appState.visibleApps
-        )
+        PickerItem.matchingApps(for: appState.pendingURL, in: appState.visibleApps)
+            .sorted { lhs, rhs in
+                let lc = appState.appUsage[lhs.id]?.count ?? 0
+                let rc = appState.appUsage[rhs.id]?.count ?? 0
+                if lc != rc { return lc > rc }
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
     }
 
     private var prioritizedAppIDs: Set<String> {
