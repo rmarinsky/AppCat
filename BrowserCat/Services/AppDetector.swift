@@ -43,6 +43,58 @@ final class AppDetector {
         return apps
     }
 
+    /// Detect *all* installed apps from the standard application directories.
+    /// Registry apps keep their curated metadata (host patterns, deep links); everything
+    /// else becomes a generic open target. Browsers are filtered out later by AppManager.
+    func detectAllApps() -> [InstalledApp] {
+        let fm = FileManager.default
+        let dirs = [
+            "/Applications",
+            "/Applications/Utilities",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            NSHomeDirectory() + "/Applications",
+        ].map { URL(fileURLWithPath: $0) }
+
+        var seen: Set<String> = []
+        var apps: [InstalledApp] = []
+        let mainID = Bundle.main.bundleIdentifier
+
+        for dir in dirs {
+            guard let entries = try? fm.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for url in entries where url.pathExtension == "app" {
+                guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier else { continue }
+                guard id != mainID, seen.insert(id).inserted else { continue }
+
+                let definition = AppDefinition.registryByID[id]
+                let finderName = fm.displayName(atPath: url.path)
+                let name = finderName.hasSuffix(".app") ? String(finderName.dropLast(4)) : finderName
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                icon.size = NSSize(width: 64, height: 64)
+                let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String
+                let schemes = readURLSchemes(from: url)
+
+                apps.append(InstalledApp(
+                    id: id,
+                    displayName: definition?.displayName ?? name,
+                    appURL: url,
+                    urlSchemes: schemes.isEmpty ? [definition?.urlScheme].compactMap { $0 } : schemes,
+                    hostPatterns: definition?.hostPatterns ?? [],
+                    isVisible: true,
+                    sortOrder: apps.count,
+                    icon: icon,
+                    version: version
+                ))
+            }
+        }
+
+        Log.apps.info("Detected \(apps.count) installed apps")
+        return apps
+    }
+
     // MARK: - Private
 
     /// Read CFBundleURLTypes -> CFBundleURLSchemes from an app bundle

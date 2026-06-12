@@ -6,7 +6,8 @@ final class AppManager {
     private let appDetector = AppDetector()
 
     func refreshApps(into state: AppState) {
-        let detected = appDetector.detectApps()
+        let browserIDs = Set(state.browsers.map(\.id))
+        let detected = appDetector.detectAllApps().filter { !browserIDs.contains($0.id) }
         let savedConfigs = AppConfigStorage.shared.load()
 
         if let savedConfigs {

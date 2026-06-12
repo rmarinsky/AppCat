@@ -25,6 +25,7 @@ final class AppState {
     var urlRules: [URLRule] = []
     var history: [HistoryEntry] = []
     var suggestions: [RuleSuggestion] = []
+    var appUsage: [String: AppUsage] = [:]
     var recentLinksCount: Int = 3
     var compactPickerView: Bool = false
     var selectWithNumberKeys: Bool = true
@@ -51,6 +52,25 @@ final class AppState {
         apps.filter(\.isVisible).sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    /// All apps sorted by usage frequency (most-used first), then alphabetically.
+    var appsByFrequency: [InstalledApp] {
+        apps.sorted { lhs, rhs in
+            let lc = appUsage[lhs.id]?.count ?? 0
+            let rc = appUsage[rhs.id]?.count ?? 0
+            if lc != rc { return lc > rc }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+    }
+
+    /// Record one use of an app as an open target and persist the running tally.
+    func recordAppUsage(_ bundleID: String) {
+        var entry = appUsage[bundleID] ?? AppUsage(count: 0, lastUsed: Date())
+        entry.count += 1
+        entry.lastUsed = Date()
+        appUsage[bundleID] = entry
+        AppUsageStorage.shared.save(appUsage)
+    }
+
     init() {
         SettingsStorage.shared.applyLanguagePreference()
         lastOpenedURL = SettingsStorage.shared.lastURL
@@ -58,6 +78,7 @@ final class AppState {
         compactPickerView = SettingsStorage.shared.compactPickerView
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         appLanguage = SettingsStorage.shared.appLanguage
+        appUsage = AppUsageStorage.shared.load()
         Log.app.debug("AppState initialized")
     }
 

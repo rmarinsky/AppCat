@@ -37,7 +37,9 @@
 		433AF962472C8AC889C31698 /* URLUnwrapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA212A3F62ED90C4C5E6AADB /* URLUnwrapperTests.swift */; };
 		48A29D538BDDE0C9C84D4991 /* AppDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C18E301F6F8EA0AACA163D7 /* AppDetector.swift */; };
 		4BBB8BE2573EDE0AC3C2BCEF /* ManagerEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A984B259BEAA75E702D814 /* ManagerEnvironment.swift */; };
+		4EBCED8DBFE9EE0CEBCFB8A0 /* AppUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4E58E298EED98E96116A3E /* AppUsage.swift */; };
 		4FABC8FA1EE2F75D3D8F125B /* BrowserCatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC287980C0A32719AD28551 /* BrowserCatApp.swift */; };
+		5195715567459E9C526E002E /* AppsScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26928C1D937CCCFAF84709B9 /* AppsScreenView.swift */; };
 		52CF84848429992524CE2B5A /* URLRulesManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060597A231BB4F68AA986E2E /* URLRulesManagerTests.swift */; };
 		562B0C0EBAFC90342042CBBB /* RulesStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8845DE995EB5854DEC195F /* RulesStorage.swift */; };
 		5638331E5D1CAA78F0798769 /* FileShortcutResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492E797F0389FB564953205B /* FileShortcutResolver.swift */; };
@@ -51,6 +53,7 @@
 		72017291AF4DF333D2271C79 /* AboutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D51BBF8B8D0CAAEB1CE7E42 /* AboutSettingsView.swift */; };
 		7313F5D907EFC51BB3DB65FB /* SuggestionStateStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA7F21CB2CDEC97585CD16A /* SuggestionStateStorage.swift */; };
 		78681E28A9EC65259CCEB6CC /* ConfigDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD02E59208B7B2D5A04B1C9C /* ConfigDirectory.swift */; };
+		7A815C4202DD834C0AC47749 /* AppUsageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABB79FDEE221926F365B08F /* AppUsageStorage.swift */; };
 		7F29FF86A6E520E6DD4AFC65 /* RuleSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7289D8A66C88095397AEE3 /* RuleSuggestion.swift */; };
 		8072A141376ABD71A9042FE7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49935385F6579EE0B58C7844 /* AppState.swift */; };
 		8DF04712689387C65E1BAC74 /* InstalledBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F5D838F4BF991EB6612E7E /* InstalledBrowser.swift */; };
@@ -116,8 +119,10 @@
 		1F53ECFF56533673400B1105 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1FEDCE78D31C37DE0512449E /* AppManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
 		2140F3CBD471F885F5632C87 /* LinkMetadataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkMetadataManager.swift; sourceTree = "<group>"; };
+		26928C1D937CCCFAF84709B9 /* AppsScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsScreenView.swift; sourceTree = "<group>"; };
 		2693C23DE7409F364E44ACCB /* AppConfigStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigStorage.swift; sourceTree = "<group>"; };
 		2906C0DDC49483DB6B1BDFEF /* ProfileDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileDetector.swift; sourceTree = "<group>"; };
+		2ABB79FDEE221926F365B08F /* AppUsageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsageStorage.swift; sourceTree = "<group>"; };
 		2B8845DE995EB5854DEC195F /* RulesStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesStorage.swift; sourceTree = "<group>"; };
 		2C2D05BFC7AAE142D585AE62 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		2DE43AE24071530F1A30646F /* HistorySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySettingsView.swift; sourceTree = "<group>"; };
@@ -128,6 +133,7 @@
 		395FF2D0B44BD244485F5EC5 /* URLRulesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRulesManager.swift; sourceTree = "<group>"; };
 		3BA6AE8E5837D6A8E05FED7E /* ProfilePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePopover.swift; sourceTree = "<group>"; };
 		3CB795FD1DE244D5D24C6B1C /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		3D4E58E298EED98E96116A3E /* AppUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsage.swift; sourceTree = "<group>"; };
 		3F7289D8A66C88095397AEE3 /* RuleSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSuggestion.swift; sourceTree = "<group>"; };
 		40759059FBEC29D26C857797 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		47C5F2377087FF4CEF1668D3 /* BrowserCat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BrowserCat.entitlements; sourceTree = "<group>"; };
@@ -221,6 +227,7 @@
 			isa = PBXGroup;
 			children = (
 				59E693DE5942139A67A1B87D /* AppDefinition.swift */,
+				3D4E58E298EED98E96116A3E /* AppUsage.swift */,
 				FD47656D0F5910C589FA1DE6 /* BrowserDefinition.swift */,
 				9876871CE74F5F244C21A415 /* BrowserFileType.swift */,
 				D498C8270D3821EBE2FB800B /* BrowserProfile.swift */,
@@ -345,6 +352,7 @@
 			children = (
 				2693C23DE7409F364E44ACCB /* AppConfigStorage.swift */,
 				7C18E301F6F8EA0AACA163D7 /* AppDetector.swift */,
+				2ABB79FDEE221926F365B08F /* AppUsageStorage.swift */,
 				0C07A0B40A2CD4962E07A258 /* BrowserConfigStorage.swift */,
 				C04C9463C9B4C28CD7DBF298 /* BrowserDetector.swift */,
 				E2CEBA310FF69A96215A582E /* BrowserLauncher.swift */,
@@ -412,6 +420,7 @@
 			isa = PBXGroup;
 			children = (
 				9D51BBF8B8D0CAAEB1CE7E42 /* AboutSettingsView.swift */,
+				26928C1D937CCCFAF84709B9 /* AppsScreenView.swift */,
 				8501FD326AED5BFEF615690C /* BrowsersSettingsView.swift */,
 				63AED79B785DD15CEE39A472 /* GeneralSettingsView.swift */,
 				2DE43AE24071530F1A30646F /* HistorySettingsView.swift */,
@@ -549,6 +558,9 @@
 				48A29D538BDDE0C9C84D4991 /* AppDetector.swift in Sources */,
 				6CBA17EC7E167951E0A566FD /* AppManager.swift in Sources */,
 				8072A141376ABD71A9042FE7 /* AppState.swift in Sources */,
+				4EBCED8DBFE9EE0CEBCFB8A0 /* AppUsage.swift in Sources */,
+				7A815C4202DD834C0AC47749 /* AppUsageStorage.swift in Sources */,
+				5195715567459E9C526E002E /* AppsScreenView.swift in Sources */,
 				4FABC8FA1EE2F75D3D8F125B /* BrowserCatApp.swift in Sources */,
 				E6E59E083C3F8D168B90FBD6 /* BrowserCell.swift in Sources */,
 				922C0C3550B61CFF2BCDD18E /* BrowserConfigStorage.swift in Sources */,

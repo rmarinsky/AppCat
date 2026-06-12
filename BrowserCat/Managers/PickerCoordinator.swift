@@ -61,6 +61,7 @@ final class PickerCoordinator {
 
     func openURL(with app: InstalledApp, state: AppState, source: OpenSource = .pickerClick) {
         guard let url = state.pendingURL else { return }
+        state.recordAppUsage(app.id)
         let displayURLs = state.pendingDisplayURLs
         let launchURLs = state.launchURLsForPendingOpen
         for launchURL in launchURLs {

@@ -15,6 +15,7 @@ enum ConfigDirectory {
     static var apps: URL { base.appendingPathComponent("apps.json") }
     static var history: URL { base.appendingPathComponent("history.json") }
     static var stats: URL { base.appendingPathComponent("stats.json") }
+    static var appUsage: URL { base.appendingPathComponent("app_usage.json") }
     static var dismissedSuggestions: URL { base.appendingPathComponent("dismissed_suggestions.json") }
     static var suggestionState: URL { base.appendingPathComponent("suggestion_state.json") }
 }

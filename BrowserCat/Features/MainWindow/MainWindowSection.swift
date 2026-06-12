@@ -6,6 +6,7 @@ enum MainWindowSection: String, Hashable, Sendable {
     case suggestions
     case settingsGeneral
     case settingsBrowsers
+    case settingsApps
     case settingsRules
     case settingsShortcuts
     case settingsAccount
@@ -17,6 +18,7 @@ enum MainWindowSection: String, Hashable, Sendable {
         case .suggestions: String(localized: "Suggestions")
         case .settingsGeneral: String(localized: "General")
         case .settingsBrowsers: String(localized: "Browsers")
+        case .settingsApps: String(localized: "Apps")
         case .settingsRules: String(localized: "Rules")
         case .settingsShortcuts: String(localized: "Shortcuts")
         case .settingsAccount: String(localized: "Account")
@@ -30,6 +32,7 @@ enum MainWindowSection: String, Hashable, Sendable {
         case .suggestions: "sparkles"
         case .settingsGeneral: "gear"
         case .settingsBrowsers: "safari"
+        case .settingsApps: "square.grid.2x2"
         case .settingsRules: "arrow.triangle.branch"
         case .settingsShortcuts: "keyboard"
         case .settingsAccount: "person.circle"
@@ -38,7 +41,7 @@ enum MainWindowSection: String, Hashable, Sendable {
 
     var isSettings: Bool {
         switch self {
-        case .settingsGeneral, .settingsBrowsers, .settingsRules,
+        case .settingsGeneral, .settingsBrowsers, .settingsApps, .settingsRules,
              .settingsShortcuts, .settingsAccount:
             return true
         default:

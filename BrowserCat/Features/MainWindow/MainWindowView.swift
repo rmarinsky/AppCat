@@ -40,6 +40,8 @@ struct MainWindowView: View {
             section(GeneralSettingsView())
         case .settingsBrowsers:
             BrowsersSettingsView()
+        case .settingsApps:
+            AppsScreenView()
         case .settingsRules:
             section(RulesSettingsView())
         case .settingsShortcuts:
