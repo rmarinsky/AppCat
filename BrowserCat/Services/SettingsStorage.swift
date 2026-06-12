@@ -44,6 +44,11 @@ final class SettingsStorage {
         set { defaults.set(newValue, forKey: "recentLinksCount") }
     }
 
+    var selectWithNumberKeys: Bool {
+        get { defaults.object(forKey: "selectWithNumberKeys") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "selectWithNumberKeys") }
+    }
+
     var compactPickerView: Bool {
         get { defaults.bool(forKey: "compactPickerView") }
         set { defaults.set(newValue, forKey: "compactPickerView") }

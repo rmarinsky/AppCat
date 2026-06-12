@@ -27,6 +27,7 @@ final class AppState {
     var suggestions: [RuleSuggestion] = []
     var recentLinksCount: Int = 3
     var compactPickerView: Bool = false
+    var selectWithNumberKeys: Bool = true
     var appLanguage: AppLanguage = .default
     var mainWindowSection: MainWindowSection = .overview
 
@@ -55,6 +56,7 @@ final class AppState {
         lastOpenedURL = SettingsStorage.shared.lastURL
         recentLinksCount = SettingsStorage.shared.recentLinksCount
         compactPickerView = SettingsStorage.shared.compactPickerView
+        selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         appLanguage = SettingsStorage.shared.appLanguage
         Log.app.debug("AppState initialized")
     }

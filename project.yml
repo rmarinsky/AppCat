@@ -13,6 +13,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.9.0
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 2.0.0
 
 configs:
   Debug: debug
@@ -47,6 +50,7 @@ targets:
     dependencies:
       - package: LaunchAtLogin
       - package: Sparkle
+      - package: KeyboardShortcuts
     settings:
       base:
         INFOPLIST_FILE: BrowserCat/Resources/Info.plist

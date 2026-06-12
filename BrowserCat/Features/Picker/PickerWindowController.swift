@@ -156,6 +156,17 @@ final class PickerWindowController: NSObject {
             let isPrivate = event.modifierFlags.contains(.option) || event.modifierFlags.contains(.shift)
             let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
 
+            // Number-key selection — picks the Nth visible browser by position.
+            if appState.selectWithNumberKeys,
+               let digits = event.charactersIgnoringModifiers, let n = Int(digits), (1...9).contains(n)
+            {
+                let ordered = appState.pickerBrowsers
+                if ordered.indices.contains(n - 1) {
+                    coordinator.openURL(with: ordered[n - 1], mode: mode, profile: nil, state: appState)
+                    return true
+                }
+            }
+
             // Check app hotkeys first
             for app in matchingApps {
                 if let code = app.hotkeyKeyCode, code == pressedKeyCode {

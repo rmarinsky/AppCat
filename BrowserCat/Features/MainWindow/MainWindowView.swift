@@ -39,11 +39,11 @@ struct MainWindowView: View {
         case .settingsGeneral:
             section(GeneralSettingsView())
         case .settingsBrowsers:
-            section(AppsSettingsView())
+            BrowsersSettingsView()
         case .settingsRules:
             section(RulesSettingsView())
         case .settingsShortcuts:
-            section(AppsSettingsView())
+            ShortcutsSettingsView()
         case .settingsAccount:
             section(AboutSettingsView())
         }

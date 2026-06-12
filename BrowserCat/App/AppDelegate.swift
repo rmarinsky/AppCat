@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import LaunchAtLogin
 import os
 import SwiftUI
@@ -40,6 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionsManager.analyseIfNeeded(state: appState)
         _ = updaterManager
 
+        KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
+            self?.openPickerManually()
+        }
+        KeyboardShortcuts.onKeyUp(for: .reopenLastPicker) { [weak self] in
+            guard let self, let last = self.appState.lastOpenedURL else { return }
+            self.pickerCoordinator.reopenURL(last, state: self.appState)
+        }
+
         Log.app.info("BrowserCat launched")
 
         // Open the main window on a normal launch so the app behaves like a regular app.
@@ -51,6 +60,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.mainWindowSection = .overview
                 NotificationCenter.default.post(name: .openMainWindow, object: nil)
             }
+        }
+    }
+
+    // MARK: - Global Shortcuts
+
+    /// ⌥⌘B: open the picker for a URL on the clipboard, or re-open the last one.
+    private func openPickerManually() {
+        if let clip = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            let url = URL(string: clip),
+            url.scheme == "http" || url.scheme == "https"
+        {
+            appState.setPendingOpen(displayURLs: [url], launchURLs: [url])
+            fetchTitle(for: url)
+            pickerCoordinator.showPicker(state: appState)
+        } else if let last = appState.lastOpenedURL {
+            pickerCoordinator.reopenURL(last, state: appState)
         }
     }
 
