@@ -140,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         appActivityMonitor.refreshRunningApplications()
+        appActivityMonitor.refreshWindowSnapshotForPicker()
         appManager.refreshApps(into: appState)
         appState.clearPendingOpen()
         appState.isManualPickerPresentation = true

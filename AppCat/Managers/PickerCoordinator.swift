@@ -34,12 +34,13 @@ final class PickerCoordinator {
         with browser: InstalledBrowser,
         mode: BrowserLauncher.OpenMode = .normal,
         profile: BrowserProfile? = nil,
+        windowTarget: AppWindowTarget? = nil,
         state: AppState,
         source: OpenSource = .pickerClick
     ) {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             dismissPicker(state: state)
-            browserLauncher.activate(browser: browser, profile: profile)
+            browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)

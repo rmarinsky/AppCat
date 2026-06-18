@@ -3,6 +3,8 @@ import SwiftUI
 struct BrowserCell: View {
     let browser: InstalledBrowser
     let profile: BrowserProfile?
+    let title: String
+    let subtitle: String?
     let isFocused: Bool
     let selectionShortcut: Character?
     let showsHotkey: Bool
@@ -11,6 +13,8 @@ struct BrowserCell: View {
 
     init(
         browser: InstalledBrowser,
+        title: String? = nil,
+        subtitle: String? = nil,
         isFocused: Bool,
         profile: BrowserProfile? = nil,
         selectionShortcut: Character? = nil,
@@ -20,6 +24,8 @@ struct BrowserCell: View {
     ) {
         self.browser = browser
         self.profile = profile
+        self.title = title ?? profile.map { "\(browser.displayName) - \($0.displayName)" } ?? browser.displayName
+        self.subtitle = subtitle
         self.isFocused = isFocused
         self.selectionShortcut = selectionShortcut
         self.showsHotkey = showsHotkey
@@ -33,7 +39,7 @@ struct BrowserCell: View {
     }
 
     private var displayTitle: String {
-        profile.map { "\(browser.displayName) - \($0.displayName)" } ?? browser.displayName
+        title
     }
 
     var body: some View {
@@ -109,6 +115,14 @@ struct BrowserCell: View {
             HStack(spacing: 4) {
                 if let selectionShortcut {
                     SelectionKeycapView(key: selectionShortcut, compact: true, inline: true)
+                }
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: PickerMetrics.subtitleFontSize(for: style), weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+                        .truncationMode(.tail)
                 }
                 if let hotkey = displayHotkey {
                     HotkeyKeycapView(hotkey: hotkey, compact: true)

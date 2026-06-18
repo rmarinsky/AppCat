@@ -265,7 +265,14 @@ final class PickerWindowController: NSObject {
         if let app = item.app {
             coordinator.openURL(with: app, windowTarget: item.windowTarget, state: appState, source: source)
         } else if let browser = item.browser {
-            coordinator.openURL(with: browser, mode: mode, profile: item.profile, state: appState, source: source)
+            coordinator.openURL(
+                with: browser,
+                mode: mode,
+                profile: item.profile,
+                windowTarget: item.windowTarget,
+                state: appState,
+                source: source
+            )
         }
     }
 
@@ -352,21 +359,27 @@ final class PickerWindowController: NSObject {
 
     private func estimatedPickerItemCount() -> Int {
         let browserIDs = Set(appState.browsers.map(\.id))
-        let browserCount = pickerBrowserItemCount(
-            PickerItem.matchingBrowsers(for: appState.pendingURL, in: appState.pickerBrowsers)
-        )
 
         guard let pendingURL = appState.pendingURL else {
             let runningBundleIDs = appState.cachedRunningBundleIDs
                 ?? Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+            let windowsByAppID = appState.cachedWindowsByAppID ?? [:]
+            let runningBrowsers = PickerItem.matchingBrowsers(for: nil, in: appState.pickerBrowsers)
+                .filter { runningBundleIDs.contains($0.id) }
+            let browserCount = runningBrowsers.reduce(0) { count, browser in
+                count + max(1, windowsByAppID[browser.id]?.count ?? 0)
+            }
             let appCount = appState.apps.reduce(0) { count, app in
                 app.isVisible && runningBundleIDs.contains(app.id) && !browserIDs.contains(app.id)
-                    ? count + max(1, appState.runningWindowsByAppID[app.id]?.count ?? 0)
+                    ? count + max(1, windowsByAppID[app.id]?.count ?? 0)
                     : count
             }
             return browserCount + appCount
         }
 
+        let browserCount = pickerBrowserItemCount(
+            PickerItem.matchingBrowsers(for: pendingURL, in: appState.pickerBrowsers)
+        )
         let appCount = PickerItem.matchingApps(
             for: pendingURL,
             in: appState.apps,

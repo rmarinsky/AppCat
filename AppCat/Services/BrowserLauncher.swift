@@ -31,7 +31,12 @@ final class BrowserLauncher {
         }
     }
 
-    func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil) {
+    func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil, windowTarget: AppWindowTarget? = nil) {
+        if let windowTarget, WindowEnumerator.activate(windowTarget) {
+            Log.browser.info("Activated \(browser.displayName) window '\(windowTarget.title)'")
+            return
+        }
+
         if let profile {
             openProfileWindow(browser: browser, profile: profile)
             return

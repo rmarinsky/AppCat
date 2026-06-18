@@ -30,7 +30,7 @@ struct PickerItem: Identifiable {
     }
 
     var secondaryDisplayName: String? {
-        if windowTarget != nil { return app?.displayName }
+        if windowTarget != nil { return app?.displayName ?? browser?.displayName }
         if profile != nil { return browser?.displayName }
         return nil
     }
@@ -90,6 +90,14 @@ struct PickerItem: Identifiable {
         self.profile = profile
         app = nil
         windowTarget = nil
+    }
+
+    init(browser: InstalledBrowser, windowTarget: AppWindowTarget) {
+        id = "window:\(windowTarget.id)"
+        self.browser = browser
+        profile = nil
+        app = nil
+        self.windowTarget = windowTarget
     }
 
     init(app: InstalledApp, windowTarget: AppWindowTarget? = nil) {
@@ -216,7 +224,13 @@ struct PickerItem: Identifiable {
                 return windows.map { PickerItem(app: app, windowTarget: $0) }
             }
             let runningBrowsers = browsers.filter { runningBundleIDs.contains($0.id) }
-            let browserItems = buildItems(browsers: runningBrowsers, apps: [])
+            let browserItems = runningBrowsers.flatMap { browser -> [PickerItem] in
+                let windows = windowsByAppID[browser.id] ?? []
+                guard !windows.isEmpty else {
+                    return buildItems(browsers: [browser], apps: [])
+                }
+                return windows.map { PickerItem(browser: browser, windowTarget: $0) }
+            }
 
             return browserItems + appItems
         }
@@ -486,14 +500,20 @@ struct PickerView: View {
                 }
             } else if let browser = item.browser {
                 Button("Open") {
-                    pickerCoordinator?.openURL(with: browser, mode: .normal, profile: item.profile, state: appState)
+                    pickerCoordinator?.openURL(
+                        with: browser,
+                        mode: .normal,
+                        profile: item.profile,
+                        windowTarget: item.windowTarget,
+                        state: appState
+                    )
                 }
-                if browser.supportsPrivateMode {
+                if item.windowTarget == nil, browser.supportsPrivateMode {
                     Button("Open Private") {
                         pickerCoordinator?.openURL(with: browser, mode: .privateMode, profile: item.profile, state: appState)
                     }
                 }
-                if item.profile == nil && hasVisibleProfiles {
+                if item.windowTarget == nil, item.profile == nil && hasVisibleProfiles {
                     Divider()
                     Menu("Open with Profile") {
                         ForEach(browser.profiles.filter(\.isVisible)) { profile in
@@ -534,6 +554,13 @@ struct PickerView: View {
             pickerCoordinator?.openURL(with: app, windowTarget: item.windowTarget, state: appState)
         } else if let profile = item.profile, let browser = item.browser {
             pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
+        } else if let browser = item.browser, item.windowTarget != nil {
+            pickerCoordinator?.openURL(
+                with: browser,
+                mode: .normal,
+                windowTarget: item.windowTarget,
+                state: appState
+            )
         } else if let browser = item.browser, browser.profiles.contains(where: \.isVisible) {
             profilePopoverBrowserID = browser.id
         } else if let browser = item.browser {
@@ -682,6 +709,8 @@ struct PickerCell: View {
         if let browser = item.browser {
             BrowserCell(
                 browser: browser,
+                title: item.displayName,
+                subtitle: item.windowTarget == nil ? nil : item.secondaryDisplayName,
                 isFocused: isFocused,
                 profile: item.profile,
                 selectionShortcut: selectionShortcut,

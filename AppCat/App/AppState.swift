@@ -46,7 +46,7 @@ final class AppState {
     }
 
     var cachedWindowsByAppID: [String: [AppWindowTarget]]? {
-        appActivityUpdatedAt == nil ? nil : runningWindowsByAppID
+        appWindowActivityUpdatedAt == nil ? nil : runningWindowsByAppID
     }
 
     var visibleBrowsers: [InstalledBrowser] {

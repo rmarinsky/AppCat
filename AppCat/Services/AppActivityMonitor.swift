@@ -44,6 +44,13 @@ final class AppActivityMonitor {
         appState.appActivityUpdatedAt = Date()
     }
 
+    func refreshWindowSnapshotForPicker() {
+        guard let appState else { return }
+
+        appState.runningWindowsByAppID = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
+        appState.appWindowActivityUpdatedAt = Date()
+    }
+
     private func observeWorkspaceChanges() {
         observe(NSWorkspace.didLaunchApplicationNotification)
         observe(NSWorkspace.didTerminateApplicationNotification)

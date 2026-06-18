@@ -249,6 +249,32 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testManualPickerExpandsRunningBrowserWindowsWithoutPendingURL() {
+        let browser = makeBrowser()
+        let windows = [
+            AppWindowTarget(bundleID: browser.id, title: "Client Portal", index: 0),
+            AppWindowTarget(bundleID: browser.id, title: "AppCat", index: 1),
+        ]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [browser],
+            allBrowsers: [browser],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [browser.id],
+            windowsByAppID: [browser.id: windows]
+        )
+
+        XCTAssertEqual(items.map(\.id), [
+            "window:\(browser.id):0:Client Portal",
+            "window:\(browser.id):1:AppCat",
+        ])
+        XCTAssertEqual(items.map(\.displayName), ["Client Portal", "AppCat"])
+        XCTAssertEqual(items.compactMap(\.secondaryDisplayName), [browser.displayName, browser.displayName])
+    }
+
+    @MainActor
     func testManualPickerExpandsRunningAppWindowsWithoutPendingURL() {
         let app = makeApp(id: "test.cursor", displayName: "Cursor")
         let windows = [
