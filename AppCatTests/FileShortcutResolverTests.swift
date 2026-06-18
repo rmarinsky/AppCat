@@ -16,24 +16,27 @@ final class FileShortcutResolverTests: XCTestCase {
 
     func testInternetShortcutResolvesTargetURL() throws {
         let shortcutURL = try makeTempFile(name: "link.url")
-        try try XCTUnwrap("""
+        let data = try XCTUnwrap("""
         [InternetShortcut]
         URL=https://github.com/rmarinsky/AppCat
-        """.data(using: .utf8)?.write(to: shortcutURL))
+        """.data(using: .utf8))
+        try data.write(to: shortcutURL)
 
         XCTAssertEqual(FileShortcutResolver.resolve(shortcutURL).absoluteString, "https://github.com/rmarinsky/AppCat")
     }
 
     func testInvalidShortcutFallsBackToOriginalFileURL() throws {
         let shortcutURL = try makeTempFile(name: "broken.url")
-        try try XCTUnwrap("[InternetShortcut]\n".data(using: .utf8)?.write(to: shortcutURL))
+        let data = try XCTUnwrap("[InternetShortcut]\n".data(using: .utf8))
+        try data.write(to: shortcutURL)
 
         XCTAssertEqual(FileShortcutResolver.resolve(shortcutURL), shortcutURL)
     }
 
     func testPlainFileReturnsOriginalFileURL() throws {
         let fileURL = try makeTempFile(name: "index.html")
-        try try XCTUnwrap("<html></html>".data(using: .utf8)?.write(to: fileURL))
+        let data = try XCTUnwrap("<html></html>".data(using: .utf8))
+        try data.write(to: fileURL)
 
         XCTAssertEqual(FileShortcutResolver.resolve(fileURL), fileURL)
     }
