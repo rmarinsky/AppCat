@@ -132,48 +132,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Global Shortcuts
 
-    /// ⌥⌘B: open the picker for a URL on the clipboard, or show the manual app picker.
+    /// ⌥⌘B: show the manual app/window switcher.
     private func openPickerManually() {
-        guard let clip = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            let url = manualWebURL(from: clip)
-        else {
-            if appState.isPickerVisible {
-                pickerCoordinator.dismissPicker(state: appState)
-            } else {
-                appState.clearPendingOpen()
-                appState.isManualPickerPresentation = true
-                pickerCoordinator.showPicker(state: appState)
-            }
+        if appState.isPickerVisible {
+            pickerCoordinator.dismissPicker(state: appState)
             return
         }
 
-        appState.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        appActivityMonitor.refreshRunningApplications()
+        appManager.refreshApps(into: appState)
+        appState.clearPendingOpen()
         appState.isManualPickerPresentation = true
-        fetchTitle(for: url)
         pickerCoordinator.showPicker(state: appState)
-    }
-
-    private func manualWebURL(from value: String) -> URL? {
-        func isWebURL(_ url: URL) -> Bool {
-            guard let scheme = url.scheme?.lowercased() else { return false }
-            return (scheme == "http" || scheme == "https") && url.host != nil
-        }
-
-        if let url = URL(string: value), isWebURL(url) {
-            return url
-        }
-
-        let lower = value.lowercased()
-        let localPrefixes = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"]
-        let looksLikeLocalhost = localPrefixes.contains { prefix in
-            lower == prefix || lower.hasPrefix("\(prefix):") || lower.hasPrefix("\(prefix)/")
-        }
-
-        guard looksLikeLocalhost, let url = URL(string: "http://\(value)"), isWebURL(url) else {
-            return nil
-        }
-        return url
     }
 
     // MARK: - URL Handling

@@ -49,6 +49,7 @@ struct BrowserCell: View {
         let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style)
         let compactCellWidth = PickerMetrics.itemWidth(for: style)
         let compactCellHeight = PickerMetrics.itemHeight(for: style)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style)
 
         return VStack(spacing: 2) {
             ZStack(alignment: .bottomLeading) {
@@ -68,16 +69,25 @@ struct BrowserCell: View {
                 }
             }
             .frame(width: compactIconSize, height: compactIconSize)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isFocused ? Color("BrandAccentDeep").opacity(0.14) : Color.clear)
-            )
+            .background {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
+                        .fill(Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.18 : 0.14))
+                }
+            }
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
                         lineWidth: PickerMetrics.focusStrokeWidth(for: style)
                     )
+            )
+            .shadow(
+                color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
+                radius: style == .appSwitcher ? 12 : 5,
+                y: style == .appSwitcher ? 5 : 2
             )
 
             HStack(spacing: 3) {
@@ -94,7 +104,7 @@ struct BrowserCell: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: compactCellWidth, height: 15, alignment: .center)
+            .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style), alignment: .center)
 
             HStack(spacing: 4) {
                 if let selectionShortcut {
@@ -104,7 +114,7 @@ struct BrowserCell: View {
                     HotkeyKeycapView(hotkey: hotkey, compact: true)
                 }
             }
-            .frame(width: compactCellWidth, height: 17, alignment: .center)
+            .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
         }
         .frame(width: compactCellWidth, height: compactCellHeight)
         .contentShape(Rectangle())

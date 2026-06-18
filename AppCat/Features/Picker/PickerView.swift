@@ -257,19 +257,19 @@ enum PickerMetrics {
     static let screenMargin: CGFloat = 8
 
     static func iconSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 72 : 56
+        style == .appSwitcher ? 84 : 56
     }
 
     static func fallbackIconSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 52 : 40
+        style == .appSwitcher ? 60 : 40
     }
 
     static func itemWidth(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 84 : 72
+        style == .appSwitcher ? 100 : 72
     }
 
     static func itemHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 112 : 94
+        style == .appSwitcher ? 136 : 94
     }
 
     static func itemSpacing(for style: PickerPresentationStyle = .routing) -> CGFloat {
@@ -277,27 +277,47 @@ enum PickerMetrics {
     }
 
     static func horizontalPadding(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 20 : 10
+        style == .appSwitcher ? 24 : 10
     }
 
     static func scrollHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 124 : 100
+        style == .appSwitcher ? 150 : 100
     }
 
     static func topPadding(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 8 : 4
+        style == .appSwitcher ? 12 : 4
     }
 
     static func titleFontSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 12 : 11
+        style == .appSwitcher ? 13 : 11
+    }
+
+    static func titleHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
+        style == .appSwitcher ? 17 : 15
+    }
+
+    static func subtitleFontSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
+        style == .appSwitcher ? 11 : 10
+    }
+
+    static func subtitleHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
+        style == .appSwitcher ? 19 : 17
     }
 
     static func focusStrokeWidth(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 2.5 : 2.25
+        style == .appSwitcher ? 3 : 2.25
+    }
+
+    static func focusCornerRadius(for style: PickerPresentationStyle = .routing) -> CGFloat {
+        style == .appSwitcher ? 20 : 12
+    }
+
+    static func panelCornerRadius(for style: PickerPresentationStyle = .routing) -> CGFloat {
+        style == .appSwitcher ? 24 : 16
     }
 
     static func panelHeight(showsHint: Bool, style: PickerPresentationStyle = .routing) -> CGFloat {
-        if style == .appSwitcher { return 132 }
+        if style == .appSwitcher { return 162 }
         return showsHint ? 120 : 104
     }
 
@@ -725,6 +745,7 @@ struct AppCell: View {
         let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style)
         let compactCellWidth = PickerMetrics.itemWidth(for: style)
         let compactCellHeight = PickerMetrics.itemHeight(for: style)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style)
 
         return VStack(spacing: 2) {
             ZStack {
@@ -740,16 +761,25 @@ struct AppCell: View {
                 }
             }
             .frame(width: compactIconSize, height: compactIconSize)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isFocused ? Color("BrandAccentDeep").opacity(0.14) : Color.clear)
-            )
+            .background {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
+                        .fill(Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.18 : 0.14))
+                }
+            }
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
                         lineWidth: PickerMetrics.focusStrokeWidth(for: style)
                     )
+            )
+            .shadow(
+                color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
+                radius: style == .appSwitcher ? 12 : 5,
+                y: style == .appSwitcher ? 5 : 2
             )
 
             Text(title)
@@ -758,7 +788,7 @@ struct AppCell: View {
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
                 .truncationMode(.tail)
-                .frame(width: compactCellWidth, height: 15, alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style), alignment: .center)
 
             if let subtitle {
                 HStack(spacing: 4) {
@@ -767,20 +797,20 @@ struct AppCell: View {
                     }
 
                     Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: PickerMetrics.subtitleFontSize(for: style), weight: .medium))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .multilineTextAlignment(.center)
                         .truncationMode(.tail)
                 }
-                .frame(width: compactCellWidth, height: 17, alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
             } else {
                 HStack(spacing: 4) {
                     if let selectionShortcut {
                         SelectionKeycapView(key: selectionShortcut, compact: true, inline: true)
                     }
                 }
-                .frame(width: compactCellWidth, height: 17, alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
             }
         }
         .frame(width: compactCellWidth, height: compactCellHeight)

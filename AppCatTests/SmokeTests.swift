@@ -67,7 +67,7 @@ final class SmokeTests: XCTestCase {
     }
 
     func testAppSwitcherPanelWidthUsesLargerCommandTabMetrics() {
-        let expected: CGFloat = 296
+        let expected: CGFloat = 352
 
         let width = PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, style: .appSwitcher)
 
@@ -79,7 +79,7 @@ final class SmokeTests: XCTestCase {
             - PickerMetrics.iconSize(for: .appSwitcher)
             + PickerMetrics.itemSpacing(for: .appSwitcher)
 
-        XCTAssertEqual(iconGap, 14, accuracy: 0.001)
+        XCTAssertEqual(iconGap, 18, accuracy: 0.001)
     }
 
     func testPickerPanelWidthClampsToAvailableScreenWidth() {
@@ -90,12 +90,12 @@ final class SmokeTests: XCTestCase {
 
     func testAppSwitcherPanelCentersInVisibleFrame() {
         let origin = PickerPanelPositioning.centeredOrigin(
-            panelSize: NSSize(width: 296, height: 132),
+            panelSize: NSSize(width: 352, height: 162),
             visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800)
         )
 
-        XCTAssertEqual(origin.x, 552, accuracy: 0.001)
-        XCTAssertEqual(origin.y, 384, accuracy: 0.001)
+        XCTAssertEqual(origin.x, 524, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 369, accuracy: 0.001)
     }
 
     func testTypeAheadFocusesAppByName() {

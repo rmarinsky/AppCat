@@ -446,18 +446,26 @@ final class PickerWindowController: NSObject {
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
 
-        // Use NSVisualEffectView as the content view for proper vibrancy
         let visualEffect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-        visualEffect.material = .hudWindow
-        visualEffect.state = .active
         visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 12
-        visualEffect.layer?.masksToBounds = true
+        applyLiquidGlassAppearance(to: visualEffect)
         panel.contentView = visualEffect
 
         panel.delegate = self
 
         return panel
+    }
+
+    private func applyLiquidGlassAppearance(to visualEffect: NSVisualEffectView) {
+        let style = presentationStyle
+        visualEffect.material = style == .appSwitcher ? .hudWindow : .popover
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(for: style)
+        visualEffect.layer?.masksToBounds = true
+        visualEffect.layer?.borderWidth = style == .appSwitcher ? 0.75 : 0.5
+        visualEffect.layer?.borderColor = NSColor.white.withAlphaComponent(style == .appSwitcher ? 0.22 : 0.14).cgColor
+        visualEffect.layer?.backgroundColor = NSColor.black.withAlphaComponent(style == .appSwitcher ? 0.10 : 0.06).cgColor
     }
 
     private func resizePanelIfNeeded(_ panel: NSPanel, to targetSize: NSSize) {
@@ -466,6 +474,9 @@ final class PickerWindowController: NSObject {
         panel.setContentSize(targetSize)
         if let contentView = panel.contentView {
             contentView.frame = NSRect(origin: .zero, size: targetSize)
+            if let visualEffect = contentView as? NSVisualEffectView {
+                applyLiquidGlassAppearance(to: visualEffect)
+            }
             for subview in contentView.subviews {
                 subview.frame = contentView.bounds
             }
