@@ -13,6 +13,7 @@ struct BrowsersSettingsView: View {
     @Environment(\.browserManager) private var browserManager
 
     @State private var draggingID: String?
+    @State private var editingHotkeyTarget: HotkeyTarget?
 
     private var browsers: [InstalledBrowser] {
         appState.browsers.filter { !$0.isIgnored }.sorted { $0.sortOrder < $1.sortOrder }
@@ -28,7 +29,7 @@ struct BrowsersSettingsView: View {
 
                 card
 
-                Text("Drag to reorder · number keys pick a browser · toggle profiles to show them in the picker")
+                Text("Drag to reorder · number keys pick by position · assign a key to open a browser or profile directly")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -124,6 +125,14 @@ struct BrowsersSettingsView: View {
                     )
             }
 
+            hotkeyButton(
+                key: browser.hotkey,
+                target: .browser(id: browser.id),
+                compact: false
+            ) { result in
+                handleBrowserHotkeyResult(result, browserID: browser.id)
+            }
+
             Toggle("", isOn: Binding(
                 get: { browser.isVisible },
                 set: { setVisibility($0, browserID: browser.id) }
@@ -186,6 +195,18 @@ struct BrowsersSettingsView: View {
 
             Spacer(minLength: 8)
 
+            hotkeyButton(
+                key: profile.hotkey,
+                target: .profile(browserId: browser.id, directoryName: profile.directoryName),
+                compact: true
+            ) { result in
+                handleProfileHotkeyResult(
+                    result,
+                    browserID: browser.id,
+                    profileID: profile.directoryName
+                )
+            }
+
             Toggle("", isOn: Binding(
                 get: { profile.isVisible },
                 set: { setProfileVisibility($0, browserID: browser.id, profileID: profile.directoryName) }
@@ -201,7 +222,109 @@ struct BrowsersSettingsView: View {
         .background(Color("SurfaceInset").opacity(0.35))
     }
 
+    private func hotkeyButton(
+        key: Character?,
+        target: HotkeyTarget,
+        compact: Bool,
+        onRecord: @escaping (HotkeyRecorder.Result) -> Void
+    ) -> some View {
+        Button {
+            editingHotkeyTarget = target
+        } label: {
+            HStack(spacing: 6) {
+                Text(compact ? "Key" : "Shortcut")
+                    .font(.system(size: compact ? 10 : 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                if let key {
+                    SelectionKeycapView(key: key, compact: true, inline: true)
+                } else {
+                    Text("Set")
+                        .font(.system(size: compact ? 10 : 11, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, compact ? 7 : 8)
+            .padding(.vertical, compact ? 4 : 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color("SurfaceSidebar"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color("HairlineBorder"), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: "Set the key used to open this browser or profile"))
+        .popover(isPresented: isEditingHotkey(target), arrowEdge: .bottom) {
+            HotkeyRecorder { result in
+                onRecord(result)
+            }
+        }
+    }
+
     // MARK: - Mutations
+
+    private func isEditingHotkey(_ target: HotkeyTarget) -> Binding<Bool> {
+        Binding(
+            get: { editingHotkeyTarget == target },
+            set: { isPresented in
+                if !isPresented, editingHotkeyTarget == target {
+                    editingHotkeyTarget = nil
+                }
+            }
+        )
+    }
+
+    private func handleBrowserHotkeyResult(_ result: HotkeyRecorder.Result, browserID: String) {
+        switch result {
+        case let .set(key, keyCode):
+            setBrowserHotkey(key, keyCode: keyCode, browserID: browserID)
+        case .clear:
+            setBrowserHotkey(nil, keyCode: nil, browserID: browserID)
+        case .cancel:
+            break
+        }
+        editingHotkeyTarget = nil
+    }
+
+    private func handleProfileHotkeyResult(
+        _ result: HotkeyRecorder.Result,
+        browserID: String,
+        profileID: String
+    ) {
+        switch result {
+        case let .set(key, keyCode):
+            setProfileHotkey(key, keyCode: keyCode, browserID: browserID, profileID: profileID)
+        case .clear:
+            setProfileHotkey(nil, keyCode: nil, browserID: browserID, profileID: profileID)
+        case .cancel:
+            break
+        }
+        editingHotkeyTarget = nil
+    }
+
+    private func setBrowserHotkey(_ key: Character?, keyCode: UInt16?, browserID: String) {
+        guard let idx = appState.browsers.firstIndex(where: { $0.id == browserID }) else { return }
+        appState.browsers[idx].hotkey = key
+        appState.browsers[idx].hotkeyKeyCode = keyCode
+        browserManager?.save(appState.browsers)
+    }
+
+    private func setProfileHotkey(
+        _ key: Character?,
+        keyCode: UInt16?,
+        browserID: String,
+        profileID: String
+    ) {
+        guard let bIdx = appState.browsers.firstIndex(where: { $0.id == browserID }),
+              let pIdx = appState.browsers[bIdx].profiles.firstIndex(where: { $0.directoryName == profileID })
+        else { return }
+        appState.browsers[bIdx].profiles[pIdx].hotkey = key
+        appState.browsers[bIdx].profiles[pIdx].hotkeyKeyCode = keyCode
+        browserManager?.save(appState.browsers)
+    }
 
     private func setVisibility(_ isVisible: Bool, browserID: String) {
         guard let idx = appState.browsers.firstIndex(where: { $0.id == browserID }) else { return }

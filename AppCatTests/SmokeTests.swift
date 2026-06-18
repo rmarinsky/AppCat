@@ -1,5 +1,6 @@
 @testable import AppCat
 import AppKit
+import ApplicationServices
 import XCTest
 
 final class SmokeTests: XCTestCase {
@@ -149,6 +150,166 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PickerHotkeyResolver.browserOrProfileMatch(in: items, keyCode: 13, keyChar: "w")?.id, "\(profileBrowser.id):\(profile.directoryName)")
     }
 
+    func testBrowserConfigPreservesBrowserAndProfileHotkeySymbols() throws {
+        let profile = BrowserProfile(
+            directoryName: "Default",
+            displayName: "Work",
+            email: nil,
+            hotkey: ".",
+            hotkeyKeyCode: 47
+        )
+        var browser = makeBrowser(profiles: [profile])
+        browser.hotkey = "/"
+        browser.hotkeyKeyCode = 44
+
+        let config = BrowserConfig(from: browser)
+
+        XCTAssertEqual(config.hotkey, "/")
+        XCTAssertEqual(config.hotkeyKeyCode, 44)
+        XCTAssertEqual(config.profileHotkeys?["Default"], ".")
+        XCTAssertEqual(config.profileHotkeyKeyCodes?["Default"], 47)
+    }
+
+    func testWindowFilterRejectsKnownMenuCommandTitles() {
+        let commandTitles = [
+            "Show Next Tab",
+            "Merge All Windows",
+            "Move Tab to New Window",
+            "Close All",
+            "New Group",
+            "Add Contact",
+            "Toggle Full Screen",
+        ]
+        let candidates = commandTitles.enumerated().map { index, title in
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: title,
+                index: index,
+                source: .ax,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                isMinimized: false,
+                isModal: false
+            )
+        }
+
+        XCTAssertTrue(WindowEnumerator.filteredWindowCandidates(candidates).isEmpty)
+    }
+
+    func testWindowFilterRejectsInvalidCoreGraphicsCandidates() {
+        let invalidCandidates = [
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "Offscreen",
+                index: 0,
+                source: .coreGraphics,
+                ownerPID: pid_t(123),
+                layer: 0,
+                alpha: 1,
+                isOnscreen: false,
+                sharingState: 1,
+                bounds: CGSize(width: 640, height: 480)
+            ),
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "Overlay",
+                index: 1,
+                source: .coreGraphics,
+                ownerPID: pid_t(123),
+                layer: 1,
+                alpha: 1,
+                isOnscreen: true,
+                sharingState: 1,
+                bounds: CGSize(width: 640, height: 480)
+            ),
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "Transparent",
+                index: 2,
+                source: .coreGraphics,
+                ownerPID: pid_t(123),
+                layer: 0,
+                alpha: 0,
+                isOnscreen: true,
+                sharingState: 1,
+                bounds: CGSize(width: 640, height: 480)
+            ),
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "Tiny",
+                index: 3,
+                source: .coreGraphics,
+                ownerPID: pid_t(123),
+                layer: 0,
+                alpha: 1,
+                isOnscreen: true,
+                sharingState: 1,
+                bounds: CGSize(width: 80, height: 80)
+            ),
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "",
+                index: 4,
+                source: .coreGraphics,
+                ownerPID: pid_t(123),
+                layer: 0,
+                alpha: 1,
+                isOnscreen: true,
+                sharingState: 1,
+                bounds: CGSize(width: 640, height: 480)
+            ),
+        ]
+
+        XCTAssertTrue(WindowEnumerator.filteredWindowCandidates(invalidCandidates).isEmpty)
+    }
+
+    func testWindowFilterAcceptsStandardAXWindowsAndDedupeTitles() {
+        let candidates = [
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: " Project ",
+                index: 4,
+                source: .ax,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                isMinimized: false,
+                isModal: false
+            ),
+            WindowEnumerator.WindowCandidate(
+                bundleID: "test.app",
+                title: "project",
+                index: 5,
+                source: .ax,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                isMinimized: false,
+                isModal: false
+            ),
+        ]
+
+        let targets = WindowEnumerator.windowTargets(from: candidates)
+
+        XCTAssertEqual(targets.map(\.title), ["Project"])
+        XCTAssertEqual(targets.map(\.index), [4])
+    }
+
+    func testWindowFilterAcceptsValidCoreGraphicsWindow() {
+        let candidate = WindowEnumerator.WindowCandidate(
+            bundleID: "test.app",
+            title: "Visible Document",
+            index: 0,
+            source: .coreGraphics,
+            ownerPID: pid_t(123),
+            layer: 0,
+            alpha: 1,
+            isOnscreen: true,
+            sharingState: 1,
+            bounds: CGSize(width: 640, height: 480)
+        )
+
+        XCTAssertEqual(WindowEnumerator.windowTargets(from: [candidate]).map(\.title), ["Visible Document"])
+    }
+
     func testPickerBrowserProfileDisplayNameIncludesBrowserAndProfile() {
         let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
         let item = PickerItem(browser: makeBrowser(profiles: [profile]), profile: profile)
@@ -246,6 +407,50 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(items.map { $0.id }, [runningBrowser.id])
+    }
+
+    @MainActor
+    func testManualPickerKeepsSingleRunningAppWindowAsAppTile() {
+        let app = makeApp(id: "test.cursor", displayName: "Cursor")
+        let windows = [
+            AppWindowTarget(bundleID: app.id, title: "AppCat", index: 0),
+        ]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [app],
+            appUsage: [:],
+            runningBundleIDs: [app.id],
+            windowsByAppID: [app.id: windows]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.cursor"])
+        XCTAssertEqual(items.map(\.displayName), ["Cursor"])
+        XCTAssertTrue(items.allSatisfy { $0.windowTarget == nil })
+    }
+
+    @MainActor
+    func testManualPickerKeepsSingleRunningBrowserWindowAsBrowserTile() {
+        let browser = makeBrowser()
+        let windows = [
+            AppWindowTarget(bundleID: browser.id, title: "Chrome", index: 0),
+        ]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [browser],
+            allBrowsers: [browser],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [browser.id],
+            windowsByAppID: [browser.id: windows]
+        )
+
+        XCTAssertEqual(items.map(\.id), [browser.id])
+        XCTAssertEqual(items.map(\.displayName), [browser.displayName])
+        XCTAssertTrue(items.allSatisfy { $0.windowTarget == nil })
     }
 
     @MainActor

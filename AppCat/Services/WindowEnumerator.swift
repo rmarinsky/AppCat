@@ -22,11 +22,77 @@ struct AppWindowTarget: Hashable, Identifiable {
 /// `runningWindows()` on a background executor so a slow/unresponsive target app cannot stall the
 /// main thread (and the picker) for up to the AX messaging timeout.
 enum WindowEnumerator {
+    enum WindowSource {
+        case ax
+        case coreGraphics
+    }
+
+    struct WindowCandidate: Equatable {
+        let bundleID: String
+        let title: String
+        let index: Int
+        let source: WindowSource
+        let role: String?
+        let subrole: String?
+        let isMinimized: Bool?
+        let isModal: Bool?
+        let ownerPID: pid_t?
+        let layer: Int?
+        let alpha: Double?
+        let isOnscreen: Bool?
+        let sharingState: Int?
+        let bounds: CGSize?
+
+        init(
+            bundleID: String,
+            title: String,
+            index: Int,
+            source: WindowSource,
+            role: String? = nil,
+            subrole: String? = nil,
+            isMinimized: Bool? = nil,
+            isModal: Bool? = nil,
+            ownerPID: pid_t? = nil,
+            layer: Int? = nil,
+            alpha: Double? = nil,
+            isOnscreen: Bool? = nil,
+            sharingState: Int? = nil,
+            bounds: CGSize? = nil
+        ) {
+            self.bundleID = bundleID
+            self.title = title
+            self.index = index
+            self.source = source
+            self.role = role
+            self.subrole = subrole
+            self.isMinimized = isMinimized
+            self.isModal = isModal
+            self.ownerPID = ownerPID
+            self.layer = layer
+            self.alpha = alpha
+            self.isOnscreen = isOnscreen
+            self.sharingState = sharingState
+            self.bounds = bounds
+        }
+    }
+
     /// Per-app AX messaging timeout. A hung target app would otherwise block each
     /// `AXUIElementCopyAttributeValue` call for the ~6s system default.
     private static let messagingTimeout: Float = 0.25
     private static let minimumContentWindowWidth: Double = 160
     private static let minimumContentWindowHeight: Double = 120
+    private static let cgFallbackAppIDs: Set<String> = [
+        "com.todesktop.230313mzl4w4u92", // Cursor
+        "com.microsoft.VSCode",
+        "com.microsoft.VSCodeInsiders",
+        "dev.zed.Zed",
+    ]
+    private static let ignoredAXSubroles: Set<String> = [
+        kAXDialogSubrole as String,
+        kAXSystemDialogSubrole as String,
+        kAXFloatingWindowSubrole as String,
+        kAXSystemFloatingWindowSubrole as String,
+    ]
     private static let nonWindowMenuTitles: Set<String> = [
         "minimize",
         "minimise",
@@ -46,6 +112,31 @@ enum WindowEnumerator {
         "task manager",
         "switch window...",
         "switch window…",
+        "show previous tab",
+        "show next tab",
+        "move tab to new window",
+        "merge all windows",
+        "close",
+        "close all",
+        "toggle full screen",
+        "contacts",
+        "add contact",
+        "new group",
+        "new channel",
+        "show telegram",
+        "go to next conversation",
+        "go to previous conversation",
+        "equalizer",
+        "equaliser",
+        "mini player",
+        "miniplayer",
+        "activity",
+        "visualiser",
+        "visualizer",
+        "visualiser settings",
+        "visualizer settings",
+        "switch to mini player",
+        "now playing",
         "bring all to front",
         "arrange in front",
     ]
@@ -143,18 +234,13 @@ enum WindowEnumerator {
     }
 
     private static func windows(forPID pid: pid_t, bundleID: String) -> [AppWindowTarget] {
-        let axTargets: [AppWindowTarget] = axWindows(forPID: pid).enumerated().compactMap { index, window in
-            guard let title = title(of: window) else { return nil }
-            return AppWindowTarget(bundleID: bundleID, title: title, index: index)
+        let axTargets = windowTargets(from: axWindowCandidates(forPID: pid, bundleID: bundleID))
+        if !axTargets.isEmpty {
+            return axTargets
         }
-        let cgTargets = cgWindows(forPID: pid, bundleID: bundleID)
-        let menuTargets = windowMenuWindows(forPID: pid, bundleID: bundleID)
 
-        // Some Electron/ToDesktop apps (Cursor is the practical example) expose zero AX windows
-        // while CoreGraphics or the app's Window menu still list their real titled document windows.
-        // Prefer the source with more content windows so the switcher does not collapse multi-window
-        // apps to one item.
-        return [axTargets, cgTargets, menuTargets].max { $0.count < $1.count } ?? axTargets
+        guard allowsCoreGraphicsFallback(bundleID: bundleID) else { return [] }
+        return windowTargets(from: cgWindowCandidates(forPID: pid, bundleID: bundleID))
     }
 
     private static func axWindows(forPID pid: pid_t) -> [AXUIElement] {
@@ -169,62 +255,57 @@ enum WindowEnumerator {
         return windows
     }
 
+    private static func axWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
+        axWindows(forPID: pid).enumerated().map { index, window in
+            WindowCandidate(
+                bundleID: bundleID,
+                title: title(of: window) ?? "",
+                index: index,
+                source: .ax,
+                role: stringAttribute(window, kAXRoleAttribute as CFString),
+                subrole: stringAttribute(window, kAXSubroleAttribute as CFString),
+                isMinimized: boolAttribute(window, kAXMinimizedAttribute as CFString),
+                isModal: boolAttribute(window, kAXModalAttribute as CFString)
+            )
+        }
+    }
+
     private static func title(of window: AXUIElement) -> String? {
-        var titleRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef) == .success,
-              let title = (titleRef as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let title = stringAttribute(window, kAXTitleAttribute as CFString)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !title.isEmpty
         else { return nil }
         return title
     }
 
-    private static func cgWindows(forPID pid: pid_t, bundleID: String) -> [AppWindowTarget] {
+    private static func cgWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
         guard let windowInfo = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
         else { return [] }
 
-        var targets: [AppWindowTarget] = []
-        var seenTitles: Set<String> = []
+        var candidates: [WindowCandidate] = []
 
         for info in windowInfo {
-            guard ownerPID(from: info) == pid,
-                  layer(from: info) == 0,
-                  alpha(from: info) > 0,
-                  let title = cgWindowTitle(from: info),
-                  let bounds = cgWindowBounds(from: info),
-                  bounds.width >= minimumContentWindowWidth,
-                  bounds.height >= minimumContentWindowHeight
-            else { continue }
-
-            let normalizedTitle = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            guard seenTitles.insert(normalizedTitle).inserted else { continue }
-
-            targets.append(AppWindowTarget(bundleID: bundleID, title: title, index: targets.count))
+            guard ownerPID(from: info) == pid else { continue }
+            candidates.append(WindowCandidate(
+                bundleID: bundleID,
+                title: cgWindowTitle(from: info) ?? "",
+                index: candidates.count,
+                source: .coreGraphics,
+                ownerPID: ownerPID(from: info),
+                layer: layer(from: info),
+                alpha: alpha(from: info),
+                isOnscreen: isOnscreen(from: info),
+                sharingState: sharingState(from: info),
+                bounds: cgWindowBounds(from: info)
+            ))
         }
 
-        return targets
+        return candidates
     }
 
-    private static func windowMenuWindows(forPID pid: pid_t, bundleID: String) -> [AppWindowTarget] {
-        let axApp = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(axApp, messagingTimeout)
-
-        guard let menuBar = elementAttribute(axApp, kAXMenuBarAttribute),
-              let windowMenu = windowMenu(in: menuBar)
-        else { return [] }
-
-        var targets: [AppWindowTarget] = []
-        var seenTitles: Set<String> = []
-
-        for title in windowMenuTitles(in: windowMenu) {
-            let normalizedTitle = normalizedMenuTitle(title)
-            guard isLikelyWindowTitle(normalizedTitle),
-                  seenTitles.insert(normalizedTitle).inserted
-            else { continue }
-
-            targets.append(AppWindowTarget(bundleID: bundleID, title: title, index: targets.count))
+    static func windowTargets(from candidates: [WindowCandidate]) -> [AppWindowTarget] {
+        filteredWindowCandidates(candidates).map { candidate in
+            AppWindowTarget(bundleID: candidate.bundleID, title: candidate.title.trimmedWindowTitle, index: candidate.index)
         }
-
-        return targets
     }
 
     private static func activateFromWindowMenu(_ target: AppWindowTarget, app: NSRunningApplication) -> Bool {
@@ -254,14 +335,6 @@ enum WindowEnumerator {
         }
     }
 
-    private static func windowMenuTitles(in windowMenu: AXUIElement) -> [String] {
-        children(of: windowMenu)
-            .flatMap(children)
-            .map(title(ofMenuItem:))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
     private static func findMenuItem(in element: AXUIElement, matching targetTitle: String) -> AXUIElement? {
         let wantedTitle = normalizedMenuTitle(targetTitle)
 
@@ -285,6 +358,18 @@ enum WindowEnumerator {
         return children
     }
 
+    private static func stringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &ref) == .success else { return nil }
+        return ref as? String
+    }
+
+    private static func boolAttribute(_ element: AXUIElement, _ attribute: CFString) -> Bool? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &ref) == .success else { return nil }
+        return ref as? Bool
+    }
+
     private static func elementAttribute(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success
@@ -305,8 +390,49 @@ enum WindowEnumerator {
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
+    static func filteredWindowCandidates(_ candidates: [WindowCandidate]) -> [WindowCandidate] {
+        var seenTitles = Set<String>()
+        return candidates.filter(isValidWindowCandidate).filter { candidate in
+            seenTitles.insert(candidate.dedupeKey).inserted
+        }
+    }
+
+    static func isValidWindowCandidate(_ candidate: WindowCandidate) -> Bool {
+        let title = candidate.title.trimmedWindowTitle
+        guard !title.isEmpty,
+              isLikelyWindowTitle(normalizedMenuTitle(title))
+        else { return false }
+
+        switch candidate.source {
+        case .ax:
+            guard candidate.role == kAXWindowRole as String,
+                  candidate.isMinimized != true,
+                  candidate.isModal != true
+            else { return false }
+            guard let subrole = candidate.subrole else { return true }
+            return !ignoredAXSubroles.contains(subrole)
+
+        case .coreGraphics:
+            guard candidate.ownerPID != nil,
+                  candidate.layer == 0,
+                  (candidate.alpha ?? 0) > 0,
+                  candidate.isOnscreen == true,
+                  candidate.sharingState != nil,
+                  candidate.sharingState != 0,
+                  let bounds = candidate.bounds,
+                  bounds.width >= minimumContentWindowWidth,
+                  bounds.height >= minimumContentWindowHeight
+            else { return false }
+            return true
+        }
+    }
+
     private static func isLikelyWindowTitle(_ normalizedTitle: String) -> Bool {
         !nonWindowMenuTitles.contains(normalizedTitle)
+    }
+
+    private static func allowsCoreGraphicsFallback(bundleID: String) -> Bool {
+        BrowserDefinition.registry[bundleID] != nil || cgFallbackAppIDs.contains(bundleID)
     }
 
     private static func ownerPID(from info: [String: Any]) -> pid_t? {
@@ -319,6 +445,14 @@ enum WindowEnumerator {
 
     private static func alpha(from info: [String: Any]) -> Double {
         (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+    }
+
+    private static func isOnscreen(from info: [String: Any]) -> Bool? {
+        info[kCGWindowIsOnscreen as String] as? Bool
+    }
+
+    private static func sharingState(from info: [String: Any]) -> Int? {
+        (info[kCGWindowSharingState as String] as? NSNumber)?.intValue
     }
 
     private static func cgWindowTitle(from info: [String: Any]) -> String? {
@@ -334,5 +468,17 @@ enum WindowEnumerator {
               let height = (bounds["Height"] as? NSNumber)?.doubleValue
         else { return nil }
         return CGSize(width: width, height: height)
+    }
+}
+
+private extension WindowEnumerator.WindowCandidate {
+    var dedupeKey: String {
+        "\(bundleID)|\(title.trimmedWindowTitle.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))"
+    }
+}
+
+private extension String {
+    var trimmedWindowTitle: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

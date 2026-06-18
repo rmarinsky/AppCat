@@ -220,16 +220,12 @@ struct PickerItem: Identifiable {
                 }
             let appItems = runningApps.flatMap { app -> [PickerItem] in
                 let windows = windowsByAppID[app.id] ?? []
-                guard !windows.isEmpty else { return [PickerItem(app: app)] }
-                return windows.map { PickerItem(app: app, windowTarget: $0) }
+                return appSwitcherItems(for: app, windows: windows)
             }
             let runningBrowsers = browsers.filter { runningBundleIDs.contains($0.id) }
             let browserItems = runningBrowsers.flatMap { browser -> [PickerItem] in
                 let windows = windowsByAppID[browser.id] ?? []
-                guard !windows.isEmpty else {
-                    return buildItems(browsers: [browser], apps: [])
-                }
-                return windows.map { PickerItem(browser: browser, windowTarget: $0) }
+                return browserSwitcherItems(for: browser, windows: windows)
             }
 
             return browserItems + appItems
@@ -259,6 +255,18 @@ struct PickerItem: Identifiable {
             prioritizedAppIDs: Set(orderedApps.map(\.id)),
             browsersFirst: shouldShowBrowsersFirst(for: url)
         )
+    }
+
+    private static func appSwitcherItems(for app: InstalledApp, windows: [AppWindowTarget]) -> [PickerItem] {
+        guard windows.count >= 2 else { return [PickerItem(app: app)] }
+        return windows.map { PickerItem(app: app, windowTarget: $0) }
+    }
+
+    private static func browserSwitcherItems(for browser: InstalledBrowser, windows: [AppWindowTarget]) -> [PickerItem] {
+        guard windows.count >= 2 else {
+            return browser.isVisible ? [PickerItem(browser: browser)] : buildItems(browsers: [browser], apps: [])
+        }
+        return windows.map { PickerItem(browser: browser, windowTarget: $0) }
     }
 }
 

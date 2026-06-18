@@ -34,6 +34,11 @@ struct HotkeyRecorder: View {
         .padding()
         .onAppear {
             eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 {
+                    onRecord(.cancel)
+                    return nil
+                }
+
                 // Delete key clears the hotkey
                 if event.keyCode == 51 {
                     onRecord(.clear)
@@ -41,9 +46,9 @@ struct HotkeyRecorder: View {
                 }
 
                 if let chars = event.charactersIgnoringModifiers?.lowercased(),
+                   chars.count == 1,
                    let char = chars.first,
-                   char.isLetter || char.isNumber
-                {
+                   !String(char).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     onRecord(.set(key: char, keyCode: event.keyCode))
                     return nil
                 }
