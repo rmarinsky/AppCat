@@ -265,7 +265,7 @@ enum PickerMetrics {
     }
 
     static func itemWidth(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 104 : 72
+        style == .appSwitcher ? 84 : 72
     }
 
     static func itemHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
@@ -273,7 +273,7 @@ enum PickerMetrics {
     }
 
     static func itemSpacing(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 6 : 2
+        style == .appSwitcher ? 2 : 2
     }
 
     static func horizontalPadding(for style: PickerPresentationStyle = .routing) -> CGFloat {
