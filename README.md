@@ -1,10 +1,10 @@
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct-single.svg)](https://stand-with-ukraine.pp.ua)
 
-# 🐈 BrowserCat
+# 🐈 AppCat
 
 **macOS menu bar browser picker** — choose which browser, profile, or app opens every link with one click or hotkey.
 
-Stop copy-pasting URLs between browsers. Stop launching the wrong profile. BrowserCat gives you instant control over where every link opens.
+Stop copy-pasting URLs between browsers. Stop launching the wrong profile. AppCat gives you instant control over where every link opens.
 
 ![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -17,7 +17,7 @@ Stop copy-pasting URLs between browsers. Stop launching the wrong profile. Brows
 
 ### 1️⃣ Multiple Browser Profiles
 **Problem:** You have Chrome Personal, Chrome Work, and constantly open links in the wrong profile.
-**Solution:** BrowserCat shows all profiles in the picker. One click → right profile, every time.
+**Solution:** AppCat shows all profiles in the picker. One click → right profile, every time.
 
 ```
 Click a link → Picker appears → Choose "Chrome (Work)" → Done
@@ -34,7 +34,7 @@ Or: Option + Hotkey → Any browser in incognito
 
 ### 3️⃣ Native App Routing
 **Problem:** Slack/Figma/Zoom links open in browser instead of the native app.
-**Solution:** BrowserCat detects matching apps and prioritizes them in the picker.
+**Solution:** AppCat detects matching apps and prioritizes them in the picker.
 
 ```
 slack.com/archives/... → Opens in Slack.app (not browser)
@@ -79,20 +79,20 @@ docs.google.com/a/company.com → Chrome Work
 
 ### Install via Homebrew (Recommended)
 ```bash
-brew install --cask rmarinsky/tap/browsercat
+brew install --cask rmarinsky/tap/appcat
 ```
 
 ### Manual Installation
-1. Download the latest `.dmg` from [Releases](https://github.com/rmarinsky/BrowserCat/releases/latest)
-2. Drag **BrowserCat** to Applications
+1. Download the latest `.dmg` from [Releases](https://github.com/rmarinsky/AppCat/releases/latest)
+2. Drag **AppCat** to Applications
 3. Launch and set as default browser in Settings
 
 ### First-Time Setup
-1. **Set BrowserCat as default browser:**
-   Settings → General → Default Browser → BrowserCat
+1. **Set AppCat as default browser:**
+   Settings → General → Default Browser → AppCat
 
 2. **Configure hotkeys (optional):**
-   BrowserCat → Settings → Apps → Assign keyboard shortcuts
+   AppCat → Settings → Apps → Assign keyboard shortcuts
 
 3. **Add URL rules (optional):**
    Settings → Rules → Add rule for auto-routing specific domains
@@ -103,8 +103,8 @@ brew install --cask rmarinsky/tap/browsercat
 
 ### Browser Picker
 - **Floating panel** near cursor with all installed browsers
-- **Grid layout** with icons and names
-- **Keyboard navigation** (arrow keys + Return)
+- **Compact Cmd+Tab-style row** with icons and names
+- **Keyboard navigation** (arrow keys, numbers, hidden type-to-focus + Return)
 - **Instant dismiss** (Escape or click outside)
 
 ### Browser Detection
@@ -189,25 +189,25 @@ localhost:* → Arc Browser
 brew install xcodegen
 
 # Clone repository
-git clone https://github.com/rmarinsky/BrowserCat.git
-cd BrowserCat
+git clone https://github.com/rmarinsky/AppCat.git
+cd AppCat
 
 # Generate Xcode project
 xcodegen generate
 
 # Open and build
-open BrowserCat.xcodeproj
+open AppCat.xcodeproj
 ```
 
 Build schemes:
-- **BrowserCat** → Release build
-- **BrowserCat DEV** → Debug build with logging
+- **AppCat** → Release build, produces AppCat.app
+- **AppCat DEV** → Debug build with logging, produces AppCat DEV.app
 
 ---
 
 ## ❓ FAQ
 
-**Q: Does BrowserCat collect any data?**
+**Q: Does AppCat collect any data?**
 A: No. Zero analytics, zero telemetry, zero network calls. Fully offline.
 
 **Q: Why does the picker appear in the wrong position?**
@@ -217,10 +217,10 @@ A: The picker tries to center near the cursor. If it's off-screen, it auto-adjus
 A: Not yet, but this is planned. For now, set hotkeys and press them immediately.
 
 **Q: Does this work with Raycast/Alfred URL handlers?**
-A: Yes, if they trigger the system default browser, BrowserCat will intercept.
+A: Yes, if they trigger the system default browser, AppCat will intercept.
 
 **Q: How do I uninstall?**
-A: Drag BrowserCat from Applications to Trash, then reset your default browser in System Settings.
+A: Drag AppCat from Applications to Trash, then reset your default browser in System Settings.
 
 ---
 
@@ -241,7 +241,7 @@ A: Drag BrowserCat from Applications to Trash, then reset your default browser i
 - Some Electron apps don't pass URLs correctly (investigating)
 - Browser profile detection may miss custom Firefox profiles
 
-Report bugs via [GitHub Issues](https://github.com/rmarinsky/BrowserCat/issues).
+Report bugs via [GitHub Issues](https://github.com/rmarinsky/AppCat/issues).
 
 ---
 
@@ -261,13 +261,13 @@ Inspired by tools like Choosy, Browserosaurus, and Velja — but free, open-sour
 
 ## 💬 Feedback
 
-If BrowserCat saves you 30+ context switches per day, consider:
+If AppCat saves you 30+ context switches per day, consider:
 - ⭐ Starring this repo
 - 🐛 Reporting bugs
 - 💡 Suggesting features
 - 📢 Sharing with other multi-browser users
 
 **Links:**
-- [GitHub Issues](https://github.com/rmarinsky/BrowserCat/issues)
-- [Releases](https://github.com/rmarinsky/BrowserCat/releases)
+- [GitHub Issues](https://github.com/rmarinsky/AppCat/issues)
+- [Releases](https://github.com/rmarinsky/AppCat/releases)
 - [Homebrew Tap](https://github.com/rmarinsky/homebrew-tap)

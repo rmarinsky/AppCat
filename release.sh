@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# BrowserCat Release Script
+# AppCat Release Script
 # Builds, signs, notarizes, and packages the app for distribution
 #
 # Usage:
@@ -13,18 +13,18 @@
 #   3. XcodeGen installed (brew install xcodegen)
 #   4. create-dmg installed (brew install create-dmg)
 #   5. Notarization credentials stored:
-#      xcrun notarytool store-credentials "BrowserCat" \
+#      xcrun notarytool store-credentials "AppCat" \
 #        --apple-id <email> --password <app-password> --team-id 8JL9TM5WLG
 
 set -euo pipefail
 
 # ── Config ───────────────────────────────────────────────────────────
-APP_NAME="BrowserCat"
-DISPLAY_NAME="BrowserCat"
-SCHEME="BrowserCat"
-PROJECT_FILE="BrowserCat.xcodeproj"
+APP_NAME="AppCat"
+DISPLAY_NAME="AppCat"
+SCHEME="AppCat"
+PROJECT_FILE="AppCat.xcodeproj"
 TEAM_ID="8JL9TM5WLG"
-NOTARY_PROFILE="BrowserCat"
+NOTARY_PROFILE="AppCat"
 # ─────────────────────────────────────────────────────────────────────
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"

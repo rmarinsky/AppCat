@@ -12,8 +12,8 @@
 	"argv": [
 		"/opt/homebrew/bin/xcode-build-server"
 	],
-	"workspace": "/Users/rmarinskyi/IdeaProjects/personal/BrowserCat/BrowserCat.xcodeproj/project.xcworkspace",
-	"build_root": "/Users/rmarinskyi/Library/Developer/Xcode/DerivedData/BrowserCat-fxzwnambebdrdfdrgoyusofatfol",
-	"scheme": "BrowserCat",
+	"workspace": "/Users/rmarinskyi/IdeaProjects/personal/mac apps/AppCat/AppCat.xcodeproj/project.xcworkspace",
+	"build_root": "/Users/rmarinskyi/Library/Developer/Xcode/DerivedData/AppCat-fxzwnambebdrdfdrgoyusofatfol",
+	"scheme": "AppCat",
 	"kind": "xcode"
 }

@@ -4,10 +4,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Project Overview
 
-BrowserCat is a macOS menu bar app that acts as the system default browser. When any link is clicked, BrowserCat intercepts the URL and either auto-routes it via URL rules or shows a floating picker to choose browser/profile/app.
+AppCat is a macOS menu bar app that acts as the system default browser. When any link is clicked, AppCat intercepts the URL and either auto-routes it via URL rules or shows a floating picker to choose browser/profile/app.
 
 - **Platform:** macOS 14.0+ (Sonoma), Swift 5.9+, SwiftUI
-- **Bundle ID:** `ua.com.rmarinsky.browsercat` (release) / `ua.com.rmarinsky.browsercat.dev` (debug)
+- **Bundle ID:** `ua.com.rmarinsky.appcat` (release) / `ua.com.rmarinsky.appcat.dev` (debug)
 - **Sandbox:** Disabled (required for URL interception and launching other apps)
 - **Localization:** Ukrainian (default) and English
 - **Distribution:** notarized DMG via GitHub Releases + Sparkle auto-update (see Release process)
@@ -21,12 +21,13 @@ brew install create-dmg      # For release DMG only
 
 # Generate and open project
 ./generate_project.sh        # Always run first — generates .xcodeproj from project.yml
-open BrowserCat.xcodeproj    # Select "BrowserCat DEV" scheme → Run
+open AppCat.xcodeproj    # Select "AppCat DEV" scheme → Run
 
 # Dev install (build + install to /Applications)
-./scripts/dev-install.sh                          # Full: reset TCC, build, install
+./scripts/dev-install.sh                          # Fast incremental build/install
+./scripts/dev-clean-install.sh                    # Clean build/install
+./scripts/dev-reset-tcc.sh                        # Reset DEV privacy grants
 ./scripts/dev-install.sh --build-only             # Build only
-./scripts/dev-install.sh --no-reset-tcc           # Skip TCC permission reset
 ./scripts/dev-install.sh --install-name my-name   # Custom app name
 
 # Release
@@ -38,8 +39,8 @@ open BrowserCat.xcodeproj    # Select "BrowserCat DEV" scheme → Run
 
 | Scheme | Config | App Name | Bundle ID |
 |--------|--------|----------|-----------|
-| BrowserCat DEV | Debug | BrowserCat DEV | ua.com.rmarinsky.browsercat.dev |
-| BrowserCat | Release | BrowserCat | ua.com.rmarinsky.browsercat |
+| AppCat DEV | Debug | AppCat DEV | ua.com.rmarinsky.appcat.dev |
+| AppCat | Release | AppCat | ua.com.rmarinsky.appcat |
 
 ## Release process
 
@@ -71,7 +72,7 @@ Version math: `scripts/next-version.sh`.
 
 ```
 1. Link clicked anywhere on macOS
-2. macOS routes to BrowserCat (registered for http/https via kAEGetURL)
+2. macOS routes to AppCat (registered for http/https via kAEGetURL)
 3. AppDelegate.handleURLEvent → appState.pendingURL = url
 4. LinkMetadataManager fetches page title in background
 5. URLRulesManager.findMatch() scans enabled rules in sortOrder
@@ -87,7 +88,7 @@ Version math: `scripts/next-version.sh`.
 ### Key Components
 
 **App layer** (`App/`):
-- `BrowserCatApp.swift` — `@main` SwiftUI entry
+- `AppCatApp.swift` — `@main` SwiftUI entry
 - `AppDelegate.swift` — URL event handler, creates all managers
 - `AppState.swift` — `@Observable @MainActor` single source of truth (pendingURL, browsers, apps, rules, history)
 - `ManagerEnvironment.swift` — SwiftUI Environment keys for all managers
@@ -96,7 +97,7 @@ Version math: `scripts/next-version.sh`.
 - `PickerCoordinator` — orchestrates picker show/dismiss and URL open
 - `BrowserManager` — detects browsers via NSWorkspace, merges with saved config
 - `AppManager` — detects native apps from `AppDefinition` registry
-- `DefaultBrowserManager` — check/set BrowserCat as system default
+- `DefaultBrowserManager` — check/set AppCat as system default
 - `URLRulesManager` — loads/saves rules, finds first matching rule
 - `HistoryManager` — records URL opens, max 500 entries
 - `FaviconManager` (actor) — Google S2 favicons, memory+disk cache
@@ -109,7 +110,7 @@ Version math: `scripts/next-version.sh`.
 - `BrowserLauncher` — opens URLs: normal, background, private mode, with profile
 - `URLRuleMatcher` — host/hostContains/regex matching
 
-**Storage** (all in `~/Library/Application Support/BrowserCat/`):
+**Storage** (all in `~/Library/Application Support/AppCat/`):
 - `BrowserConfigStorage` — `browsers.json` (visibility, hotkeys, sort order, profile hotkeys)
 - `AppConfigStorage` — `apps.json` (visibility, hotkey, sort order)
 - `RulesStorage` — `rules.json` (URL routing rules)
@@ -120,7 +121,7 @@ Version math: `scripts/next-version.sh`.
 
 - `KeyablePanel` (NSPanel subclass) — `canBecomeKey: true` for keyboard events on borderless panel
 - Style: `.nonactivatingPanel`, `.hudWindow` material, `.floating` level, corner radius 12
-- Two layouts: normal grid (380x300) vs compact row (600x176)
+- Single compact horizontal row with adaptive width, clamped to the visible screen width
 - Position: centered on cursor, shifted up 40pt, clamped to screen safe area
 
 ### Keyboard Navigation in Picker
@@ -129,10 +130,12 @@ Version math: `scripts/next-version.sh`.
 |-----|--------|
 | Escape | Dismiss |
 | Return | Open focused item |
-| Tab/Shift+Tab | Move focus forward/backward |
-| Arrow keys | Navigate grid/row |
-| Hotkey char | Open matching browser/app/profile |
-| Option+Hotkey or Shift+Hotkey | Open in private mode |
+| Number keys | Open visible items 1...9,0 |
+| Type letters | Hidden type-to-focus by app, browser, profile, or window name |
+| Tab/Shift+Tab | Move focus forward/backward and clear hidden typing |
+| Arrow keys | Navigate the compact row |
+| Hotkey char | Link-routing only: open matching browser/profile |
+| Option+Hotkey or Shift+Hotkey | Link-routing only: open browser/profile in private mode |
 
 ### Hotkey System
 
