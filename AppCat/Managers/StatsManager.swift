@@ -68,6 +68,14 @@ final class StatsManager {
             let key = DailyStats.dayKey(for: entry.openedAt)
             var day = byDay[key] ?? DailyStats(day: key)
             if entry.itemKind == .link,
+               let sourceRuleID = entry.sourceRuleID
+            {
+                day.autoRouteCount += 1
+                day.secondsSaved += Int(TimeSavedConstants.autoRoute)
+                if day.rulesCounts.count < Self.maxRulesPerDay || day.rulesCounts[sourceRuleID] != nil {
+                    day.rulesCounts[sourceRuleID, default: 0] += 1
+                }
+            } else if entry.itemKind == .link,
                let url = URL(string: entry.url),
                let rule = urlRuleMatcher.findMatchingRule(for: url, rules: rules)
             {

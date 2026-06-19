@@ -15,6 +15,7 @@ final class HistoryEntryCodableTests: XCTestCase {
     }
 
     func testRoundTripWithIDs() throws {
+        let sourceRuleID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
         let original = HistoryEntry(
             url: "https://example.com/foo",
             domain: "example.com",
@@ -24,7 +25,8 @@ final class HistoryEntryCodableTests: XCTestCase {
             openedAt: Date(timeIntervalSince1970: 1_700_000_000),
             browserID: "com.google.Chrome",
             profileDirectoryName: "Default",
-            targetType: .browser
+            targetType: .browser,
+            sourceRuleID: sourceRuleID
         )
         let data = try encoder().encode(original)
         let decoded = try decoder().decode(HistoryEntry.self, from: data)
@@ -32,6 +34,7 @@ final class HistoryEntryCodableTests: XCTestCase {
         XCTAssertEqual(decoded.browserID, "com.google.Chrome")
         XCTAssertEqual(decoded.profileDirectoryName, "Default")
         XCTAssertEqual(decoded.targetType, .browser)
+        XCTAssertEqual(decoded.sourceRuleID, sourceRuleID)
         XCTAssertEqual(decoded.itemKind, .link)
     }
 
@@ -97,6 +100,7 @@ final class HistoryEntryCodableTests: XCTestCase {
         XCTAssertNil(decoded.browserID, "Legacy entries must decode with browserID = nil")
         XCTAssertNil(decoded.profileDirectoryName)
         XCTAssertNil(decoded.targetType)
+        XCTAssertNil(decoded.sourceRuleID)
         XCTAssertEqual(decoded.itemKind, .link)
     }
 

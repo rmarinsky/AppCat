@@ -61,6 +61,30 @@ final class URLRulesManagerTests: XCTestCase {
         XCTAssertEqual(profile?.directoryName, "Profile 1")
     }
 
+    func testFindMatchResolvesHostRuleWithTrailingSlash() throws {
+        let m = URLRulesManager()
+        let workProfile = BrowserProfile(directoryName: "Default", displayName: "Work", email: "work@x.com")
+        let rule = URLRule(
+            pattern: "constructionline.atlassian.net/",
+            matchType: .host,
+            browserID: "com.google.Chrome",
+            profileDirectoryName: "Default",
+            targetType: .browser
+        )
+        let match = try m.findMatch(
+            for: XCTUnwrap(URL(string: "https://constructionline.atlassian.net/browse/VEL-135")),
+            browsers: [chrome(profiles: [workProfile])],
+            apps: [],
+            rules: [rule]
+        )
+        guard case let .browser(browser, profile, ruleID)? = match else {
+            return XCTFail("Expected .browser match")
+        }
+        XCTAssertEqual(browser.id, "com.google.Chrome")
+        XCTAssertEqual(profile?.directoryName, "Default")
+        XCTAssertEqual(ruleID, rule.id)
+    }
+
     func testFindMatchReturnsNilWhenBrowserUninstalled() throws {
         let m = URLRulesManager()
         let rule = URLRule(

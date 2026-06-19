@@ -26,10 +26,12 @@ final class URLRulesManager {
                 }
                 return .browser(browser, profile: profile, ruleID: rule.id)
             }
+            Log.rules.warning("Rule \(rule.id.uuidString) matched \(url.absoluteString) but browser target \(rule.browserID) was unavailable")
         case .app:
             if let app = apps.first(where: { $0.id == rule.browserID }) {
                 return .app(app, ruleID: rule.id)
             }
+            Log.rules.warning("Rule \(rule.id.uuidString) matched \(url.absoluteString) but app target \(rule.browserID) was unavailable")
         }
 
         return nil

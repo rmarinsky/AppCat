@@ -65,10 +65,44 @@ final class URLRuleMatcherTests: XCTestCase {
         }
     }
 
+    func testHostPatternsThatNormalizeToEmptyDoNotMatch() throws {
+        let m = URLRuleMatcher()
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+        XCTAssertNil(m.findMatchingRule(for: url, rules: [make(pattern: "/", matchType: .host)]))
+        XCTAssertNil(m.findMatchingRule(for: url, rules: [make(pattern: "/", matchType: .hostContains)]))
+    }
+
     func testHostPatternTrimsWhitespace() throws {
         let m = URLRuleMatcher()
         let rule = make(pattern: " example.com ", matchType: .host)
         XCTAssertNotNil(try m.findMatchingRule(for: XCTUnwrap(URL(string: "https://app.example.com/")), rules: [rule]))
+    }
+
+    func testHostPatternAcceptsTrailingSlash() throws {
+        let m = URLRuleMatcher()
+        let rule = make(pattern: "constructionline.atlassian.net/", matchType: .host)
+        XCTAssertNotNil(try m.findMatchingRule(
+            for: XCTUnwrap(URL(string: "https://constructionline.atlassian.net/browse/VEL-135")),
+            rules: [rule]
+        ))
+    }
+
+    func testHostPatternAcceptsFullURLWithPath() throws {
+        let m = URLRuleMatcher()
+        let rule = make(pattern: "https://constructionline.atlassian.net/browse/VEL-135", matchType: .host)
+        XCTAssertNotNil(try m.findMatchingRule(
+            for: XCTUnwrap(URL(string: "https://constructionline.atlassian.net/browse/VEL-136")),
+            rules: [rule]
+        ))
+    }
+
+    func testHostContainsPatternAcceptsFullURL() throws {
+        let m = URLRuleMatcher()
+        let rule = make(pattern: "https://constructionline.atlassian.net/browse/VEL-135", matchType: .hostContains)
+        XCTAssertNotNil(try m.findMatchingRule(
+            for: XCTUnwrap(URL(string: "https://constructionline.atlassian.net/browse/VEL-136")),
+            rules: [rule]
+        ))
     }
 
     func testRegexMatch() throws {

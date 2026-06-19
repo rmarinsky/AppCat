@@ -17,6 +17,7 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
     let browserID: String?
     let profileDirectoryName: String?
     let targetType: URLRule.TargetType?
+    let sourceRuleID: UUID?
     let itemKind: ItemKind
     let fileName: String?
     let fileExtension: String?
@@ -34,6 +35,7 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         browserID: String? = nil,
         profileDirectoryName: String? = nil,
         targetType: URLRule.TargetType? = nil,
+        sourceRuleID: UUID? = nil,
         itemKind: ItemKind = .link,
         fileName: String? = nil,
         fileExtension: String? = nil,
@@ -50,6 +52,7 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         self.browserID = browserID
         self.profileDirectoryName = profileDirectoryName
         self.targetType = targetType
+        self.sourceRuleID = sourceRuleID
         self.itemKind = itemKind
         self.fileName = fileName
         self.fileExtension = fileExtension
@@ -69,6 +72,7 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         browserID = try container.decodeIfPresent(String.self, forKey: .browserID)
         profileDirectoryName = try container.decodeIfPresent(String.self, forKey: .profileDirectoryName)
         targetType = try container.decodeIfPresent(URLRule.TargetType.self, forKey: .targetType)
+        sourceRuleID = try container.decodeIfPresent(UUID.self, forKey: .sourceRuleID)
         itemKind = try container.decodeIfPresent(ItemKind.self, forKey: .itemKind)
             ?? (url.hasPrefix("file://") ? .file : .link)
         fileName = try container.decodeIfPresent(String.self, forKey: .fileName)

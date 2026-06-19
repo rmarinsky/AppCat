@@ -129,6 +129,7 @@ final class PickerCoordinator {
                 browserID: browser.id,
                 profileDirectoryName: profile?.directoryName,
                 targetType: .browser,
+                sourceRuleID: source.ruleID,
                 state: state
             ) ?? []
             self.statsManager?.record(source)
@@ -163,6 +164,7 @@ final class PickerCoordinator {
                 browserID: app.id,
                 profileDirectoryName: nil,
                 targetType: .app,
+                sourceRuleID: source.ruleID,
                 state: state
             ) ?? []
             self.statsManager?.record(source)

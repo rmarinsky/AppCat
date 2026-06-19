@@ -40,14 +40,35 @@ final class URLRuleMatcher {
 
     private func matchesHost(url: URL, pattern: String) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
-        let p = pattern.lowercased()
+        let p = normalizedHostPattern(pattern)
+        guard !p.isEmpty else { return false }
         // Exact match or subdomain match
         return host == p || host.hasSuffix(".\(p)")
     }
 
     private func matchesHostContains(url: URL, pattern: String) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
-        return host.contains(pattern.lowercased())
+        let p = normalizedHostPattern(pattern)
+        guard !p.isEmpty else { return false }
+        return host.contains(p)
+    }
+
+    private func normalizedHostPattern(_ pattern: String) -> String {
+        let trimmed = pattern
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .lowercased()
+        guard !trimmed.isEmpty else { return trimmed }
+
+        if let host = URL(string: trimmed)?.host {
+            return host.lowercased()
+        }
+
+        if let host = URL(string: "https://\(trimmed)")?.host {
+            return host.lowercased()
+        }
+
+        return trimmed
     }
 
     private func matchesRegex(url: URL, pattern: String) -> Bool {

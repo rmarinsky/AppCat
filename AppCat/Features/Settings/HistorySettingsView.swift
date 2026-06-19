@@ -282,8 +282,19 @@ struct HistorySettingsView: View {
 
     @ViewBuilder
     private func statusView(for entry: HistoryEntry) -> some View {
-        if let rule = matchingRule(for: entry) {
+        if let rule = appliedRule(for: entry) {
             Text(String(localized: "Rule: \(rule.pattern)"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .frame(height: 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color("BrandSuccess"))
+                )
+        } else if entry.itemKind == .link, entry.sourceRuleID != nil {
+            Text(String(localized: "Rule applied"))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white)
                 .lineLimit(1)
@@ -410,6 +421,16 @@ struct HistorySettingsView: View {
             return String(localized: "Yesterday")
         }
         return date.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    private func appliedRule(for entry: HistoryEntry) -> URLRule? {
+        if let sourceRuleID = entry.sourceRuleID,
+           let rule = appState.urlRules.first(where: { $0.id == sourceRuleID })
+        {
+            return rule
+        }
+
+        return matchingRule(for: entry)
     }
 
     private func matchingRule(for entry: HistoryEntry) -> URLRule? {

@@ -24,6 +24,7 @@ final class HistoryManager {
         browserID: String?,
         profileDirectoryName: String?,
         targetType: URLRule.TargetType?,
+        sourceRuleID: UUID? = nil,
         state: AppState
     ) -> UUID {
         let metadata = metadata(for: url)
@@ -37,6 +38,7 @@ final class HistoryManager {
             browserID: browserID,
             profileDirectoryName: profileDirectoryName,
             targetType: targetType,
+            sourceRuleID: sourceRuleID,
             itemKind: metadata.itemKind,
             fileName: metadata.fileName,
             fileExtension: metadata.fileExtension,
@@ -66,6 +68,7 @@ final class HistoryManager {
         browserID: String?,
         profileDirectoryName: String?,
         targetType: URLRule.TargetType?,
+        sourceRuleID: UUID? = nil,
         state: AppState
     ) -> [UUID] {
         guard !urls.isEmpty else { return [] }
@@ -83,6 +86,7 @@ final class HistoryManager {
                 browserID: browserID,
                 profileDirectoryName: profileDirectoryName,
                 targetType: targetType,
+                sourceRuleID: sourceRuleID,
                 itemKind: metadata.itemKind,
                 fileName: metadata.fileName,
                 fileExtension: metadata.fileExtension,
