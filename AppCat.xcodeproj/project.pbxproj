@@ -39,6 +39,7 @@
 		4D430E6FA51C55E9B0008B8C /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F50EADF6466A8F29F984995 /* HotkeyRecorder.swift */; };
 		50E8A9CB06FF99A586F8A8D0 /* MainWindowSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C71962648DB3AEB569650CD /* MainWindowSection.swift */; };
 		541A9AC46245EB1ABDB10F8A /* PickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F1D4AAC73146A4A04147713 /* PickerView.swift */; };
+		58C46CD1E6DA191C7C15ADBF /* SettingsViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */; };
 		62877887BADE0F144723D021 /* SettingsStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F736BF3E7C90149146A8F6 /* SettingsStorage.swift */; };
 		65897B9DFECBB096ED00D119 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 8086C1C813BEC629F492F003 /* LaunchAtLogin */; };
 		67DF010549ACAE53220A66CE /* HistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13638E9042BBEFA24B4E6CE9 /* HistoryStorage.swift */; };
@@ -133,6 +134,7 @@
 		1D29A1590380D48ED5EE72AB /* MainWindowActivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowActivation.swift; sourceTree = "<group>"; };
 		1D803CED98BB0DF4F5640508 /* AppManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
 		1F4033D0748472E9FC343BED /* RuleSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSuggestion.swift; sourceTree = "<group>"; };
+		1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewHelpers.swift; sourceTree = "<group>"; };
 		2076EFAB4C42651F87E64E7B /* RulesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesSettingsView.swift; sourceTree = "<group>"; };
 		20D94280F276C8981BE4DC5A /* PickerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerWindowController.swift; sourceTree = "<group>"; };
 		20F2AE4F92362502E6C1178F /* SuggestionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionsManager.swift; sourceTree = "<group>"; };
@@ -381,6 +383,7 @@
 				AA403B4B37E525544CE498BF /* PickerSettingsView.swift */,
 				8497F56DF6CFD925DD3A64CA /* RuleEditorSheet.swift */,
 				2076EFAB4C42651F87E64E7B /* RulesSettingsView.swift */,
+				1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */,
 				3B13C63B73AD7FB759DA8372 /* ShortcutsSettingsView.swift */,
 			);
 			path = Settings;
@@ -666,6 +669,7 @@
 				BA9DDDC4DD90A0FE67A678CB /* RulesSettingsView.swift in Sources */,
 				9C8E508489927E6A75415081 /* RulesStorage.swift in Sources */,
 				62877887BADE0F144723D021 /* SettingsStorage.swift in Sources */,
+				58C46CD1E6DA191C7C15ADBF /* SettingsViewHelpers.swift in Sources */,
 				8FAF5E77A088A307062F7BDA /* ShortcutsSettingsView.swift in Sources */,
 				3102CA18CCEED2AC658F1E9D /* SidebarView.swift in Sources */,
 				ACC8A81EF0A87754F6DCC17E /* StatsManager.swift in Sources */,

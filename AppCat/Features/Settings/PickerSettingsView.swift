@@ -9,12 +9,12 @@ struct PickerSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                sectionCaption("APP SWITCHER")
+                SettingsSectionCaption("APP SWITCHER")
                 Text("Choose which running apps show up when you switch apps and windows.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
 
-                card {
+                SettingsCard {
                     toggleRow(
                         title: String(localized: "Show running apps without windows"),
                         subtitle: String(localized: "Apps that are running but have no open window appear dimmed, after the divider."),
@@ -40,9 +40,9 @@ struct PickerSettingsView: View {
                     )
                 }
 
-                sectionCaption("A SPECIFIC APP")
+                SettingsSectionCaption("A SPECIFIC APP")
                     .padding(.top, 2)
-                card {
+                SettingsCard {
                     manageInAppsRow
                 }
             }
@@ -85,28 +85,6 @@ struct PickerSettingsView: View {
             }
             .buttonStyle(.plain)
         }
-    }
-
-    // MARK: - Building blocks (match GeneralSettingsView)
-
-    private func sectionCaption(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.7)
-            .foregroundStyle(.tertiary)
-    }
-
-    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color("SurfaceCard"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color("HairlineBorder"), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var divider: some View {

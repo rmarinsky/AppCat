@@ -9,8 +9,8 @@ struct GeneralSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                sectionCaption("GENERAL")
-                card {
+                SettingsSectionCaption("GENERAL")
+                SettingsCard {
                     defaultBrowserRow
                     divider
                     webFilesRow
@@ -18,21 +18,21 @@ struct GeneralSettingsView: View {
                     launchAtLoginRow
                 }
 
-                sectionCaption("PICKER")
+                SettingsSectionCaption("PICKER")
                     .padding(.top, 2)
-                card {
+                SettingsCard {
                     recentItemsRow
                 }
 
-                sectionCaption("LANGUAGE")
+                SettingsSectionCaption("LANGUAGE")
                     .padding(.top, 2)
-                card {
+                SettingsCard {
                     languageRow
                 }
 
-                sectionCaption("DEVELOPER")
+                SettingsSectionCaption("DEVELOPER")
                     .padding(.top, 2)
-                card {
+                SettingsCard {
                     madeByRow
                 }
             }
@@ -57,26 +57,6 @@ struct GeneralSettingsView: View {
         } message: {
             Text(String(localized: "macOS will ask for each file group. This is optional and only needed if you want Finder double-clicks to route files through AppCat."))
         }
-    }
-
-    private func sectionCaption(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.7)
-            .foregroundStyle(.tertiary)
-    }
-
-    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color("SurfaceCard"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color("HairlineBorder"), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var divider: some View {

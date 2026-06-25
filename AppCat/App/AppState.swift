@@ -112,23 +112,36 @@ final class AppState {
         AppConfigStorage.shared.save(apps)
     }
 
+    @ObservationIgnored private var activationSaveTask: Task<Void, Never>?
+
     /// Record one use of an app as an open target and persist the running tally.
     func recordAppUsage(_ bundleID: String) {
         var entry = appUsage[bundleID] ?? AppUsage(count: 0, lastUsed: Date())
         entry.count += 1
         entry.lastUsed = Date()
         appUsage[bundleID] = entry
-        AppUsageStorage.shared.save(appUsage)
+        AppUsageFileStore.usage.save(appUsage)
     }
 
-    /// Record one system activation of an app (it became frontmost) and persist the tally. This is
-    /// the switcher's frequency + recency signal; AppCat itself is ignored by the caller.
+    /// Record one system activation of an app (it became frontmost). Updates the in-memory tally
+    /// immediately; coalesces disk writes to avoid churn when many apps are activated in quick
+    /// succession (e.g. switching rapidly between apps).
     func recordAppActivation(_ bundleID: String) {
         var entry = appActivations[bundleID] ?? AppUsage(count: 0, lastUsed: Date())
         entry.count += 1
         entry.lastUsed = Date()
         appActivations[bundleID] = entry
-        AppActivationStore.shared.save(appActivations)
+        scheduleActivationSave()
+    }
+
+    private func scheduleActivationSave() {
+        activationSaveTask?.cancel()
+        activationSaveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            AppUsageFileStore.activations.save(self.appActivations)
+            self.activationSaveTask = nil
+        }
     }
 
     init() {
@@ -138,8 +151,8 @@ final class AppState {
         pickerLayout = .horizontal
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         appLanguage = SettingsStorage.shared.appLanguage
-        appUsage = AppUsageStorage.shared.load()
-        appActivations = AppActivationStore.shared.load()
+        appUsage = AppUsageFileStore.usage.load()
+        appActivations = AppUsageFileStore.activations.load()
         showWindowlessApps = SettingsStorage.shared.showWindowlessApps
         showBackgroundApps = SettingsStorage.shared.showBackgroundApps
         Log.app.debug("AppState initialized")

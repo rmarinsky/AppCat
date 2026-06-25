@@ -207,8 +207,11 @@ final class PickerWindowController: NSObject {
     }
 
     private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
-        let blockedModifiers: NSEvent.ModifierFlags = [.command, .control]
-        return event.modifierFlags.intersection(blockedModifiers).isEmpty
+        var blocked: NSEvent.ModifierFlags = [.command, .control]
+        if appState.isManualPickerPresentation {
+            blocked.insert([.shift, .option])
+        }
+        return event.modifierFlags.intersection(blocked).isEmpty
     }
 
     private func open(

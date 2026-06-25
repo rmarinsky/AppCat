@@ -10,10 +10,10 @@ struct ShortcutsSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                sectionCaption("ACTIVATION")
+                SettingsSectionCaption("ACTIVATION")
                 activationCard
 
-                sectionCaption("WITHIN THE PICKER")
+                SettingsSectionCaption("WITHIN THE PICKER")
                     .padding(.top, 8)
                 pickerCard
             }
@@ -26,17 +26,10 @@ struct ShortcutsSettingsView: View {
         .background(Color("SurfaceWindow"))
     }
 
-    private func sectionCaption(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.44)
-            .foregroundStyle(.tertiary)
-    }
-
     // MARK: - Activation (real global hotkeys)
 
     private var activationCard: some View {
-        card {
+        SettingsCard(cornerRadius: 8) {
             shortcutRow(
                 String(localized: "Open picker manually"),
                 subtitle: String(localized: "You can try ⌘Tab here. macOS owns it by default, so AppCat can use it only if the system shortcut is disabled or released.")
@@ -53,16 +46,12 @@ struct ShortcutsSettingsView: View {
     // MARK: - Within the picker (reference + toggle)
 
     private var pickerCard: some View {
-        card {
+        SettingsCard(cornerRadius: 8) {
             shortcutRow(String(localized: "Select picker item")) {
                 HStack(spacing: 4) {
                     Keycap("1")
                     Text("…").foregroundStyle(.tertiary)
                     Keycap("0")
-                    Text("then").font(.system(size: 11)).foregroundStyle(.tertiary)
-                    Keycap("Q")
-                    Text("…").foregroundStyle(.tertiary)
-                    Keycap("M")
                 }
             }
             divider
@@ -87,19 +76,6 @@ struct ShortcutsSettingsView: View {
     }
 
     // MARK: - Building blocks
-
-    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color("SurfaceCard"))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color("HairlineBorder"), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
 
     private var divider: some View {
         Rectangle().fill(Color("HairlineBorder")).frame(height: 1)

@@ -1,30 +1,48 @@
 import Foundation
-import os
 
-final class AppUsageStorage {
-    static let shared = AppUsageStorage()
-    private let fileManager = FileManager.default
-    // Serial, off-main; preserves write order. `usage` is a value-type snapshot.
-    private let ioQueue = DispatchQueue(label: "ua.com.rmarinsky.appcat.appusage-io", qos: .utility)
+/// Unified file-backed store for `[String: AppUsage]` dictionaries. Two shared instances
+/// cover the two independent usage signals: `AppUsageFileStore.usage` for file-routing frequency
+/// (counts how often AppCat opens a URL in a given app) and `AppUsageFileStore.activations` for
+/// system-activation frequency (counts how often an app becomes frontmost — the switcher's sort signal).
+final class AppUsageFileStore {
+    static let usage = AppUsageFileStore(
+        file: ConfigDirectory.appUsage,
+        queueLabel: "ua.com.rmarinsky.appcat.appusage-io"
+    )
+    static let activations = AppUsageFileStore(
+        file: ConfigDirectory.appActivations,
+        queueLabel: "ua.com.rmarinsky.appcat.appactivations-io"
+    )
 
-    func save(_ usage: [String: AppUsage]) {
+    private let file: URL
+    private let ioQueue: DispatchQueue
+
+    private init(file: URL, queueLabel: String) {
+        self.file = file
+        self.ioQueue = DispatchQueue(label: queueLabel, qos: .utility)
+    }
+
+    func save(_ stats: [String: AppUsage]) {
+        let stats = stats
+        let fileURL = file
         ioQueue.async {
             do {
-                let data = try JSONEncoder().encode(usage)
-                try data.write(to: ConfigDirectory.appUsage, options: .atomic)
+                let data = try JSONEncoder().encode(stats)
+                try data.write(to: fileURL, options: .atomic)
             } catch {
-                Log.settings.error("Failed to save app usage: \(error.localizedDescription)")
+                Log.app.error("Failed to save \(fileURL.lastPathComponent): \(error.localizedDescription)")
             }
         }
     }
 
     func load() -> [String: AppUsage] {
-        guard fileManager.fileExists(atPath: ConfigDirectory.appUsage.path) else { return [:] }
+        let fileURL = file
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [:] }
         do {
-            let data = try Data(contentsOf: ConfigDirectory.appUsage)
+            let data = try Data(contentsOf: fileURL)
             return try JSONDecoder().decode([String: AppUsage].self, from: data)
         } catch {
-            Log.settings.error("Failed to load app usage: \(error.localizedDescription)")
+            Log.app.error("Failed to load \(fileURL.lastPathComponent): \(error.localizedDescription)")
             return [:]
         }
     }
