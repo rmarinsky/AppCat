@@ -1,31 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>BrowserCat Updates</title>
-    <description>Most recent changes with links to updates.</description>
+    <title>AppCat Updates</title>
+    <description>Most recent AppCat changes with links to updates.</description>
     <language>en</language>
       <item>
-    <title>Version 1.7.3</title>
-    <pubDate>Thu, 14 May 2026 20:36:06 +0000</pubDate>
-    <sparkle:version>53</sparkle:version>
-    <sparkle:shortVersionString>1.7.3</sparkle:shortVersionString>
+    <title>Version 2.0.0</title>
+    <pubDate>Thu, 25 Jun 2026 12:59:13 +0000</pubDate>
+    <sparkle:version>57</sparkle:version>
+    <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
     <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
     <enclosure
-      url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.7.3/BrowserCat-1.7.3.dmg"
-      sparkle:edSignature="+0H0H8qyARSMYRTWUuIIjoYGL/drKvzfdrV2bkLHMhbJsoOlyNDNHpmU7w6R8aVuIqh/+WDrnlrwuV4Z26tlBA=="
-      length="2019639"
-      type="application/octet-stream" />
-  </item>
-      <item>
-    <title>Version 1.8.0</title>
-    <pubDate>Wed, 03 Jun 2026 20:09:30 +0000</pubDate>
-    <sparkle:version>55</sparkle:version>
-    <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-    <enclosure
-      url="https://github.com/rmarinsky/BrowserCat/releases/download/v1.8.0/BrowserCat-1.8.0.dmg"
-      sparkle:edSignature="3WnHi9VT0sPBJFYnScmxvt9CN1L03VY06IXj4xeL0jrfI0MVMu7+D3MsCUrqDPOgxk+6bi0Ww3i7f5xoXC4qDg=="
-      length="2094458"
+      url="https://github.com/rmarinsky/AppCat/releases/download/v2.0.0/AppCat-2.0.0.dmg"
+      sparkle:edSignature="GF84PqevMP29OLumOmQA0mVL+ZPTqkmRrskPBQOnJL6x+NgvpYJmXOGuOeO1klyMv1ctfEuJKgR7sY8acJJQDQ=="
+      length="3988109"
       type="application/octet-stream" />
   </item>
   </channel>
