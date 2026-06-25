@@ -207,15 +207,16 @@ enum WindowEnumerator {
         }
 
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        forceActivate(app)
-        AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        // Mark the target window as main/focused *before* activating the app so that
+        // when forceActivate fires, the system sees this window as the frontmost.
+        // Calling forceActivate again immediately after kAXRaiseAction re-activates the
+        // app and brings its previous frontmost window back — so we omit that second call.
         AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, window)
         AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         forceActivate(app)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            forceActivate(app)
             AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
             AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
             AXUIElementSetAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, window)
@@ -388,7 +389,7 @@ enum WindowEnumerator {
               AXUIElementPerformAction(menuItem, kAXPressAction as CFString) == .success
         else { return false }
 
-        forceActivate(app)
+        // kAXPressAction on a Window menu item handles window focus — no second forceActivate needed.
         return true
     }
 

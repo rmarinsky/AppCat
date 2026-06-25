@@ -52,6 +52,10 @@ struct ShortcutsSettingsView: View {
                     Keycap("1")
                     Text("…").foregroundStyle(.tertiary)
                     Keycap("0")
+                    Text("then").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Keycap("Q")
+                    Text("…").foregroundStyle(.tertiary)
+                    Keycap("M")
                 }
             }
             divider

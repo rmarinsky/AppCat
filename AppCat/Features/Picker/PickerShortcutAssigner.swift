@@ -12,7 +12,7 @@ struct PickerShortcut: Equatable {
 }
 
 enum PickerShortcutAssigner {
-    private static let positionalKeyCharacters = Array("1234567890")
+    private static let positionalKeyCharacters = Array("1234567890qwertyuiopasdfghjklzxcvbnm")
 
     static func assignments(
         for items: [PickerItem],

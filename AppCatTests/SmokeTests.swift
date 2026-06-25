@@ -45,7 +45,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(InstalledApp.normalizedFileFormat(" YAML "), "yaml")
     }
 
-    func testPickerShortcutAssignerPositionalUsesDigitsOnly() {
+    func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
         let items = (0 ..< 12).map { index in
             PickerItem(app: makeApp(id: "test.app.\(index)"))
         }
@@ -55,19 +55,19 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(assignments[items[0].id]?.key, "1")
         XCTAssertEqual(assignments[items[8].id]?.key, "9")
         XCTAssertEqual(assignments[items[9].id]?.key, "0")
-        XCTAssertNil(assignments[items[10].id])
-        XCTAssertNil(assignments[items[11].id])
+        XCTAssertEqual(assignments[items[10].id]?.key, "q")
+        XCTAssertEqual(assignments[items[11].id]?.key, "w")
     }
 
     func testPickerShortcutAssignerMatchesByKeyCode() throws {
-        let items = (0 ..< 10).map { index in
+        let items = (0 ..< 11).map { index in
             PickerItem(app: makeApp(id: "test.app.\(index)"))
         }
-        let zeroKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "0"))
+        let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
 
-        let item = PickerShortcutAssigner.item(forKeyCode: zeroKeyCode, in: items, positionalEnabled: true)
+        let item = PickerShortcutAssigner.item(forKeyCode: qKeyCode, in: items, positionalEnabled: true)
 
-        XCTAssertEqual(item?.id, items[9].id)
+        XCTAssertEqual(item?.id, items[10].id)
     }
 
     func testPickerPanelWidthUsesContentWidthForSmallItemCounts() {
@@ -201,7 +201,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(assignments[appWithCustomKey.id]?.key, "q")
         XCTAssertEqual(assignments[positionalItems[0].id]?.key, "1")
         XCTAssertEqual(assignments[positionalItems[9].id]?.key, "0")
-        XCTAssertNil(assignments[positionalItems[10].id])
+        XCTAssertEqual(assignments[positionalItems[10].id]?.key, "w")
     }
 
     func testPickerShortcutAssignerShowsConfiguredKeyOnOnlyFirstWindowItem() throws {
