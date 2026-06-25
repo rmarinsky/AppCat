@@ -34,6 +34,10 @@ private struct StatsManagerKey: EnvironmentKey {
     static let defaultValue: StatsManager? = nil
 }
 
+private struct UpdaterManagerKey: EnvironmentKey {
+    static let defaultValue: UpdaterManager? = nil
+}
+
 // MARK: - Environment Values
 
 extension EnvironmentValues {
@@ -75,5 +79,10 @@ extension EnvironmentValues {
     var statsManager: StatsManager? {
         get { self[StatsManagerKey.self] }
         set { self[StatsManagerKey.self] = newValue }
+    }
+
+    var updaterManager: UpdaterManager? {
+        get { self[UpdaterManagerKey.self] }
+        set { self[UpdaterManagerKey.self] = newValue }
     }
 }

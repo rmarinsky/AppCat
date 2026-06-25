@@ -9,6 +9,11 @@ struct PickerItem: Identifiable {
     let app: InstalledApp?
     let windowTarget: AppWindowTarget?
 
+    /// App-switcher marking (set by `switcherItems`). `hasOpenWindows` draws the running dot and
+    /// places the item in the leading group; `isBackgroundRunning` dims it in the trailing group.
+    var hasOpenWindows: Bool = false
+    var isBackgroundRunning: Bool = false
+
     var isBrowser: Bool {
         browser != nil
     }
@@ -49,6 +54,15 @@ struct PickerItem: Identifiable {
         .filter { !$0.isEmpty }
     }
 
+    /// Identity for the switcher's "no two tiles read identically" net. Window tiles collapse by
+    /// app + case/diacritic-folded title (two same-titled windows of one app are indistinguishable
+    /// in the row anyway); every other tile keeps its already-unique `id`.
+    var switcherDedupeKey: String {
+        guard let windowTarget else { return id }
+        let title = windowTarget.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "window-title|\(windowTarget.bundleID)|\(title)"
+    }
+
     var icon: NSImage? {
         browser?.icon ?? app?.icon
     }
@@ -61,19 +75,6 @@ struct PickerItem: Identifiable {
     var hotkeyKeyCode: UInt16? {
         guard windowTarget == nil else { return nil }
         return profile?.hotkeyKeyCode ?? browser?.hotkeyKeyCode ?? app?.hotkeyKeyCode
-    }
-
-    static func selectionShortcut(for index: Int) -> Character? {
-        guard (0 ..< 10).contains(index) else { return nil }
-        return Character(index == 9 ? "0" : String(index + 1))
-    }
-
-    static func numberSelectionIndex(for characters: String?) -> Int? {
-        guard let key = characters?.first else { return nil }
-        let value = String(key)
-        if value == "0" { return 9 }
-        guard let number = Int(value), (1 ... 9).contains(number) else { return nil }
-        return number - 1
     }
 
     init(browser: InstalledBrowser) {
@@ -201,34 +202,29 @@ struct PickerItem: Identifiable {
         apps: [InstalledApp],
         appUsage: [String: AppUsage],
         runningBundleIDs providedRunningBundleIDs: Set<String>? = nil,
-        windowsByAppID providedWindowsByAppID: [String: [AppWindowTarget]]? = nil
+        windowsByAppID providedWindowsByAppID: [String: [AppWindowTarget]]? = nil,
+        activations: [String: AppUsage] = [:],
+        regularBundleIDs: Set<String>? = nil,
+        showWindowlessApps: Bool = true,
+        showBackgroundApps: Bool = false
     ) -> [PickerItem] {
         let browsers = matchingBrowsers(for: url, in: pickerBrowsers)
         let browserIDs = Set(allBrowsers.map(\.id))
         if url == nil {
             let runningBundleIDs = providedRunningBundleIDs ?? Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             let windowsByAppID = providedWindowsByAppID ?? WindowEnumerator.runningWindows()
-            let runningApps = apps
-                .filter { app in
-                    app.isVisible && runningBundleIDs.contains(app.id) && !browserIDs.contains(app.id)
-                }
-                .sorted { lhs, rhs in
-                    let lhsCount = appUsage[lhs.id]?.count ?? 0
-                    let rhsCount = appUsage[rhs.id]?.count ?? 0
-                    if lhsCount != rhsCount { return lhsCount > rhsCount }
-                    return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-                }
-            let appItems = runningApps.flatMap { app -> [PickerItem] in
-                let windows = windowsByAppID[app.id] ?? []
-                return appSwitcherItems(for: app, windows: windows)
-            }
-            let runningBrowsers = browsers.filter { runningBundleIDs.contains($0.id) }
-            let browserItems = runningBrowsers.flatMap { browser -> [PickerItem] in
-                let windows = windowsByAppID[browser.id] ?? []
-                return browserSwitcherItems(for: browser, windows: windows)
-            }
-
-            return browserItems + appItems
+            return switcherItems(
+                apps: apps,
+                browsers: browsers,
+                allBrowsers: allBrowsers,
+                browserIDs: browserIDs,
+                runningBundleIDs: runningBundleIDs,
+                regularBundleIDs: regularBundleIDs,
+                windowsByAppID: windowsByAppID,
+                activations: activations,
+                showWindowlessApps: showWindowlessApps,
+                showBackgroundApps: showBackgroundApps
+            )
         }
 
         let matchingApps = matchingApps(
@@ -255,6 +251,111 @@ struct PickerItem: Identifiable {
             prioritizedAppIDs: Set(orderedApps.map(\.id)),
             browsersFirst: shouldShowBrowsersFirst(for: url)
         )
+    }
+
+    /// The app-switcher (no pending URL) list: running browsers + apps, filtered by activation
+    /// policy, sorted by real usage, split into a leading "has open windows" group and a trailing
+    /// dimmed "running, no windows" group.
+    private static func switcherItems(
+        apps: [InstalledApp],
+        browsers: [InstalledBrowser],
+        allBrowsers: [InstalledBrowser],
+        browserIDs: Set<String>,
+        runningBundleIDs: Set<String>,
+        regularBundleIDs: Set<String>?,
+        windowsByAppID: [String: [AppWindowTarget]],
+        activations: [String: AppUsage],
+        showWindowlessApps: Bool,
+        showBackgroundApps: Bool
+    ) -> [PickerItem] {
+        struct Entry { let id: String; let name: String; let hasWindows: Bool; let items: [PickerItem] }
+
+        // Menu-bar (`.accessory`) and background (`.prohibited`) apps are hidden unless opted in.
+        // An empty/nil policy set means it hasn't been captured yet (first launch), so don't
+        // over-filter — better to show everything briefly than an empty switcher.
+        func passesPolicy(_ id: String) -> Bool {
+            if showBackgroundApps { return true }
+            guard let regularBundleIDs, !regularBundleIDs.isEmpty else { return true }
+            return regularBundleIDs.contains(id)
+        }
+
+        var entries: [Entry] = []
+
+        // Browsers are Dock apps; keep their existing per-window / profile expansion.
+        for browser in browsers where runningBundleIDs.contains(browser.id) {
+            let windows = windowsByAppID[browser.id] ?? []
+            entries.append(Entry(
+                id: browser.id,
+                name: browser.displayName,
+                hasWindows: !windows.isEmpty,
+                items: browserSwitcherItems(for: browser, windows: windows)
+            ))
+        }
+
+        for app in apps where app.isVisible && !browserIDs.contains(app.id)
+            && runningBundleIDs.contains(app.id) && passesPolicy(app.id)
+        {
+            let windows = windowsByAppID[app.id] ?? []
+            entries.append(Entry(
+                id: app.id,
+                name: app.displayName,
+                hasWindows: !windows.isEmpty,
+                items: appSwitcherItems(for: app, windows: windows)
+            ))
+        }
+
+        // Apps that register an http handler (cmux, many Electron/WebKit apps) get detected as
+        // "browsers" and, when hidden from the routing picker, fall out of `apps` (their id is a
+        // browser id) *and* out of `browsers` (not visible) — vanishing from the switcher entirely.
+        // In an app switcher they're just regular running apps, so surface any running, non-ignored
+        // browser that isn't already a visible picker entry as a plain app tile.
+        let shownBrowserIDs = Set(browsers.map(\.id))
+        for browser in allBrowsers where !shownBrowserIDs.contains(browser.id)
+            && !browser.isIgnored && runningBundleIDs.contains(browser.id) && passesPolicy(browser.id)
+        {
+            let windows = windowsByAppID[browser.id] ?? []
+            let items = windows.count >= 2
+                ? windows.map { PickerItem(browser: browser, windowTarget: $0) }
+                : [PickerItem(browser: browser)]
+            entries.append(Entry(
+                id: browser.id,
+                name: browser.displayName,
+                hasWindows: !windows.isEmpty,
+                items: items
+            ))
+        }
+
+        // Most-used first, recency as tiebreak, then name for a stable order among never-used apps.
+        func before(_ x: Entry, _ y: Entry) -> Bool {
+            let rx = activations[x.id], ry = activations[y.id]
+            let cx = rx?.count ?? 0, cy = ry?.count ?? 0
+            if cx != cy { return cx > cy }
+            let dx = rx?.lastUsed ?? .distantPast, dy = ry?.lastUsed ?? .distantPast
+            if dx != dy { return dx > dy }
+            return x.name.localizedCaseInsensitiveCompare(y.name) == .orderedAscending
+        }
+
+        let windowed = entries.filter(\.hasWindows).sorted(by: before)
+        let windowless = showWindowlessApps ? entries.filter { !$0.hasWindows }.sorted(by: before) : []
+
+        let windowedItems = windowed.flatMap(\.items).map { tagged($0, hasOpenWindows: true, isBackground: false) }
+        let windowlessItems = windowless.flatMap(\.items).map { tagged($0, hasOpenWindows: false, isBackground: true) }
+        return dedupedForDisplay(windowedItems + windowlessItems)
+    }
+
+    /// Safety net: never render two switcher tiles that read identically (see `switcherDedupeKey`).
+    /// Upstream window enumeration already dedupes per app+title, but this guarantees the invariant at
+    /// the UI boundary regardless of which enumeration path produced the targets.
+    private static func dedupedForDisplay(_ items: [PickerItem]) -> [PickerItem] {
+        var seen = Set<String>()
+        return items.filter { seen.insert($0.switcherDedupeKey).inserted }
+    }
+
+    private static func tagged(_ item: PickerItem, hasOpenWindows: Bool, isBackground: Bool) -> PickerItem {
+        var copy = item
+        copy.hasOpenWindows = hasOpenWindows
+        copy.isBackgroundRunning = isBackground
+        return copy
     }
 
     private static func appSwitcherItems(for app: InstalledApp, windows: [AppWindowTarget]) -> [PickerItem] {
@@ -420,7 +521,11 @@ struct PickerView: View {
             apps: appState.apps,
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
-            windowsByAppID: appState.cachedWindowsByAppID
+            windowsByAppID: appState.cachedWindowsByAppID,
+            activations: appState.appActivations,
+            regularBundleIDs: appState.regularAppBundleIDs,
+            showWindowlessApps: appState.showWindowlessApps,
+            showBackgroundApps: appState.showBackgroundApps
         )
     }
 
@@ -431,6 +536,10 @@ struct PickerView: View {
     private var horizontalBody: some View {
         let items = pickerItems
         let style = presentationStyle
+        let shortcuts = PickerShortcutAssigner.assignments(
+            for: items,
+            positionalEnabled: appState.selectWithNumberKeys
+        )
         let showsHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
         let panelHeight = PickerMetrics.panelHeight(showsHint: showsHint, style: style)
 
@@ -440,7 +549,17 @@ struct PickerView: View {
                 ScrollView(.horizontal, showsIndicators: true) {
                     LazyHStack(spacing: PickerMetrics.itemSpacing(for: style)) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            pickerCell(item: item, index: index, style: style)
+                            if style == .appSwitcher, index > 0,
+                               item.isBackgroundRunning, !items[index - 1].isBackgroundRunning
+                            {
+                                switcherGroupDivider
+                            }
+                            pickerCell(
+                                item: item,
+                                index: index,
+                                shortcut: shortcuts[item.id],
+                                style: style
+                            )
                                 .id(item.id)
                         }
                     }
@@ -469,19 +588,22 @@ struct PickerView: View {
     private func pickerCell(
         item: PickerItem,
         index: Int,
+        shortcut: PickerShortcut?,
         style: PickerPresentationStyle = .routing
     ) -> some View {
         let hasVisibleProfiles = item.browser?.profiles.contains(where: \.isVisible) == true
-        let selectionShortcut = appState.selectWithNumberKeys ? PickerItem.selectionShortcut(for: index) : nil
+        let isFocused = appState.focusedBrowserIndex == index || hoveredIndex == index
 
         PickerCell(
             item: item,
-            isFocused: appState.focusedBrowserIndex == index || hoveredIndex == index,
-            selectionShortcut: selectionShortcut,
-            showsHotkey: appState.pendingURL != nil,
+            isFocused: isFocused,
+            shortcut: shortcut,
             compact: true,
             style: style
         )
+        // Dim running-but-windowless apps so the eye lands on the active desktops first; a focused
+        // or hovered tile returns to full strength.
+        .opacity(item.isBackgroundRunning && style == .appSwitcher && !isFocused ? 0.5 : 1)
         .onTapGesture {
             handleItemTap(item)
         }
@@ -539,6 +661,14 @@ struct PickerView: View {
                 }
             }
         }
+    }
+
+    /// Separates the "has open windows" group from the dimmed "running, no windows" group.
+    private var switcherGroupDivider: some View {
+        RoundedRectangle(cornerRadius: 0.5)
+            .fill(Color.primary.opacity(0.14))
+            .frame(width: 1, height: 92)
+            .padding(.horizontal, 9)
     }
 
     private var compactHintBar: some View {
@@ -708,8 +838,7 @@ private extension NSView {
 struct PickerCell: View {
     let item: PickerItem
     let isFocused: Bool
-    let selectionShortcut: Character?
-    let showsHotkey: Bool
+    let shortcut: PickerShortcut?
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
 
@@ -721,8 +850,8 @@ struct PickerCell: View {
                 subtitle: item.windowTarget == nil ? nil : item.secondaryDisplayName,
                 isFocused: isFocused,
                 profile: item.profile,
-                selectionShortcut: selectionShortcut,
-                showsHotkey: showsHotkey,
+                shortcut: shortcut,
+                showsHotkey: false,
                 compact: compact,
                 style: style
             )
@@ -732,7 +861,7 @@ struct PickerCell: View {
                 title: item.displayName,
                 subtitle: item.secondaryDisplayName,
                 isFocused: isFocused,
-                selectionShortcut: selectionShortcut,
+                shortcut: shortcut,
                 compact: compact,
                 style: style
             )
@@ -747,7 +876,7 @@ struct AppCell: View {
     let title: String
     let subtitle: String?
     let isFocused: Bool
-    let selectionShortcut: Character?
+    let shortcut: PickerShortcut?
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
 
@@ -756,7 +885,7 @@ struct AppCell: View {
         title: String? = nil,
         subtitle: String? = nil,
         isFocused: Bool,
-        selectionShortcut: Character? = nil,
+        shortcut: PickerShortcut? = nil,
         compact: Bool = false,
         style: PickerPresentationStyle = .routing
     ) {
@@ -764,7 +893,7 @@ struct AppCell: View {
         self.title = title ?? app.displayName
         self.subtitle = subtitle
         self.isFocused = isFocused
-        self.selectionShortcut = selectionShortcut
+        self.shortcut = shortcut
         self.compact = compact
         self.style = style
     }
@@ -829,8 +958,8 @@ struct AppCell: View {
 
             if let subtitle {
                 HStack(spacing: 4) {
-                    if let selectionShortcut {
-                        SelectionKeycapView(key: selectionShortcut, compact: true, inline: true)
+                    if let shortcut {
+                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
                     }
 
                     Text(subtitle)
@@ -843,8 +972,8 @@ struct AppCell: View {
                 .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
             } else {
                 HStack(spacing: 4) {
-                    if let selectionShortcut {
-                        SelectionKeycapView(key: selectionShortcut, compact: true, inline: true)
+                    if let shortcut {
+                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
                     }
                 }
                 .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
@@ -885,8 +1014,8 @@ struct AppCell: View {
                 .strokeBorder(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
         )
         .overlay(alignment: .topLeading) {
-            if let selectionShortcut {
-                SelectionKeycapView(key: selectionShortcut)
+            if let shortcut {
+                SelectionKeycapView(key: shortcut.key)
                     .offset(x: -8, y: -8)
                     .zIndex(2)
             }

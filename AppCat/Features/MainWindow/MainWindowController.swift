@@ -12,7 +12,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         pickerCoordinator: PickerCoordinator,
         historyManager: HistoryManager,
         suggestionsManager: SuggestionsManager,
-        statsManager: StatsManager
+        statsManager: StatsManager,
+        updaterManager: UpdaterManager
     ) {
         let rootView = MainWindowView()
             .environment(appState)
@@ -24,6 +25,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             .environment(\.historyManager, historyManager)
             .environment(\.suggestionsManager, suggestionsManager)
             .environment(\.statsManager, statsManager)
+            .environment(\.updaterManager, updaterManager)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1000, height: 680),

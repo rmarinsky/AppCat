@@ -11,6 +11,7 @@ struct AppsScreenView: View {
     @State private var search: String = ""
     @State private var windowsByApp: [String: [String]] = [:]
     @State private var editingApp: InstalledApp?
+    @State private var editingHotkeyTarget: HotkeyTarget?
 
     private func windows(for app: InstalledApp) -> [String] {
         windowsByApp[app.id] ?? []
@@ -282,6 +283,10 @@ struct AppsScreenView: View {
                     .foregroundStyle(.tertiary)
             }
 
+            hotkeyButton(app) { result in
+                handleAppHotkeyResult(result, appID: app.id)
+            }
+
             Button { editingApp = app } label: {
                 Text("Edit formats")
                     .font(.system(size: 12, weight: .medium))
@@ -312,6 +317,47 @@ struct AppsScreenView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity)
+    }
+
+    private func hotkeyButton(
+        _ app: InstalledApp,
+        onRecord: @escaping (HotkeyRecorder.Result) -> Void
+    ) -> some View {
+        let target = HotkeyTarget.app(id: app.id)
+        return Button {
+            editingHotkeyTarget = target
+        } label: {
+            HStack(spacing: 6) {
+                Text("Shortcut")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                if let key = app.hotkey {
+                    SelectionKeycapView(key: key, compact: true, inline: true)
+                } else {
+                    Text("Set")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color("SurfaceSidebar"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color("HairlineBorder"), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: "Set the key used to open \(app.displayName) in the picker"))
+        .popover(isPresented: isEditingHotkey(target), arrowEdge: .bottom) {
+            HotkeyRecorder { result in
+                onRecord(result)
+            }
+        }
     }
 
     /// One-line "txt · md · json · ts · py · swift  +12" summary, or a fallback when the app
@@ -356,6 +402,36 @@ struct AppsScreenView: View {
         .padding(.trailing, 12)
         .padding(.vertical, 4)
         .padding(.bottom, 2)
+    }
+
+    private func isEditingHotkey(_ target: HotkeyTarget) -> Binding<Bool> {
+        Binding(
+            get: { editingHotkeyTarget == target },
+            set: { isPresented in
+                if !isPresented, editingHotkeyTarget == target {
+                    editingHotkeyTarget = nil
+                }
+            }
+        )
+    }
+
+    private func handleAppHotkeyResult(_ result: HotkeyRecorder.Result, appID: String) {
+        switch result {
+        case let .set(key, keyCode):
+            setAppHotkey(key, keyCode: keyCode, appID: appID)
+        case .clear:
+            setAppHotkey(nil, keyCode: nil, appID: appID)
+        case .cancel:
+            break
+        }
+        editingHotkeyTarget = nil
+    }
+
+    private func setAppHotkey(_ key: Character?, keyCode: UInt16?, appID: String) {
+        guard let idx = appState.apps.firstIndex(where: { $0.id == appID }) else { return }
+        appState.apps[idx].hotkey = key
+        appState.apps[idx].hotkeyKeyCode = keyCode
+        appManager?.save(appState.apps)
     }
 
     private func setVisibility(_ isVisible: Bool, appID: String) {

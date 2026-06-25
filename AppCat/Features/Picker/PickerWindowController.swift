@@ -9,49 +9,6 @@ private class KeyablePanel: NSPanel {
     }
 }
 
-enum PickerHotkeyResolver {
-    static func browserOrProfileMatch(
-        in items: [PickerItem],
-        keyCode: UInt16,
-        keyChar: Character?
-    ) -> PickerItem? {
-        if let profileMatch = items.first(where: { item in
-            guard let profile = item.profile, profile.isVisible else { return false }
-            return matches(
-                configuredKeyCode: profile.hotkeyKeyCode,
-                configuredHotkey: profile.hotkey,
-                keyCode: keyCode,
-                keyChar: keyChar
-            )
-        }) {
-            return profileMatch
-        }
-
-        return items.first { item in
-            guard let browser = item.browser, item.profile == nil, browser.isVisible else { return false }
-            return matches(
-                configuredKeyCode: browser.hotkeyKeyCode,
-                configuredHotkey: browser.hotkey,
-                keyCode: keyCode,
-                keyChar: keyChar
-            )
-        }
-    }
-
-    private static func matches(
-        configuredKeyCode: UInt16?,
-        configuredHotkey: Character?,
-        keyCode: UInt16,
-        keyChar: Character?
-    ) -> Bool {
-        if let configuredKeyCode {
-            return configuredKeyCode == keyCode
-        }
-        guard let configuredHotkey, let keyChar else { return false }
-        return Character(String(configuredHotkey).lowercased()) == keyChar
-    }
-}
-
 enum PickerPanelPositioning {
     static func centeredOrigin(panelSize: NSSize, visibleFrame: NSRect) -> NSPoint {
         NSPoint(
@@ -179,6 +136,8 @@ final class PickerWindowController: NSObject {
     // MARK: - Key Handling
 
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        guard !isClosing, appState.isPickerVisible else { return false }
+
         switch Int(event.keyCode) {
         case 53: // Escape
             clearTypeAheadBuffer()
@@ -223,27 +182,17 @@ final class PickerWindowController: NSObject {
         default:
             let items = pickerItemsForCurrentSession()
             let pressedKeyCode = event.keyCode
-            let keyChar = event.charactersIgnoringModifiers?.lowercased().first
             let isPrivate = event.modifierFlags.contains(.option) || event.modifierFlags.contains(.shift)
             let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
 
-            // Number-key selection picks the Nth visible picker item, including file apps.
-            // `0` maps to the 10th item, matching the visible 1...9,0 badges.
-            if appState.selectWithNumberKeys,
-               let index = PickerItem.numberSelectionIndex(for: event.charactersIgnoringModifiers),
-               items.indices.contains(index)
-            {
-                open(items[index], mode: mode, source: .pickerHotkey)
-                return true
-            }
-
-            if appState.pendingURL != nil,
-               let item = PickerHotkeyResolver.browserOrProfileMatch(
+            if canHandlePickerShortcut(event),
+               let item = PickerShortcutAssigner.item(
+                   forKeyCode: pressedKeyCode,
                    in: items,
-                   keyCode: pressedKeyCode,
-                   keyChar: keyChar
+                   positionalEnabled: appState.selectWithNumberKeys
                )
             {
+                guard !event.isARepeat else { return true }
                 open(item, mode: mode, source: .pickerHotkey)
                 return true
             }
@@ -255,6 +204,11 @@ final class PickerWindowController: NSObject {
 
             return false
         }
+    }
+
+    private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
+        let blockedModifiers: NSEvent.ModifierFlags = [.command, .control]
+        return event.modifierFlags.intersection(blockedModifiers).isEmpty
     }
 
     private func open(
@@ -340,7 +294,11 @@ final class PickerWindowController: NSObject {
             apps: appState.apps,
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
-            windowsByAppID: appState.cachedWindowsByAppID
+            windowsByAppID: appState.cachedWindowsByAppID,
+            activations: appState.appActivations,
+            regularBundleIDs: appState.regularAppBundleIDs,
+            showWindowlessApps: appState.showWindowlessApps,
+            showBackgroundApps: appState.showBackgroundApps
         )
     }
 

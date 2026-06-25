@@ -5,6 +5,7 @@ enum MainWindowSection: String, Hashable {
     case history
     case suggestions
     case settingsGeneral
+    case settingsPicker
     case settingsBrowsers
     case settingsApps
     case settingsRules
@@ -17,11 +18,12 @@ enum MainWindowSection: String, Hashable {
         case .history: String(localized: "History")
         case .suggestions: String(localized: "Suggestions")
         case .settingsGeneral: String(localized: "General")
+        case .settingsPicker: String(localized: "Picker")
         case .settingsBrowsers: String(localized: "Browsers")
         case .settingsApps: String(localized: "Apps")
         case .settingsRules: String(localized: "Rules")
         case .settingsShortcuts: String(localized: "Shortcuts")
-        case .settingsAccount: String(localized: "Account")
+        case .settingsAccount: String(localized: "About")
         }
     }
 
@@ -31,17 +33,18 @@ enum MainWindowSection: String, Hashable {
         case .history: "clock"
         case .suggestions: "lightbulb"
         case .settingsGeneral: "gear"
+        case .settingsPicker: "macwindow.on.rectangle"
         case .settingsBrowsers: "globe"
         case .settingsApps: "square.grid.2x2"
         case .settingsRules: "arrow.triangle.branch"
         case .settingsShortcuts: "keyboard"
-        case .settingsAccount: "person.circle"
+        case .settingsAccount: "info.circle"
         }
     }
 
     var isSettings: Bool {
         switch self {
-        case .settingsGeneral, .settingsBrowsers, .settingsApps, .settingsRules,
+        case .settingsGeneral, .settingsPicker, .settingsBrowsers, .settingsApps, .settingsRules,
              .settingsShortcuts, .settingsAccount:
             return true
         default:

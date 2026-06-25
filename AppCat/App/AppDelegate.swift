@@ -100,7 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 pickerCoordinator: pickerCoordinator,
                 historyManager: historyManager,
                 suggestionsManager: suggestionsManager,
-                statsManager: statsManager
+                statsManager: statsManager,
+                updaterManager: updaterManager
             )
         }
 

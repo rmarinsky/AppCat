@@ -29,7 +29,7 @@ struct BrowsersSettingsView: View {
 
                 card
 
-                Text("Drag to reorder · number keys pick by position · assign a key to open a browser or profile directly")
+                Text("Drag to reorder · shortcut keys pick by position · assign a key to open a browser or profile directly")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }

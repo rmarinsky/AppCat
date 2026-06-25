@@ -79,6 +79,20 @@ final class SettingsStorage {
         set { defaults.set(newValue, forKey: "selectWithNumberKeys") }
     }
 
+    /// Show running apps that have no open windows in the switcher (dimmed, after the divider).
+    /// Default on — they stay reachable, just visibly secondary.
+    var showWindowlessApps: Bool {
+        get { defaults.object(forKey: "showWindowlessApps") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "showWindowlessApps") }
+    }
+
+    /// Include menu-bar / background apps (activation policy `.accessory` / `.prohibited`) in the
+    /// switcher. Default off — utilities like brightness controllers are noise in a window switcher.
+    var showBackgroundApps: Bool {
+        get { defaults.object(forKey: "showBackgroundApps") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "showBackgroundApps") }
+    }
+
     var pickerLayout: PickerLayout {
         get {
             if let storedValue = defaults.string(forKey: pickerLayoutKey),

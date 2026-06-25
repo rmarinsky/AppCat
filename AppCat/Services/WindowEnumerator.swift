@@ -25,6 +25,10 @@ enum WindowEnumerator {
     enum WindowSource {
         case ax
         case coreGraphics
+        /// Titles read from the app's "Window" menu. The authoritative window list for
+        /// Electron editors (VS Code/Cursor/Zed), which under-report through the AX windows
+        /// attribute, and the same source `activate(_:)` presses to switch windows.
+        case menu
     }
 
     struct WindowCandidate: Equatable {
@@ -81,11 +85,11 @@ enum WindowEnumerator {
     private static let messagingTimeout: Float = 0.25
     private static let minimumContentWindowWidth: Double = 160
     private static let minimumContentWindowHeight: Double = 120
-    private static let cgFallbackAppIDs: Set<String> = [
-        "com.todesktop.230313mzl4w4u92", // Cursor
-        "com.microsoft.VSCode",
-        "com.microsoft.VSCodeInsiders",
-        "dev.zed.Zed",
+    /// Frameworks whose presence in a bundle marks an app as drawing its UI in embedded web content
+    /// (Electron, Chromium Embedded). Such apps under-report through `kAXWindowsAttribute`.
+    private static let webContentFrameworkNames: Set<String> = [
+        "Electron Framework.framework",
+        "Chromium Embedded Framework.framework",
     ]
     private static let ignoredAXSubroles: Set<String> = [
         kAXDialogSubrole as String,
@@ -235,12 +239,41 @@ enum WindowEnumerator {
 
     private static func windows(forPID pid: pid_t, bundleID: String) -> [AppWindowTarget] {
         let axTargets = windowTargets(from: axWindowCandidates(forPID: pid, bundleID: bundleID))
-        if !axTargets.isEmpty {
-            return axTargets
-        }
 
-        guard allowsCoreGraphicsFallback(bundleID: bundleID) else { return [] }
+        // Apps that draw their UI in embedded web content under-report through `kAXWindowsAttribute`:
+        // background windows expose an empty AX title and windows on other Spaces are omitted, so the
+        // AX list collapses — to 1 usable window even when several are open, or to 0 when the app is
+        // entirely on another Space. This covers Electron editors (VS Code/Cursor/Zed/Windsurf…) and
+        // WKWebView wrappers (cmux, Tauri apps) alike. There's no single static marker for the WebKit
+        // ones, so detect the Electron/CEF *bundle type* deterministically and, for the rest, the
+        // *symptom* of AX returning nothing. When either holds, merge the app's "Window" menu — the
+        // authoritative, cross-Space window list — preferring its order. Apps that already report ≥1
+        // window via AX are trusted verbatim: that avoids a phantom tile when the same window carries
+        // a slightly different title in the menu than in AX (Chrome/Edge).
+        let consultWindowMenu = shouldMergeWindowMenu(
+            axWindowCount: axTargets.count,
+            isWebContentApp: isWebContentApp(bundleID: bundleID)
+        )
+        guard consultWindowMenu else { return axTargets }
+
+        let menuTargets = windowTargets(from: menuWindowCandidates(forPID: pid, bundleID: bundleID))
+        let merged = mergeWindowTargets(menuTargets, axTargets)
+        if !merged.isEmpty { return merged }
+
+        // Last resort for an app with no usable Window menu whose windows are off-Space/empty-titled.
         return windowTargets(from: cgWindowCandidates(forPID: pid, bundleID: bundleID))
+    }
+
+    /// Union of two already-filtered target lists, deduped by normalized title, preserving the
+    /// order of `primary` then appending titles only `secondary` provides.
+    static func mergeWindowTargets(_ primary: [AppWindowTarget], _ secondary: [AppWindowTarget]) -> [AppWindowTarget] {
+        var seen = Set<String>()
+        var result: [AppWindowTarget] = []
+        for target in primary + secondary {
+            let key = target.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            if seen.insert(key).inserted { result.append(target) }
+        }
+        return result
     }
 
     private static func axWindows(forPID pid: pid_t) -> [AXUIElement] {
@@ -275,6 +308,42 @@ enum WindowEnumerator {
               !title.isEmpty
         else { return nil }
         return title
+    }
+
+    /// Window titles read from the app's "Window" menu — the authoritative list of open windows,
+    /// including ones on other Spaces and ones whose AX title comes back empty.
+    private static func menuWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, messagingTimeout)
+
+        guard let menuBar = elementAttribute(axApp, kAXMenuBarAttribute),
+              let windowMenuItem = windowMenu(in: menuBar)
+        else { return [] }
+
+        return windowMenuWindowTitles(in: windowMenuItem).enumerated().map { index, title in
+            WindowCandidate(bundleID: bundleID, title: title, index: index, source: .menu)
+        }
+    }
+
+    /// The window entries of a "Window" menu. A standard macOS Window menu places the open-window
+    /// list as the trailing group, after the last separator that divides it from the window
+    /// commands (Minimize, Zoom, …). Falling back to all non-separator items is safe because the
+    /// command titles are rejected later by `nonWindowMenuTitles`.
+    private static func windowMenuWindowTitles(in windowMenuItem: AXUIElement) -> [String] {
+        // The menu bar item's single child is the AXMenu whose children are the menu items.
+        guard let menu = children(of: windowMenuItem).first else { return [] }
+        let titles = children(of: menu).map { item in
+            title(ofMenuItem: item).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return windowListTitles(fromMenuItemTitles: titles)
+    }
+
+    /// The open-window entries within an ordered list of Window-menu item titles (separators are
+    /// empty strings). The window list is the trailing group after the last separator; command
+    /// titles that slip through are rejected later by `nonWindowMenuTitles`.
+    static func windowListTitles(fromMenuItemTitles titles: [String]) -> [String] {
+        let lastSeparatorIndex = titles.lastIndex(where: \.isEmpty) ?? -1
+        return titles[(lastSeparatorIndex + 1)...].filter { !$0.isEmpty }
     }
 
     private static func cgWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
@@ -412,6 +481,11 @@ enum WindowEnumerator {
             guard let subrole = candidate.subrole else { return true }
             return !ignoredAXSubroles.contains(subrole)
 
+        case .menu:
+            // The non-empty/non-command checks above already validate menu titles;
+            // command items (Minimize, Zoom, …) are excluded via `nonWindowMenuTitles`.
+            return true
+
         case .coreGraphics:
             guard candidate.ownerPID != nil,
                   candidate.layer == 0,
@@ -431,8 +505,33 @@ enum WindowEnumerator {
         !nonWindowMenuTitles.contains(normalizedTitle)
     }
 
-    private static func allowsCoreGraphicsFallback(bundleID: String) -> Bool {
-        BrowserDefinition.registry[bundleID] != nil || cgFallbackAppIDs.contains(bundleID)
+    /// Whether to cross-check an app's "Window" menu against its AX window list. True when AX returns
+    /// *nothing* (the app's windows are all off-Space or empty-titled — consult the menu, with no AX
+    /// window to accidentally duplicate) or the app is a known Electron/CEF bundle (so a VS Code with
+    /// 2 visible + 1 off-Space window still merges). When AX already reports ≥1 window for a normal
+    /// app we trust it verbatim: merging the menu there risks a phantom tile, because the same window
+    /// can carry a different title in the menu (e.g. Chrome appends " - Google Chrome") and so fails
+    /// to dedupe. `isWebContentApp` is an autoclosure so the bundle probe is skipped on the AX==0 path.
+    static func shouldMergeWindowMenu(axWindowCount: Int, isWebContentApp: @autoclosure () -> Bool) -> Bool {
+        axWindowCount == 0 || isWebContentApp()
+    }
+
+    /// Whether a running app draws its UI in embedded web content (Electron/Chromium). Pure bundle
+    /// inspection — no AX, no allowlist. WKWebView wrappers (e.g. cmux) share the system framework so
+    /// they aren't caught here; they're handled by the ≤1-window symptom path instead.
+    static func isWebContentApp(bundleID: String) -> Bool {
+        guard let appURL = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else { return false }
+        return bundleContainsWebContentFramework(in: appURL)
+    }
+
+    /// True if `Contents/Frameworks` holds an Electron or Chromium Embedded framework.
+    static func bundleContainsWebContentFramework(in appURL: URL) -> Bool {
+        let frameworks = appURL.appendingPathComponent("Contents/Frameworks", isDirectory: true)
+        return webContentFrameworkNames.contains { name in
+            FileManager.default.fileExists(atPath: frameworks.appendingPathComponent(name).path)
+        }
     }
 
     private static func ownerPID(from info: [String: Any]) -> pid_t? {

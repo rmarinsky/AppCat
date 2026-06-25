@@ -16,4 +16,8 @@ enum KeyCodeMap {
     static func keyCode(for character: Character) -> UInt16? {
         map[Character(character.lowercased())]
     }
+
+    static func displayCharacter(for keyCode: UInt16) -> Character? {
+        map.first { $0.value == keyCode }?.key
+    }
 }

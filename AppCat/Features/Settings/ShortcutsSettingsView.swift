@@ -54,11 +54,15 @@ struct ShortcutsSettingsView: View {
 
     private var pickerCard: some View {
         card {
-            shortcutRow(String(localized: "Select browser")) {
+            shortcutRow(String(localized: "Select picker item")) {
                 HStack(spacing: 4) {
                     Keycap("1")
                     Text("…").foregroundStyle(.tertiary)
                     Keycap("0")
+                    Text("then").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Keycap("Q")
+                    Text("…").foregroundStyle(.tertiary)
+                    Keycap("M")
                 }
             }
             divider
@@ -66,7 +70,7 @@ struct ShortcutsSettingsView: View {
             divider
             shortcutRow(String(localized: "Cancel")) { Keycap("esc") }
             divider
-            shortcutRow(String(localized: "Select with number keys")) {
+            shortcutRow(String(localized: "Select with shortcut keys")) {
                 Toggle("", isOn: Binding(
                     get: { appState.selectWithNumberKeys },
                     set: { newValue in

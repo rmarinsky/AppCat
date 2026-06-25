@@ -45,18 +45,29 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(InstalledApp.normalizedFileFormat(" YAML "), "yaml")
     }
 
-    func testPickerSelectionShortcutsUseOneThroughZero() {
-        XCTAssertEqual(PickerItem.selectionShortcut(for: 0), "1")
-        XCTAssertEqual(PickerItem.selectionShortcut(for: 8), "9")
-        XCTAssertEqual(PickerItem.selectionShortcut(for: 9), "0")
-        XCTAssertNil(PickerItem.selectionShortcut(for: 10))
+    func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
+        let items = (0 ..< 12).map { index in
+            PickerItem(app: makeApp(id: "test.app.\(index)"))
+        }
+
+        let assignments = PickerShortcutAssigner.assignments(for: items, positionalEnabled: true)
+
+        XCTAssertEqual(assignments[items[0].id]?.key, "1")
+        XCTAssertEqual(assignments[items[8].id]?.key, "9")
+        XCTAssertEqual(assignments[items[9].id]?.key, "0")
+        XCTAssertEqual(assignments[items[10].id]?.key, "q")
+        XCTAssertEqual(assignments[items[11].id]?.key, "w")
     }
 
-    func testPickerNumberSelectionMapsZeroToTenthItem() {
-        XCTAssertEqual(PickerItem.numberSelectionIndex(for: "1"), 0)
-        XCTAssertEqual(PickerItem.numberSelectionIndex(for: "9"), 8)
-        XCTAssertEqual(PickerItem.numberSelectionIndex(for: "0"), 9)
-        XCTAssertNil(PickerItem.numberSelectionIndex(for: "a"))
+    func testPickerShortcutAssignerMatchesByKeyCode() throws {
+        let items = (0 ..< 11).map { index in
+            PickerItem(app: makeApp(id: "test.app.\(index)"))
+        }
+        let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+
+        let item = PickerShortcutAssigner.item(forKeyCode: qKeyCode, in: items, positionalEnabled: true)
+
+        XCTAssertEqual(item?.id, items[10].id)
     }
 
     func testPickerPanelWidthUsesContentWidthForSmallItemCounts() {
@@ -130,24 +141,87 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PickerTypeAheadMatcher.firstMatchIndex(in: items, query: "chrome"), 1)
     }
 
-    func testPickerHotkeyResolverIgnoresAppHotkeys() {
-        let item = PickerItem(app: makeApp(id: "test.figma", displayName: "Figma", hotkey: "f"))
+    func testPickerShortcutAssignerUsesAppHotkeys() throws {
+        let item = PickerItem(app: makeApp(id: "test.figma", displayName: "Figma", hotkey: "f", hotkeyKeyCode: 3))
+        let fKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
 
-        XCTAssertNil(PickerHotkeyResolver.browserOrProfileMatch(in: [item], keyCode: 3, keyChar: "f"))
+        let match = PickerShortcutAssigner.item(forKeyCode: fKeyCode, in: [item], positionalEnabled: true)
+
+        XCTAssertEqual(match?.id, item.id)
     }
 
-    func testPickerHotkeyResolverMatchesBrowserAndProfileHotkeys() {
+    func testPickerShortcutAssignerMatchesBrowserAndProfileHotkeysByKeyCode() throws {
         var browser = makeBrowser()
         browser.hotkey = "b"
-        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil, hotkey: "w")
+        browser.hotkeyKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "b"))
+        let profile = BrowserProfile(
+            directoryName: "Default",
+            displayName: "Work",
+            email: nil,
+            hotkey: "w",
+            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "w"))
+        )
         let profileBrowser = makeBrowser(profiles: [profile])
         let items = [
             PickerItem(browser: browser),
             PickerItem(browser: profileBrowser, profile: profile),
         ]
 
-        XCTAssertEqual(PickerHotkeyResolver.browserOrProfileMatch(in: items, keyCode: 11, keyChar: "b")?.id, browser.id)
-        XCTAssertEqual(PickerHotkeyResolver.browserOrProfileMatch(in: items, keyCode: 13, keyChar: "w")?.id, "\(profileBrowser.id):\(profile.directoryName)")
+        XCTAssertEqual(
+            PickerShortcutAssigner.item(
+                forKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "b")),
+                in: items,
+                positionalEnabled: true
+            )?.id,
+            browser.id
+        )
+        XCTAssertEqual(
+            PickerShortcutAssigner.item(
+                forKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "w")),
+                in: items,
+                positionalEnabled: true
+            )?.id,
+            "\(profileBrowser.id):\(profile.directoryName)"
+        )
+    }
+
+    func testPickerShortcutAssignerSkipsConfiguredKeyForPositionalPool() throws {
+        let appWithCustomKey = PickerItem(app: makeApp(
+            id: "test.custom",
+            hotkey: "q",
+            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+        ))
+        let positionalItems = (0 ..< 11).map { index in
+            PickerItem(app: makeApp(id: "test.positional.\(index)"))
+        }
+        let items = [appWithCustomKey] + positionalItems
+
+        let assignments = PickerShortcutAssigner.assignments(for: items, positionalEnabled: true)
+
+        XCTAssertEqual(assignments[appWithCustomKey.id]?.key, "q")
+        XCTAssertEqual(assignments[positionalItems[0].id]?.key, "1")
+        XCTAssertEqual(assignments[positionalItems[9].id]?.key, "0")
+        XCTAssertEqual(assignments[positionalItems[10].id]?.key, "w")
+    }
+
+    func testPickerShortcutAssignerShowsConfiguredKeyOnOnlyFirstWindowItem() throws {
+        let app = makeApp(
+            id: "test.cursor",
+            displayName: "Cursor",
+            hotkey: "c",
+            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "c"))
+        )
+        let items = [
+            PickerItem(app: app, windowTarget: AppWindowTarget(bundleID: app.id, title: "One", index: 0)),
+            PickerItem(app: app, windowTarget: AppWindowTarget(bundleID: app.id, title: "Two", index: 1)),
+        ]
+
+        let assignments = PickerShortcutAssigner.assignments(for: items, positionalEnabled: true)
+
+        XCTAssertEqual(assignments[items[0].id]?.key, "c")
+        XCTAssertEqual(assignments[items[0].id]?.source, .configured)
+        XCTAssertEqual(assignments[items[1].id]?.key, "1")
+        XCTAssertEqual(assignments[items[1].id]?.source, .positional)
     }
 
     func testBrowserConfigPreservesBrowserAndProfileHotkeySymbols() throws {
@@ -308,6 +382,112 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(WindowEnumerator.windowTargets(from: [candidate]).map(\.title), ["Visible Document"])
+    }
+
+    func testWindowFilterAcceptsMenuWindowTitlesAndRejectsMenuCommands() {
+        let candidates = [
+            WindowEnumerator.WindowCandidate(bundleID: "com.microsoft.VSCode", title: "Minimize", index: 0, source: .menu),
+            WindowEnumerator.WindowCandidate(bundleID: "com.microsoft.VSCode", title: "alli-e2e-test", index: 1, source: .menu),
+            WindowEnumerator.WindowCandidate(bundleID: "com.microsoft.VSCode", title: "apex-design-system", index: 2, source: .menu),
+        ]
+
+        XCTAssertEqual(
+            WindowEnumerator.windowTargets(from: candidates).map(\.title),
+            ["alli-e2e-test", "apex-design-system"]
+        )
+    }
+
+    func testWindowMenuExtractionMatchesRealVSCodeLayout() {
+        // Exact "Window" menu layout captured from a live VS Code with three open windows
+        // (separators are empty strings). Only the trailing window group should survive.
+        let menuItemTitles = [
+            "Minimize", "Minimise All", "Zoom", "Zoom All", "Fill", "Centre",
+            "", "Move & Resize", "Full-Screen Tile",
+            "", "Remove Window from Set",
+            "", "Switch Window…",
+            "", "Bring All to Front", "Arrange in Front",
+            "", "AlliChatSelection.test.ts — alli-e2e-test", "apex-design-system", "settings.test.ts — ofa",
+        ]
+
+        let windowTitles = WindowEnumerator.windowListTitles(fromMenuItemTitles: menuItemTitles)
+        XCTAssertEqual(
+            windowTitles,
+            ["AlliChatSelection.test.ts — alli-e2e-test", "apex-design-system", "settings.test.ts — ofa"]
+        )
+
+        // Full pipeline: menu candidates → filtered targets.
+        let candidates = windowTitles.enumerated().map { index, title in
+            WindowEnumerator.WindowCandidate(bundleID: "com.microsoft.VSCode", title: title, index: index, source: .menu)
+        }
+        XCTAssertEqual(WindowEnumerator.windowTargets(from: candidates).count, 3)
+    }
+
+    func testMergeWindowTargetsPrefersPrimaryOrderAndDedupesByTitle() {
+        // VS Code repro: the Window menu lists all three windows; AX surfaces only the focused one.
+        let menuTargets = [
+            AppWindowTarget(bundleID: "com.microsoft.VSCode", title: "alli-e2e-test", index: 0),
+            AppWindowTarget(bundleID: "com.microsoft.VSCode", title: "apex-design-system", index: 1),
+            AppWindowTarget(bundleID: "com.microsoft.VSCode", title: "ofa", index: 2),
+        ]
+        let axTargets = [
+            AppWindowTarget(bundleID: "com.microsoft.VSCode", title: "Apex-Design-System", index: 1),
+        ]
+
+        let merged = WindowEnumerator.mergeWindowTargets(menuTargets, axTargets)
+
+        XCTAssertEqual(merged.map(\.title), ["alli-e2e-test", "apex-design-system", "ofa"])
+    }
+
+    func testShouldMergeWindowMenuTriggersWhenAXReturnsNothing() {
+        // AX==0 means the app's windows are all off-Space/empty-titled: consult the Window menu (and
+        // there's no AX window to accidentally duplicate against), regardless of bundle type.
+        XCTAssertTrue(WindowEnumerator.shouldMergeWindowMenu(axWindowCount: 0, isWebContentApp: false))
+    }
+
+    func testShouldMergeWindowMenuTrustsAppsThatReportAtLeastOneAXWindow() {
+        // A normal app reporting ≥1 window via AX is trusted verbatim — no menu read, so Chrome/Edge
+        // can't gain a phantom tile from a menu entry whose title differs from the AX window's.
+        XCTAssertFalse(WindowEnumerator.shouldMergeWindowMenu(axWindowCount: 1, isWebContentApp: false))
+        XCTAssertFalse(WindowEnumerator.shouldMergeWindowMenu(axWindowCount: 5, isWebContentApp: false))
+    }
+
+    func testShouldMergeWindowMenuAlwaysMergesElectronEvenWithManyAXWindows() {
+        // Electron/CEF bundles under-report off-Space windows even when ≥1 shows on the current Space,
+        // so always cross-check their Window menu.
+        XCTAssertTrue(WindowEnumerator.shouldMergeWindowMenu(axWindowCount: 3, isWebContentApp: true))
+    }
+
+    func testShouldMergeWindowMenuSkipsBundleInspectionWhenAXReturnsNothing() {
+        // The autoclosure must NOT be evaluated on the AX==0 fast path — it short-circuits to true
+        // before the filesystem bundle probe.
+        var probed = false
+        let result = WindowEnumerator.shouldMergeWindowMenu(
+            axWindowCount: 0,
+            isWebContentApp: { probed = true; return false }()
+        )
+        XCTAssertTrue(result)
+        XCTAssertFalse(probed, "bundle inspection should be skipped on the AX==0 fast path")
+    }
+
+    func testShouldMergeWindowMenuProbesBundleWhenAXReportsWindows() {
+        // With ≥1 AX window the symptom path is false, so the bundle type decides — the probe runs.
+        var probed = false
+        let result = WindowEnumerator.shouldMergeWindowMenu(
+            axWindowCount: 2,
+            isWebContentApp: { probed = true; return true }()
+        )
+        XCTAssertTrue(result)
+        XCTAssertTrue(probed, "bundle inspection must run when AX already reports windows")
+    }
+
+    func testBundleContainsWebContentFrameworkDetectsElectronAndChromium() throws {
+        let electron = try makeAppBundle(named: "Electronic", frameworks: ["Electron Framework.framework"])
+        let cef = try makeAppBundle(named: "Embedded", frameworks: ["Chromium Embedded Framework.framework"])
+        let native = try makeAppBundle(named: "Cocoa", frameworks: ["Sparkle.framework"])
+
+        XCTAssertTrue(WindowEnumerator.bundleContainsWebContentFramework(in: electron))
+        XCTAssertTrue(WindowEnumerator.bundleContainsWebContentFramework(in: cef))
+        XCTAssertFalse(WindowEnumerator.bundleContainsWebContentFramework(in: native))
     }
 
     func testPickerBrowserProfileDisplayNameIncludesBrowserAndProfile() {
@@ -506,6 +686,222 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testManualPickerHidesBackgroundAppsByDefault() {
+        let regularApp = makeApp(id: "test.regular", displayName: "Regular")
+        let menuBarApp = makeApp(id: "test.menubar", displayName: "Brightness")
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [regularApp, menuBarApp],
+            appUsage: [:],
+            runningBundleIDs: [regularApp.id, menuBarApp.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [regularApp.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.regular"])
+    }
+
+    @MainActor
+    func testManualPickerShowsBackgroundAppsWhenEnabled() {
+        let regularApp = makeApp(id: "test.regular", displayName: "Regular")
+        let menuBarApp = makeApp(id: "test.menubar", displayName: "Brightness")
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [regularApp, menuBarApp],
+            appUsage: [:],
+            runningBundleIDs: [regularApp.id, menuBarApp.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [regularApp.id],
+            showBackgroundApps: true
+        )
+
+        XCTAssertEqual(Set(items.map(\.id)), ["app:test.regular", "app:test.menubar"])
+    }
+
+    @MainActor
+    func testManualPickerGroupsWindowedBeforeWindowlessAndTagsThem() {
+        let windowedApp = makeApp(id: "test.win", displayName: "Windowed")
+        let idleApp = makeApp(id: "test.idle", displayName: "Idle")
+        let windows = [AppWindowTarget(bundleID: windowedApp.id, title: "Project", index: 0)]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [idleApp, windowedApp],
+            appUsage: [:],
+            runningBundleIDs: [windowedApp.id, idleApp.id],
+            windowsByAppID: [windowedApp.id: windows],
+            regularBundleIDs: [windowedApp.id, idleApp.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.win", "app:test.idle"])
+        XCTAssertTrue(items[0].hasOpenWindows)
+        XCTAssertFalse(items[0].isBackgroundRunning)
+        XCTAssertFalse(items[1].hasOpenWindows)
+        XCTAssertTrue(items[1].isBackgroundRunning)
+    }
+
+    @MainActor
+    func testManualPickerHidesWindowlessAppsWhenDisabled() {
+        let windowedApp = makeApp(id: "test.win", displayName: "Windowed")
+        let idleApp = makeApp(id: "test.idle", displayName: "Idle")
+        let windows = [AppWindowTarget(bundleID: windowedApp.id, title: "Project", index: 0)]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [idleApp, windowedApp],
+            appUsage: [:],
+            runningBundleIDs: [windowedApp.id, idleApp.id],
+            windowsByAppID: [windowedApp.id: windows],
+            regularBundleIDs: [windowedApp.id, idleApp.id],
+            showWindowlessApps: false
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.win"])
+    }
+
+    @MainActor
+    func testManualPickerSortsByActivationFrequencyThenRecency() {
+        let a = makeApp(id: "test.a", displayName: "A")
+        let b = makeApp(id: "test.b", displayName: "B")
+        let c = makeApp(id: "test.c", displayName: "C")
+        func window(_ id: String) -> [AppWindowTarget] {
+            [AppWindowTarget(bundleID: id, title: "w", index: 0)]
+        }
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [a, b, c],
+            appUsage: [:],
+            runningBundleIDs: [a.id, b.id, c.id],
+            windowsByAppID: [a.id: window(a.id), b.id: window(b.id), c.id: window(c.id)],
+            activations: [
+                a.id: AppUsage(count: 5, lastUsed: Date(timeIntervalSince1970: 9_000)),
+                b.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1_000)),
+                c.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 2_000)),
+            ],
+            regularBundleIDs: [a.id, b.id, c.id]
+        )
+
+        // count desc (b,c=10 before a=5), then recency desc (c newer than b).
+        XCTAssertEqual(items.map(\.id), ["app:test.c", "app:test.b", "app:test.a"])
+    }
+
+    @MainActor
+    func testManualPickerCollapsesIdenticallyTitledWindowsOfSameApp() {
+        // Defense-in-depth: even if two windows of one app carry the same title, the switcher renders
+        // one tile (they'd be indistinguishable in the row anyway).
+        let app = makeApp(id: "test.cursor", displayName: "Cursor")
+        let windows = [
+            AppWindowTarget(bundleID: app.id, title: "Project", index: 0),
+            AppWindowTarget(bundleID: app.id, title: "Project", index: 1),
+        ]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [app],
+            appUsage: [:],
+            runningBundleIDs: [app.id],
+            windowsByAppID: [app.id: windows],
+            regularBundleIDs: [app.id]
+        )
+
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.displayName, "Project")
+    }
+
+    @MainActor
+    func testManualPickerKeepsDistinctlyTitledWindowsOfSameApp() {
+        // The net must not over-collapse: different titles stay as separate per-window tiles.
+        let app = makeApp(id: "test.cursor", displayName: "Cursor")
+        let windows = [
+            AppWindowTarget(bundleID: app.id, title: "Project A", index: 0),
+            AppWindowTarget(bundleID: app.id, title: "Project B", index: 1),
+        ]
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [app],
+            appUsage: [:],
+            runningBundleIDs: [app.id],
+            windowsByAppID: [app.id: windows],
+            regularBundleIDs: [app.id]
+        )
+
+        XCTAssertEqual(items.map(\.displayName), ["Project A", "Project B"])
+    }
+
+    @MainActor
+    func testManualPickerSurfacesRunningHiddenBrowserAsAppTile() {
+        // Apps like cmux register an http handler, get classified as a browser, and are hidden from
+        // the routing picker (isVisible == false). They should still appear in the app switcher.
+        let app = makeApp(id: "test.editor", displayName: "Editor")
+        let hiddenBrowserApp = InstalledBrowser(
+            id: "com.cmuxterm.app",
+            displayName: "cmux",
+            appURL: URL(fileURLWithPath: "/Applications/cmux.app"),
+            isVisible: false,
+            sortOrder: 5,
+            supportsPrivateMode: false
+        )
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [hiddenBrowserApp],
+            apps: [app],
+            appUsage: [:],
+            runningBundleIDs: [app.id, hiddenBrowserApp.id],
+            windowsByAppID: [app.id: [AppWindowTarget(bundleID: app.id, title: "w", index: 0)]],
+            regularBundleIDs: [app.id, hiddenBrowserApp.id]
+        )
+
+        XCTAssertTrue(items.map(\.id).contains("com.cmuxterm.app"))
+        XCTAssertEqual(items.first { $0.id == "com.cmuxterm.app" }?.displayName, "cmux")
+    }
+
+    @MainActor
+    func testManualPickerExcludesIgnoredHiddenBrowser() {
+        let ignoredBrowserApp = InstalledBrowser(
+            id: "com.cmuxterm.app",
+            displayName: "cmux",
+            appURL: URL(fileURLWithPath: "/Applications/cmux.app"),
+            isVisible: false,
+            isIgnored: true,
+            sortOrder: 5,
+            supportsPrivateMode: false
+        )
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [ignoredBrowserApp],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [ignoredBrowserApp.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [ignoredBrowserApp.id]
+        )
+
+        XCTAssertFalse(items.map(\.id).contains("com.cmuxterm.app"))
+    }
+
+    @MainActor
     func testSingleDetectedBrowserProfileIsShownAsProfileSupport() {
         let browser = makeBrowser(profiles: [
             BrowserProfile(directoryName: "Default", displayName: "Personal", email: nil),
@@ -639,6 +1035,21 @@ final class SmokeTests: XCTestCase {
             profileType: profileType,
             profiles: profiles
         )
+    }
+
+    /// Build a throwaway `.app` bundle with the given frameworks under `Contents/Frameworks` so
+    /// bundle-shape detection can be tested without a real installed app.
+    private func makeAppBundle(named name: String, frameworks: [String]) throws -> URL {
+        let root = try makeTempDirectory().appendingPathComponent("\(name).app", isDirectory: true)
+        let frameworksDir = root.appendingPathComponent("Contents/Frameworks", isDirectory: true)
+        try FileManager.default.createDirectory(at: frameworksDir, withIntermediateDirectories: true)
+        for framework in frameworks {
+            try FileManager.default.createDirectory(
+                at: frameworksDir.appendingPathComponent(framework, isDirectory: true),
+                withIntermediateDirectories: true
+            )
+        }
+        return root
     }
 
     private func makeTempFile(named name: String) throws -> URL {

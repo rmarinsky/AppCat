@@ -230,15 +230,15 @@ struct AppDefinition {
             displayName: "Figma",
             hostPatterns: ["figma.com", "www.figma.com"],
             urlScheme: "figma",
-            convertURL: nil // Figma handles HTTPS URLs directly
+            convertURL: AppDefinition.figmaURLConverter(scheme: "figma")
         ),
         // Figma Beta
         AppDefinition(
             bundleID: "com.figma.Desktop.beta",
             displayName: "Figma Beta",
             hostPatterns: ["figma.com", "www.figma.com"],
-            urlScheme: "figma",
-            convertURL: nil
+            urlScheme: "figma-beta",
+            convertURL: AppDefinition.figmaURLConverter(scheme: "figma-beta")
         ),
         // Notion
         AppDefinition(
@@ -359,4 +359,33 @@ struct AppDefinition {
         }
         return dict
     }()
+
+    static func figmaURLConverter(scheme: String) -> (URL) -> URL? {
+        { url in
+            figmaDeepLink(for: url, scheme: scheme)
+        }
+    }
+
+    static func figmaDeepLink(for url: URL, scheme: String) -> URL? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let sourceScheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(sourceScheme),
+              let host = components.host?.lowercased(),
+              host == "figma.com" || host == "www.figma.com"
+        else {
+            return nil
+        }
+
+        let path = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !path.isEmpty else { return nil }
+
+        var deepLink = "\(scheme)://\(path)"
+        if let query = components.percentEncodedQuery {
+            deepLink += "?\(query)"
+        }
+        if let fragment = components.percentEncodedFragment {
+            deepLink += "#\(fragment)"
+        }
+        return URL(string: deepLink)
+    }
 }

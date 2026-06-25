@@ -6,7 +6,7 @@ struct BrowserCell: View {
     let title: String
     let subtitle: String?
     let isFocused: Bool
-    let selectionShortcut: Character?
+    let shortcut: PickerShortcut?
     let showsHotkey: Bool
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
@@ -17,7 +17,7 @@ struct BrowserCell: View {
         subtitle: String? = nil,
         isFocused: Bool,
         profile: BrowserProfile? = nil,
-        selectionShortcut: Character? = nil,
+        shortcut: PickerShortcut? = nil,
         showsHotkey: Bool = true,
         compact: Bool = false,
         style: PickerPresentationStyle = .routing
@@ -27,7 +27,7 @@ struct BrowserCell: View {
         self.title = title ?? profile.map { "\(browser.displayName) - \($0.displayName)" } ?? browser.displayName
         self.subtitle = subtitle
         self.isFocused = isFocused
-        self.selectionShortcut = selectionShortcut
+        self.shortcut = shortcut
         self.showsHotkey = showsHotkey
         self.compact = compact
         self.style = style
@@ -113,8 +113,8 @@ struct BrowserCell: View {
             .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style), alignment: .center)
 
             HStack(spacing: 4) {
-                if let selectionShortcut {
-                    SelectionKeycapView(key: selectionShortcut, compact: true, inline: true)
+                if let shortcut {
+                    SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
                 }
                 if let subtitle {
                     Text(subtitle)
@@ -184,8 +184,8 @@ struct BrowserCell: View {
                 .strokeBorder(isFocused ? Color.accentColor : Color.clear, lineWidth: 2)
         )
         .overlay(alignment: .topLeading) {
-            if let selectionShortcut {
-                SelectionKeycapView(key: selectionShortcut)
+            if let shortcut {
+                SelectionKeycapView(key: shortcut.key)
                     .offset(x: -8, y: -8)
                     .zIndex(2)
             }

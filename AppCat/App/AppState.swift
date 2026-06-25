@@ -28,12 +28,21 @@ final class AppState {
     var history: [HistoryEntry] = []
     var suggestions: [RuleSuggestion] = []
     var appUsage: [String: AppUsage] = [:]
+    /// Per-app system activation tally (count + recency) — the app switcher's sort signal.
+    var appActivations: [String: AppUsage] = [:]
     var recentLinksCount: Int = 3
+    /// Show running apps without open windows in the switcher (dimmed group).
+    var showWindowlessApps: Bool = true
+    /// Include menu-bar / background apps (`.accessory` / `.prohibited`) in the switcher.
+    var showBackgroundApps: Bool = false
     var pickerLayout: PickerLayout = .horizontal
     var selectWithNumberKeys: Bool = true
     var pickerItemsSnapshot: [PickerItem] = []
     var isManualPickerPresentation: Bool = false
     var runningAppBundleIDs: Set<String> = []
+    /// Bundle IDs of running apps with `.regular` activation policy (Dock apps). Menu-bar
+    /// (`.accessory`) and background (`.prohibited`) apps are excluded — the switcher filters by this.
+    var regularAppBundleIDs: Set<String> = []
     var runningWindowsByAppID: [String: [AppWindowTarget]] = [:]
     var frontmostAppBundleID: String?
     var appActivityUpdatedAt: Date?
@@ -112,6 +121,16 @@ final class AppState {
         AppUsageStorage.shared.save(appUsage)
     }
 
+    /// Record one system activation of an app (it became frontmost) and persist the tally. This is
+    /// the switcher's frequency + recency signal; AppCat itself is ignored by the caller.
+    func recordAppActivation(_ bundleID: String) {
+        var entry = appActivations[bundleID] ?? AppUsage(count: 0, lastUsed: Date())
+        entry.count += 1
+        entry.lastUsed = Date()
+        appActivations[bundleID] = entry
+        AppActivationStore.shared.save(appActivations)
+    }
+
     init() {
         SettingsStorage.shared.applyLanguagePreference()
         lastOpenedURL = SettingsStorage.shared.lastURL
@@ -120,6 +139,9 @@ final class AppState {
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         appLanguage = SettingsStorage.shared.appLanguage
         appUsage = AppUsageStorage.shared.load()
+        appActivations = AppActivationStore.shared.load()
+        showWindowlessApps = SettingsStorage.shared.showWindowlessApps
+        showBackgroundApps = SettingsStorage.shared.showBackgroundApps
         Log.app.debug("AppState initialized")
     }
 

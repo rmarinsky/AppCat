@@ -39,6 +39,8 @@ struct MainWindowView: View {
             SuggestionsView()
         case .settingsGeneral:
             GeneralSettingsView()
+        case .settingsPicker:
+            PickerSettingsView()
         case .settingsBrowsers:
             BrowsersSettingsView()
         case .settingsApps:

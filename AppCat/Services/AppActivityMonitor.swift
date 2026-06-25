@@ -40,6 +40,13 @@ final class AppActivityMonitor {
 
         let runningApplications = NSWorkspace.shared.runningApplications
         appState.runningAppBundleIDs = Set(runningApplications.compactMap(\.bundleIdentifier))
+        // `.regular` apps own a Dock tile + menu bar; `.accessory`/`.prohibited` are menu-bar and
+        // background utilities the switcher hides unless the user opts in.
+        appState.regularAppBundleIDs = Set(
+            runningApplications
+                .filter { $0.activationPolicy == .regular }
+                .compactMap(\.bundleIdentifier)
+        )
         appState.frontmostAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         appState.appActivityUpdatedAt = Date()
     }
@@ -61,6 +68,7 @@ final class AppActivityMonitor {
     }
 
     private func observe(_ notificationName: Notification.Name) {
+        let isActivation = notificationName == NSWorkspace.didActivateApplicationNotification
         let observer = workspaceNotificationCenter.addObserver(
             forName: notificationName,
             object: nil,
@@ -69,17 +77,23 @@ final class AppActivityMonitor {
             let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             let activatedBundleID = activatedApp?.bundleIdentifier
             Task { @MainActor [weak self] in
-                self?.handleWorkspaceChange(activatedBundleID: activatedBundleID)
+                self?.handleWorkspaceChange(activatedBundleID: activatedBundleID, isActivation: isActivation)
             }
         }
         observers.append(observer)
     }
 
-    private func handleWorkspaceChange(activatedBundleID: String?) {
+    private func handleWorkspaceChange(activatedBundleID: String?, isActivation: Bool) {
         // Ignore AppCat's own activation (e.g. when it activates to show the picker). Otherwise
-        // every picker presentation would kick off an AX enumeration on the present frame.
+        // every picker presentation would kick off an AX enumeration on the present frame — and
+        // AppCat shouldn't rank itself in its own switcher.
         if activatedBundleID == Bundle.main.bundleIdentifier {
             return
+        }
+        // Tally real usage: count an app each time it becomes frontmost. This is the switcher's
+        // frequency + recency signal.
+        if isActivation, let activatedBundleID {
+            appState?.recordAppActivation(activatedBundleID)
         }
         refreshRunningApplications()
         scheduleWindowRefresh(after: windowRefreshDebounce)

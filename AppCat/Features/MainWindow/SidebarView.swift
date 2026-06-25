@@ -8,7 +8,8 @@ struct SidebarView: View {
 
     private let primaryItems: [MainWindowSection] = [.overview, .history, .suggestions]
     private let settingsItems: [MainWindowSection] = [
-        .settingsGeneral, .settingsBrowsers, .settingsApps, .settingsRules, .settingsShortcuts, .settingsAccount,
+        .settingsGeneral, .settingsPicker, .settingsBrowsers, .settingsApps, .settingsRules,
+        .settingsShortcuts, .settingsAccount,
     ]
 
     var body: some View {
