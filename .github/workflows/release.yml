@@ -16,12 +16,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_NAME: BrowserCat
-  DISPLAY_NAME: BrowserCat
-  SCHEME: BrowserCat
-  PROJECT_FILE: BrowserCat.xcodeproj
-  APP_BUNDLE_NAME: BrowserCat.app
-  ARCHIVE_PATH: build/BrowserCat.xcarchive
+  APP_NAME: AppCat
+  DISPLAY_NAME: AppCat
+  SCHEME: AppCat
+  PROJECT_FILE: AppCat.xcodeproj
+  APP_BUNDLE_NAME: AppCat.app
+  ARCHIVE_PATH: build/AppCat.xcarchive
   EXPORT_DIR: build/export
   USES_XCODEGEN: "true"
 
@@ -264,7 +264,18 @@ jobs:
           python3 -c "
           import datetime, pathlib, sys
           appcast = pathlib.Path('/tmp/ghpages/appcast.xml')
-          content = appcast.read_text()
+          template = '''<?xml version=\"1.0\" encoding=\"utf-8\"?>
+          <rss version=\"2.0\" xmlns:sparkle=\"http://www.andymatuschak.org/xml-namespaces/sparkle\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">
+            <channel>
+              <title>${APP_NAME} Updates</title>
+              <description>Most recent ${APP_NAME} changes with links to updates.</description>
+              <language>en</language>
+            </channel>
+          </rss>
+          '''
+          content = appcast.read_text() if appcast.exists() else template
+          if '<title>${APP_NAME} Updates</title>' not in content:
+              content = template
           marker = '<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>'
           if marker in content:
               print('Version ${VERSION} already in appcast, skipping')

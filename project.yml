@@ -1,4 +1,4 @@
-name: BrowserCat
+name: AppCat
 options:
   bundleIdPrefix: ua.com.rmarinsky
   developmentLanguage: uk
@@ -13,6 +13,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: 2.9.0
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 2.0.0
 
 configs:
   Debug: debug
@@ -37,71 +40,73 @@ configFiles:
   Release: Config/Release.xcconfig
 
 targets:
-  BrowserCat:
+  AppCat:
     type: application
     platform: macOS
     sources:
-      - path: BrowserCat
+      - path: AppCat
         excludes:
           - "**/.DS_Store"
     dependencies:
       - package: LaunchAtLogin
       - package: Sparkle
+      - package: KeyboardShortcuts
     settings:
       base:
-        INFOPLIST_FILE: BrowserCat/Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: BrowserCat/Resources/BrowserCat.entitlements
+        INFOPLIST_FILE: AppCat/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AppCat/Resources/AppCat.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/../Frameworks"
         COMBINE_HIDPI_IMAGES: YES
-        PRODUCT_MODULE_NAME: BrowserCat
+        PRODUCT_MODULE_NAME: AppCat
       configs:
         Debug:
-          PRODUCT_NAME: "BrowserCat DEV"
-          PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.browsercat.dev
+          PRODUCT_NAME: "AppCat DEV"
+          PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat.dev
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEV_BUILD DEBUG
         Release:
-          PRODUCT_NAME: "BrowserCat"
-          PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.browsercat
+          PRODUCT_NAME: "AppCat"
+          PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat
 
-  BrowserCatTests:
+  AppCatTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: BrowserCatTests
+      - path: AppCatTests
         excludes:
           - "**/.DS_Store"
     dependencies:
-      - target: BrowserCat
+      - target: AppCat
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.browsercat.tests
+        PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat.tests
         BUNDLE_LOADER: "$(TEST_HOST)"
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/BrowserCat DEV.app/Contents/MacOS/BrowserCat DEV"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AppCat DEV.app/Contents/MacOS/AppCat DEV"
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: "8JL9TM5WLG"
 
 schemes:
-  BrowserCat DEV:
+  AppCat DEV:
     build:
       targets:
-        BrowserCat: all
-        BrowserCatTests: [test]
+        AppCat: all
+        AppCatTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - BrowserCatTests
+        - AppCatTests
     archive:
       config: Debug
 
-  BrowserCat:
+  AppCat:
     build:
       targets:
-        BrowserCat: all
+        AppCat: all
     run:
       config: Release
     archive:
