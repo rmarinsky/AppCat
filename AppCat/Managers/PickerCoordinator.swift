@@ -154,7 +154,7 @@ final class PickerCoordinator {
                 sourceRuleID: source.ruleID,
                 state: state
             ) ?? []
-            self.statsManager?.record(source)
+            self.statsManager?.record(source, profileTargeted: profile != nil)
             for (index, entryID) in entryIDs.enumerated() {
                 guard pendingOpen.launchURLs.indices.contains(index),
                       pendingOpen.displayURLs.indices.contains(index)
