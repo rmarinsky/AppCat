@@ -82,13 +82,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Log.app.info("AppCat launched")
 
+        // Register the plain-launch fallback BEFORE flushing buffered URLs — order matters.
+        // If the app was cold-launched to service a link/file, flushing routes it synchronously
+        // and `handleIncomingURLs` cancels this scheduled open at its top. The auto-route path
+        // clears `pendingURL` synchronously, so if we flushed first this fallback's fire-time
+        // guard would later see clean state (pendingURL == nil, no picker) and still pop the
+        // main window over the routed link.
+        scheduleMainWindowOpen(section: .overview, delay: 0.35)
+
         // Launch configuration is ready — release any URLs that arrived during launch.
         isLaunchConfigured = true
         flushBufferedLaunchURLs()
-
-        // Fallback delay: launch URL events normally arrive before this point (registered in
-        // willFinishLaunching) and cancel/skip this open explicitly.
-        scheduleMainWindowOpen(section: .overview, delay: 0.35)
 
         // Pre-build the picker panel + SwiftUI hierarchy so the first link click doesn't pay
         // view-graph construction. Deferred so it never competes with launch URL handling.

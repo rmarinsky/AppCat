@@ -11,7 +11,7 @@ labels:
   - hosted-audit-origin
 dependencies: []
 references:
-  - workspaces/utilities/backlog/docs/research/doc-2 - BrowserCat-Research.md
+  - backlog/docs/doc-1 - BrowserCat-Research.md
   - _audit/vault/02d-design.md
 priority: medium
 ordinal: 1000
