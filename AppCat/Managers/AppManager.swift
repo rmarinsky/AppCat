@@ -8,6 +8,24 @@ final class AppManager {
     func refreshApps(into state: AppState) {
         let browserIDs = Set(state.browsers.map(\.id))
         let detected = appDetector.detectAllApps().filter { !browserIDs.contains($0.id) }
+        applyDetected(detected, into: state)
+    }
+
+    /// Full installed-app rescan with the expensive detection (directory walk, Info.plist
+    /// parsing, icon loads) off the main actor. Merge + publish + save hop back to main.
+    /// Used by workspace-notification triggers so the switcher hotkey never pays for a rescan.
+    func refreshAppsInBackground(into state: AppState) {
+        let browserIDs = Set(state.browsers.map(\.id))
+        let detector = appDetector
+        Task.detached(priority: .utility) { [weak self] in
+            let detected = detector.detectAllApps().filter { !browserIDs.contains($0.id) }
+            await MainActor.run { [weak self] in
+                self?.applyDetected(detected, into: state)
+            }
+        }
+    }
+
+    private func applyDetected(_ detected: [InstalledApp], into state: AppState) {
         let savedConfigs = AppConfigStorage.shared.load()
 
         if let savedConfigs {

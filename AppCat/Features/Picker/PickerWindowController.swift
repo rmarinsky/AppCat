@@ -37,38 +37,62 @@ final class PickerWindowController: NSObject {
         self.coordinator = coordinator
     }
 
+    /// Build the panel + SwiftUI hosting view without presenting — the first real show() then
+    /// skips window/view-graph construction. Safe to call once at launch; no-op if built.
+    func prewarm() {
+        guard panel == nil else { return }
+        let screen = screenNearCursor()
+        buildPanelIfNeeded(size: panelSize(for: screen))
+        panel?.layoutIfNeeded()
+        Log.picker.debug("Picker panel pre-warmed")
+    }
+
+    private func buildPanelIfNeeded(size: NSSize) {
+        guard panel == nil else { return }
+        let newPanel = makePanel(size: size)
+        panel = newPanel
+
+        let hostingView = NSHostingView(
+            rootView: PickerView()
+                .environment(appState)
+                .environment(\.pickerCoordinator, coordinator)
+        )
+        hostingView.autoresizingMask = [.width, .height]
+        hostingView.frame = newPanel.contentView!.bounds
+        // Keep hosting view background transparent so vibrancy shows through
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        newPanel.contentView?.addSubview(hostingView)
+    }
+
     func show() {
         isClosing = false
         seedPickerSnapshotIfPossible()
+        // Reset focus here, not only in the view's onAppear — after a pre-warm the hidden view
+        // has already "appeared" once and onAppear may not fire again for the real presentation.
+        appState.focusedBrowserIndex = 0
         let screen = screenNearCursor()
         let targetSize = panelSize(for: screen)
 
-        if panel == nil {
-            let newPanel = makePanel(size: targetSize)
-            self.panel = newPanel
-
-            let hostingView = NSHostingView(
-                rootView: PickerView()
-                    .environment(appState)
-                    .environment(\.pickerCoordinator, coordinator)
-            )
-            hostingView.autoresizingMask = [.width, .height]
-            hostingView.frame = newPanel.contentView!.bounds
-            // Keep hosting view background transparent so vibrancy shows through
-            hostingView.wantsLayer = true
-            hostingView.layer?.backgroundColor = .clear
-            newPanel.contentView?.addSubview(hostingView)
-        }
+        buildPanelIfNeeded(size: targetSize)
 
         guard let panel else { return }
         resizePanelIfNeeded(panel, to: targetSize)
+        // Material/corner radius differ between routing and app-switcher styles; a pre-warmed or
+        // reused panel may carry the other style's look, so re-apply on every show.
+        if let visualEffect = panel.contentView as? NSVisualEffectView {
+            applyLiquidGlassAppearance(to: visualEffect)
+        }
 
         positionPanel(panel, on: screen)
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
 
-        // Activate the app so macOS delivers key/mouse events to the panel.
-        // Use .accessory policy to avoid showing a dock icon.
-        NSApp.setActivationPolicy(.accessory)
+        // Activate the app so macOS delivers key/mouse events to the panel. Demote to
+        // .accessory (no Dock icon) only when the main window isn't on screen — otherwise a
+        // link click while Settings is open would strip the app's Dock presence.
+        if !MainWindowActivation.isMainWindowVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
         NSApp.activate(ignoringOtherApps: true)
 
         panel.makeKeyAndOrderFront(nil)
@@ -89,7 +113,9 @@ final class PickerWindowController: NSObject {
         appState.pickerItemsSnapshot = []
         removeMonitors()
         panel?.orderOut(nil)
-        NSApp.setActivationPolicy(.accessory)
+        if !MainWindowActivation.isMainWindowVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
         DispatchQueue.main.async { [weak self] in
             self?.isClosing = false
         }
@@ -348,6 +374,46 @@ final class PickerWindowController: NSObject {
             includingLaunchServicesCandidates: false
         ).count
         return browserCount + appCount
+    }
+
+    /// Rebuild the switcher snapshot after a live window-cache refresh landed while the picker
+    /// is on screen. Skips churn when the visible list is unchanged; otherwise keeps the user's
+    /// focused tile by remapping the focus index by item id, then re-fits the panel.
+    func refreshSnapshotForVisibleSession() {
+        guard appState.isPickerVisible, appState.isManualPickerPresentation, !isClosing else { return }
+
+        let oldItems = appState.pickerItemsSnapshot
+        let oldIndex = appState.focusedBrowserIndex
+        appState.pickerItemsSnapshot = []
+        refreshPickerItemsSnapshot()
+        let newItems = appState.pickerItemsSnapshot
+
+        guard !newItems.isEmpty else {
+            appState.pickerItemsSnapshot = oldItems
+            return
+        }
+        guard newItems.map(\.id) != oldItems.map(\.id) else { return }
+
+        appState.focusedBrowserIndex = Self.remappedFocusIndex(
+            oldItems: oldItems,
+            newItems: newItems,
+            oldIndex: oldIndex
+        )
+        if let panel {
+            let screen = screenNearCursor()
+            resizePanelIfNeeded(panel, to: panelSize(for: screen))
+            positionPanel(panel, on: screen)
+        }
+        Log.picker.debug("Picker snapshot refreshed in place (\(oldItems.count) → \(newItems.count) items)")
+    }
+
+    /// Where focus should land after the item list is replaced: follow the focused item's id,
+    /// fall back to the same position clamped into bounds.
+    static func remappedFocusIndex(oldItems: [PickerItem], newItems: [PickerItem], oldIndex: Int) -> Int {
+        guard !newItems.isEmpty else { return 0 }
+        guard oldItems.indices.contains(oldIndex) else { return 0 }
+        let focusedID = oldItems[oldIndex].id
+        return newItems.firstIndex { $0.id == focusedID } ?? min(oldIndex, newItems.count - 1)
     }
 
     private func seedPickerSnapshotIfPossible() {

@@ -721,6 +721,9 @@ struct PickerView: View {
     }
 
     private func prepareInitialFocus(with items: [PickerItem]) {
+        // A pre-warmed (hidden) panel also runs onAppear; it must not reset focus or seed a
+        // stale URL-less snapshot that a later real presentation would then trust.
+        guard appState.isPickerVisible else { return }
         appState.focusedBrowserIndex = 0
         if appState.pickerItemsSnapshot.isEmpty, !items.isEmpty {
             appState.pickerItemsSnapshot = items

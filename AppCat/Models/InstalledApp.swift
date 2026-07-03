@@ -121,7 +121,7 @@ struct InstalledApp: Identifiable, Equatable {
         // preview files (html, svg, pdf — not developer files), and a user can still pin one via
         // custom formats (Rank 0/1).
         let hiddenBrowserIDs: Set<String> = (includingLaunchServicesCandidates && BrowserFileType.isDeveloperFile(url))
-            ? webBrowserBundleIDs().subtracting(excludedIDs)
+            ? webBrowserBundleIDs.subtracting(excludedIDs)
             : []
         let knownIDs = Set(apps.map(\.id))
         let launchServicesApps: [InstalledApp] = capableAppURLs.enumerated().compactMap { index, appURL in
@@ -237,13 +237,15 @@ struct InstalledApp: Identifiable, Equatable {
     /// Bundle IDs macOS lists as web browsers (apps that can open `https://`), detected the same
     /// way `BrowserDetector` does. A browser can *render* a developer/text file but not edit it,
     /// so these are hard-hidden from the file picker for developer files — see `matchingFileApps`.
-    private static func webBrowserBundleIDs() -> Set<String> {
+    /// Cached for the session: the LaunchServices query + per-app Bundle reads are too expensive
+    /// to repeat on every file-URL picker computation, and the installed-browser set is stable.
+    private static let webBrowserBundleIDs: Set<String> = {
         guard let httpURL = URL(string: "https://example.com") else { return [] }
         return Set(
             NSWorkspace.shared.urlsForApplications(toOpen: httpURL)
                 .compactMap { Bundle(url: $0)?.bundleIdentifier }
         )
-    }
+    }()
 
     private static func isUnknownFileType(_ url: URL, capableIDs: Set<String>) -> Bool {
         if capableIDs.isEmpty {
@@ -278,8 +280,7 @@ struct InstalledApp: Identifiable, Equatable {
             ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? fallbackName
 
-        let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-        icon.size = NSSize(width: 64, height: 64)
+        let icon = AppIconLoader.icon(forFile: appURL.path)
         let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String
 
         return InstalledApp(
