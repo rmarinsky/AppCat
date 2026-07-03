@@ -44,6 +44,15 @@ struct InstalledApp: Identifiable, Equatable {
         !fileFormats.isEmpty || AppDefinition.registryByID[id]?.handlesAllFiles == true
     }
 
+    /// Whether AppCat can route *anything* to this app — a file (declared formats or a registry
+    /// "handles all files" editor) or a link (web host patterns or a custom URL scheme). Apps that
+    /// can do neither (Calculator, Activity Monitor…) are dropped from the *open-with* pickers, so
+    /// LaunchServices can't surface them as junk handlers; they remain in `state.apps` for the
+    /// running-app switcher. Link-only apps like Slack stay because they still open URLs.
+    var canOpenTarget: Bool {
+        declaresFileSupport || !hostPatterns.isEmpty || !urlSchemes.isEmpty
+    }
+
     static func == (lhs: InstalledApp, rhs: InstalledApp) -> Bool {
         lhs.id == rhs.id
             && lhs.displayName == rhs.displayName
@@ -105,7 +114,15 @@ struct InstalledApp: Identifiable, Equatable {
                 .compactMap { Bundle(url: $0)?.bundleIdentifier }
                 .filter { !excludedIDs.contains($0) }
         )
-        let isUnknownType = isUnknownFileType(url, capableIDs: capableIDs)
+        // Hard-hide view-only web browsers from developer/text files. macOS lists Safari/Chrome/
+        // etc. as "capable" of a .json/.md/.env because they can render or download it, but a
+        // developer opening such a file wants to edit it, not preview it — so drop browsers that
+        // only qualify through the LaunchServices net (Rank 2). Browsers stay for web-markup and
+        // preview files (html, svg, pdf — not developer files), and a user can still pin one via
+        // custom formats (Rank 0/1).
+        let hiddenBrowserIDs: Set<String> = (includingLaunchServicesCandidates && BrowserFileType.isDeveloperFile(url))
+            ? webBrowserBundleIDs().subtracting(excludedIDs)
+            : []
         let knownIDs = Set(apps.map(\.id))
         let launchServicesApps: [InstalledApp] = capableAppURLs.enumerated().compactMap { index, appURL in
             guard let app = launchServicesApp(from: appURL, sortOrder: apps.count + index),
@@ -115,11 +132,29 @@ struct InstalledApp: Identifiable, Equatable {
             return app
         }
 
-        return (apps + launchServicesApps)
+        return rankedFileApps(
+            candidates: apps + launchServicesApps,
+            url: url,
+            capableIDs: capableIDs,
+            hiddenBrowserIDs: hiddenBrowserIDs
+        )
+    }
+
+    /// Pure ranking/sorting core of `matchingFileApps`, split out so the LaunchServices and
+    /// browser-detection lookups can be injected in tests. `capableIDs` are the bundle ids macOS
+    /// says can open `url`; `hiddenBrowserIDs` are view-only browsers to drop for developer files.
+    static func rankedFileApps(
+        candidates: [InstalledApp],
+        url: URL,
+        capableIDs: Set<String>,
+        hiddenBrowserIDs: Set<String>
+    ) -> [InstalledApp] {
+        let isUnknownType = isUnknownFileType(url, capableIDs: capableIDs)
+        return candidates
             .compactMap { app -> (app: InstalledApp, rank: Int)? in
                 let isLaunchServicesCandidate = capableIDs.contains(app.id)
                 guard app.isVisible || isLaunchServicesCandidate else { return nil }
-                if let rank = fileMatchRank(for: app, url: url, capableIDs: capableIDs, isUnknownType: isUnknownType) {
+                if let rank = fileMatchRank(for: app, url: url, capableIDs: capableIDs, isUnknownType: isUnknownType, hiddenBrowserIDs: hiddenBrowserIDs) {
                     return (app, rank)
                 }
                 return nil
@@ -175,15 +210,20 @@ struct InstalledApp: Identifiable, Equatable {
         for app: InstalledApp,
         url: URL,
         capableIDs: Set<String>,
-        isUnknownType: Bool
+        isUnknownType: Bool,
+        hiddenBrowserIDs: Set<String>
     ) -> Int? {
         if app.matchesFile(url) {
             return app.customFormats == nil ? 1 : 0
         }
 
         // LaunchServices is still the compatibility net: this preserves the old behavior where
-        // the picker lists whatever macOS says can open this concrete file.
+        // the picker lists whatever macOS says can open this concrete file — except view-only
+        // browsers on developer/text files, which are hidden outright (see `hiddenBrowserIDs`).
         if app.customFormats == nil, capableIDs.contains(app.id) {
+            if hiddenBrowserIDs.contains(app.id) {
+                return nil
+            }
             return 2
         }
 
@@ -192,6 +232,17 @@ struct InstalledApp: Identifiable, Equatable {
         }
 
         return nil
+    }
+
+    /// Bundle IDs macOS lists as web browsers (apps that can open `https://`), detected the same
+    /// way `BrowserDetector` does. A browser can *render* a developer/text file but not edit it,
+    /// so these are hard-hidden from the file picker for developer files — see `matchingFileApps`.
+    private static func webBrowserBundleIDs() -> Set<String> {
+        guard let httpURL = URL(string: "https://example.com") else { return [] }
+        return Set(
+            NSWorkspace.shared.urlsForApplications(toOpen: httpURL)
+                .compactMap { Bundle(url: $0)?.bundleIdentifier }
+        )
     }
 
     private static func isUnknownFileType(_ url: URL, capableIDs: Set<String>) -> Bool {

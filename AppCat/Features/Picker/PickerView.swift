@@ -227,10 +227,16 @@ struct PickerItem: Identifiable {
             )
         }
 
+        // Keep dead-weight apps out of the open-with list: those that can't meaningfully open
+        // anything (no declared formats, no links) shouldn't be offered just because LaunchServices
+        // reports them as capable of a broad type. They stay in `state.apps` for the app-switcher;
+        // this only trims the open-with pickers. Excluding them also blocks the LaunchServices net
+        // from re-adding them as Rank 2 candidates.
+        let inertAppIDs = Set(apps.filter { !$0.canOpenTarget }.map(\.id))
         let matchingApps = matchingApps(
             for: url,
             in: apps,
-            excludingBundleIDs: browserIDs,
+            excludingBundleIDs: browserIDs.union(inertAppIDs),
             includingLaunchServicesCandidates: true
         )
         let orderedApps: [InstalledApp]

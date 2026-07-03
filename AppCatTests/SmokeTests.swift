@@ -45,6 +45,61 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(InstalledApp.normalizedFileFormat(" YAML "), "yaml")
     }
 
+    func testCanOpenTargetDropsAppsThatOpenNeitherFilesNorLinks() {
+        XCTAssertFalse(makeApp(id: "test.inert").canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.file", detectedFormats: ["txt"]).canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.host", hostPatterns: ["slack.com"]).canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.scheme", urlSchemes: ["slack"]).canOpenTarget)
+    }
+
+    func testDeveloperFilesHideLaunchServicesBrowsersButKeepEditors() throws {
+        let yamlURL = try makeTempFile(named: "config.yaml")
+        let editor = makeApp(id: "test.editor", customFormats: ["yaml"])
+        let browser = makeApp(id: "com.apple.Safari", displayName: "Safari")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [editor, browser],
+            url: yamlURL,
+            capableIDs: ["test.editor", "com.apple.Safari"],
+            hiddenBrowserIDs: ["com.apple.Safari"]
+        )
+
+        XCTAssertEqual(ranked.map(\.id), ["test.editor"])
+    }
+
+    func testWebMarkupFilesKeepBrowsersAsCandidates() throws {
+        // For html (not a developer file) the caller passes an empty hidden-browser set, so a
+        // browser that LaunchServices reports as capable still appears alongside the editor.
+        let htmlURL = try makeTempFile(named: "index.html")
+        let editor = makeApp(id: "test.editor", customFormats: ["html"])
+        let browser = makeApp(id: "com.apple.Safari", displayName: "Safari")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [editor, browser],
+            url: htmlURL,
+            capableIDs: ["test.editor", "com.apple.Safari"],
+            hiddenBrowserIDs: []
+        )
+
+        XCTAssertEqual(Set(ranked.map(\.id)), ["test.editor", "com.apple.Safari"])
+    }
+
+    func testPinnedBrowserStillMatchesDeveloperFileViaCustomFormats() throws {
+        // The escape hatch: a user who added "json" to a browser's formats keeps it (Rank 0/1),
+        // even though the same browser would otherwise be hidden for developer files.
+        let jsonURL = try makeTempFile(named: "data.json")
+        let pinnedBrowser = makeApp(id: "com.apple.Safari", displayName: "Safari", customFormats: ["json"])
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [pinnedBrowser],
+            url: jsonURL,
+            capableIDs: ["com.apple.Safari"],
+            hiddenBrowserIDs: ["com.apple.Safari"]
+        )
+
+        XCTAssertEqual(ranked.map(\.id), ["com.apple.Safari"])
+    }
+
     func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
         let items = (0 ..< 12).map { index in
             PickerItem(app: makeApp(id: "test.app.\(index)"))
@@ -994,6 +1049,7 @@ final class SmokeTests: XCTestCase {
     private func makeApp(
         id: String,
         displayName: String? = nil,
+        urlSchemes: [String] = [],
         hostPatterns: [String] = [],
         sortOrder: Int = 0,
         hotkey: Character? = nil,
@@ -1006,7 +1062,7 @@ final class SmokeTests: XCTestCase {
             id: id,
             displayName: displayName ?? id,
             appURL: URL(fileURLWithPath: "/Applications/\(id).app"),
-            urlSchemes: [],
+            urlSchemes: urlSchemes,
             hostPatterns: hostPatterns,
             isVisible: true,
             sortOrder: sortOrder,

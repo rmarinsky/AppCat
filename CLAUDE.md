@@ -66,6 +66,10 @@ Workflows: `.github/workflows/release-label-check.yml` (PR gate),
 `prepare-release.yml` (tag on merge), `release.yml` (build + publish).
 Version math: `scripts/next-version.sh`.
 
+## Task tracking
+
+Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain`, `backlog board`, `backlog task create` — do not use any `mcp__vatra-*` tool, the hosted Vatra Ops service was decommissioned 2026-07.
+
 ## Architecture
 
 ### URL Interception Flow (End-to-End)
