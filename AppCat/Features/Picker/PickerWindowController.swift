@@ -67,6 +67,10 @@ final class PickerWindowController: NSObject {
 
     func show() {
         isClosing = false
+        // Every show() starts a fresh session: a second link can arrive while the picker is
+        // already open (no close in between), and reusing the previous session's snapshot would
+        // render stale items in a panel sized and positioned for the wrong list.
+        appState.pickerItemsSnapshot = []
         seedPickerSnapshotIfPossible()
         // Reset focus here, not only in the view's onAppear — after a pre-warm the hidden view
         // has already "appeared" once and onAppear may not fire again for the real presentation.
