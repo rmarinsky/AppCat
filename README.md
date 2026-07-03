@@ -2,9 +2,15 @@
 
 # 🐈 AppCat
 
-**macOS menu bar browser picker** — choose which browser, profile, or app opens every link with one click or hotkey.
+**A macOS switcher for links, files, apps, and windows.**
 
-Stop copy-pasting URLs between browsers. Stop launching the wrong profile. AppCat gives you instant control over where every link opens.
+AppCat sits in your menu bar and decides where things open:
+
+- Click a **link** → pick the browser, profile, or native app (or let a rule route it automatically).
+- Open a **file** → pick from the apps that can actually handle it.
+- Press **⌥⌘B** → jump to any running app *or a specific open window* from a Cmd-Tab-style switcher.
+
+Stop launching the wrong browser profile, stop dragging files onto Dock icons, and stop alt-tabbing through six windows to find the one you want.
 
 ![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -13,163 +19,121 @@ Stop copy-pasting URLs between browsers. Stop launching the wrong profile. AppCa
 
 ---
 
-## 🎯 Use Cases
+## 🚀 What AppCat does
 
-### 1️⃣ Multiple Browser Profiles
-**Problem:** You have Chrome Personal, Chrome Work, and constantly open links in the wrong profile.
-**Solution:** AppCat shows all profiles in the picker. One click → right profile, every time.
+### 🔗 Link routing
+Set AppCat as your default browser and it intercepts every link:
 
-```
-Click a link → Picker appears → Choose "Chrome (Work)" → Done
-```
+- A floating picker appears near your cursor with your **browsers, browser profiles, and any native app** that handles the URL's host (e.g. a Figma link offers Figma.app).
+- If a **URL rule** matches, the link is routed automatically — no picker.
+- **Private/incognito:** hold `Option` or `Shift` while pressing a picker key to open the link in a private window.
+- Multiple links at once open together in the target you choose.
 
-### 2️⃣ Privacy-First Browsing
-**Problem:** Opening banking links, medical results, or private searches requires manually launching incognito mode.
-**Solution:** Hold `Option/Shift` or set a URL rule to auto-open in private mode.
+### 🐈 App & window switcher (`⌥⌘B`)
+The reason AppCat earns its name. Press `⌥⌘B` anywhere to open a HUD switcher showing:
 
-```
-Click banking URL → Auto-opens in Safari Private
-Or: Option + Hotkey → Any browser in incognito
-```
+- **Running apps and their individual open windows** as tiles — pick a specific window (e.g. the right VS Code project or Chrome window), not just the app.
+- Apps **with open windows first**, background/menu-bar apps dimmed below a divider (both toggleable).
+- Ordered by how often and how recently you actually use each app.
+- Full keyboard control: arrows, `Tab`, positional keys, or just **type a name** to focus it, then `Return`.
 
-### 3️⃣ Native App Routing
-**Problem:** Slack/Figma/Zoom links open in browser instead of the native app.
-**Solution:** AppCat detects matching apps and prioritizes them in the picker.
+Window awareness uses the Accessibility API (with a Window-menu fallback for Electron editors like VS Code, Cursor, and Zed), so it needs Accessibility permission.
 
-```
-slack.com/archives/... → Opens in Slack.app (not browser)
-figma.com/file/... → Opens in Figma.app
-zoom.us/j/... → Opens in Zoom.app
-```
+`⌥⌘⇧B` re-opens the last picker.
 
-### 4️⃣ URL-Based Automation
-**Problem:** GitHub links should always open in Arc, Jira in Chrome Work, YouTube in Safari.
-**Solution:** Set URL rules by host, substring, or regex.
+### 📄 File open-with picker
+AppCat registers as a handler for HTML, SVG, PDF and ~150 developer/config file types. Open one and it shows a **ranked picker of apps that can actually edit it** — view-only browsers are hidden for code/text files (you want to edit, not preview), and apps that can't meaningfully open anything are left out. You can override each app's file formats on the **Apps** screen.
 
-```
-github.com/* → Arc Browser
-*.atlassian.net/* → Chrome (Work Profile)
-youtube.com/* → Safari
-```
+### 🧭 URL rules & native-app routing
+Auto-route links by pattern. Four match types:
 
-### 5️⃣ Testing Across Browsers
-**Problem:** QA/Dev workflow requires checking the same URL in 5+ browsers.
-**Solution:** Keyboard hotkeys let you open the same link instantly in any browser.
+| Type | Matches |
+|------|---------|
+| **Host** | exact host + subdomains (`github.com`) |
+| **Host contains** | substring of the host (`atlassian`) |
+| **URL contains** | substring of the whole URL, path included (`/client/`) |
+| **Regex** | full regular expression |
 
-```
-1. Copy URL
-2. Press ⌘+1 → Opens in Chrome
-3. Press ⌘+2 → Opens in Firefox
-4. Press ⌘+3 → Opens in Safari
-(All from the same clipboard URL)
-```
+Each rule targets a **browser + profile** or a **native app**. AppCat ships deep-link support for ~19 apps (Slack, Teams, Discord, Telegram, WhatsApp, Zoom, Figma, Notion, Miro, Linear, Jira, Obsidian, Loom, Spotify, 1Password, VS Code, …), converting web URLs to their app scheme where possible (e.g. `teams.microsoft.com` → `msteams:`).
 
-### 6️⃣ Context-Aware Link Opening
-**Problem:** Personal emails → Personal browser. Work docs → Work browser. Manual switching is tedious.
-**Solution:** Set domain-based rules and profiles to auto-route.
+### 📊 Main window
+Beyond the pickers, AppCat has a full window (Dock icon appears while it's open):
 
-```
-mail.google.com → Chrome Personal
-docs.google.com/a/company.com → Chrome Work
-```
+- **Overview** — time saved, total opens, share auto-routed by rules, top browser, a 7-day chart.
+- **History** — every open (up to 500), searchable; recent links are also in the menu bar.
+- **Suggestions** — AppCat watches your habits and proposes rules ("you opened github.com in Arc 8× this week → make a rule?").
+
+---
+
+## ⌨️ Keyboard shortcuts
+
+**Global:**
+
+| Shortcut | Action |
+|----------|--------|
+| `⌥⌘B` | Open the app/window switcher |
+| `⌥⌘⇧B` | Re-open the last picker |
+
+Both are rebindable under **Settings → Shortcuts**.
+
+**Inside any picker:**
+
+| Key | Action |
+|-----|--------|
+| `Arrow keys` / `Tab` | Move focus (wraps around) |
+| Type letters | Type-to-focus by app, browser, profile, or window name |
+| `1`…`0` then `Q`…`M` | Jump to that position (or a custom character you assign per item) |
+| `Return` | Open the focused item |
+| `Escape` | Dismiss |
+| `Option` / `Shift` + key | *(link picker only)* open in private mode |
+
+> Picker keys are plain characters — `⌘` and `⌃` are intentionally not used, so app-level shortcuts keep working.
+
+---
+
+## 🔍 Detection
+
+**Browsers** (~24, detected live): Safari, Chrome (+ Canary/Testing), Firefox (+ Nightly/Dev), Arc, Edge, Brave, Opera, Vivaldi, Chromium, Orion, Zen, Waterfox, SigmaOS, GNOME Web, Tor Browser, Whale, Yandex, and more.
+
+**Profiles:** Chromium profiles (from `Local State`) and Firefox profiles (from `profiles.ini`) appear as separate picker entries, each with its own optional hotkey and visibility.
+
+**Apps:** every installed app is detected for the file picker and switcher; native-app routing covers the curated registry above.
 
 ---
 
 ## ⚡ Quick Start
 
-### Installation
-1. Download the latest `.dmg` from [Releases](https://github.com/rmarinsky/AppCat/releases/latest)
-2. Drag **AppCat** to Applications
-3. Launch and set as default browser in Settings
+### Install
+1. Download the latest `.dmg` from [Releases](https://github.com/rmarinsky/AppCat/releases/latest).
+2. Drag **AppCat** to Applications.
+3. Launch it. Updates arrive automatically via Sparkle.
 
-Updates are delivered automatically via Sparkle once installed.
-
-### First-Time Setup
-1. **Set AppCat as default browser:**
-   Settings → General → Default Browser → AppCat
-
-2. **Configure hotkeys (optional):**
-   AppCat → Settings → Apps → Assign keyboard shortcuts
-
-3. **Add URL rules (optional):**
-   Settings → Rules → Add rule for auto-routing specific domains
+### First-time setup
+1. **Set AppCat as your default browser** — Settings → General → Set as Default Browser.
+2. **Grant Accessibility** (for the `⌥⌘B` window switcher) when prompted, or in System Settings → Privacy & Security → Accessibility.
+3. **Assign hotkeys (optional)** — the **Browsers** and **Apps** screens let you set a character per item; the **Shortcuts** tab holds the two global hotkeys.
+4. **Add URL rules (optional)** — Settings → Rules.
 
 ---
 
-## 🚀 Features
+## 🔒 Privacy
 
-### Browser Picker
-- **Floating panel** near cursor with all installed browsers
-- **Compact Cmd+Tab-style row** with icons and names
-- **Keyboard navigation** (arrow keys, numbers, hidden type-to-focus + Return)
-- **Instant dismiss** (Escape or click outside)
-
-### Browser Detection
-Auto-detects all installed browsers:
-- **Chromium-based:** Chrome, Edge, Brave, Arc, Vivaldi, Opera, Zen, Chromium
-- **WebKit-based:** Safari, Orion (Kagi)
-- **Gecko-based:** Firefox, Waterfox, Tor Browser
-- **Others:** SigmaOS, Whale, Yandex
-
-### Profile Support
-Pick specific browser profiles before opening:
-- Chrome/Edge/Brave profiles
-- Firefox profiles
-- Arc spaces (if supported)
-
-### Native App Routing
-Links auto-open in matching native apps:
-- **Communication:** Slack, Teams, Discord, Telegram, WhatsApp, Zoom
-- **Productivity:** Figma, Notion, Miro, Linear, Jira, Obsidian
-- **Dev Tools:** VS Code, GitHub Desktop
-- **Media:** Spotify, YouTube Music
-- **Security:** 1Password
-
-### URL Rules
-Auto-route links by pattern:
-- **Host match:** `github.com` → Arc
-- **Substring match:** `*atlassian.net*` → Chrome Work
-- **Regex match:** `^https://meet\.google\.com/.*` → Chrome Personal
-
-### Keyboard Shortcuts
-| Action | Shortcut |
-|--------|----------|
-| Open with hotkey | Assign per-browser (e.g., `⌘+1` for Chrome) |
-| Private mode | `Option/Shift + Hotkey` |
-| Navigate picker | `Arrow Keys` |
-| Confirm | `Return` |
-| Cancel | `Escape` |
-
-### Privacy & Performance
-- **No tracking** — zero analytics, zero telemetry
-- **No network calls** — fully offline
-- **Lightweight** — lives in menu bar, no dock icon
-- **Launch at login** — optional
+- **No accounts, no analytics, no telemetry, no tracking.** Your history, rules, and stats live only on your Mac in `~/Library/Application Support/AppCat/`.
+- AppCat does make a few **functional** network requests: it fetches favicons (Google's S2 service), reads page titles, and follows link redirects to record where a link actually landed — plus Sparkle's update check. It is not fully offline, but nothing about you is sent anywhere.
 
 ---
 
-## 🛠️ Configuration
+## ⚙️ Settings
 
-### Settings Window
-Access via menu bar icon → Settings:
-- **General:** Default browser, launch at login
-- **Apps:** Hotkey assignments, browser/app order
-- **Rules:** URL routing patterns
-- **Advanced:** Private mode defaults, picker position
+Menu bar icon → the main window has these tabs:
 
-### Example URL Rules
-```
-# Work-related domains → Chrome Work Profile
-*.atlassian.net/* → Chrome (Work)
-*.slack.com/client/* → Chrome (Work)
-
-# Personal browsing → Safari Private
-*banking.example.com* → Safari (Private)
-
-# Development → Arc
-github.com/* → Arc Browser
-localhost:* → Arc Browser
-```
+- **General** — default browser, launch at login, language.
+- **Picker** — what the `⌥⌘B` switcher includes (running-without-windows apps, background/menu-bar apps).
+- **Browsers** — visibility, order, per-browser & per-profile hotkeys.
+- **Apps** — visibility, hotkeys, and per-app file-format editing.
+- **Rules** — URL routing rules.
+- **Shortcuts** — global hotkeys + the picker key reference.
+- **About** — version, links, update check.
 
 ---
 
@@ -180,90 +144,66 @@ localhost:* → Arc Browser
 - Xcode 15+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 
-### Build Steps
+### Steps
 ```bash
-# Install dependencies
 brew install xcodegen
-
-# Clone repository
 git clone https://github.com/rmarinsky/AppCat.git
 cd AppCat
-
-# Generate Xcode project
-xcodegen generate
-
-# Open and build
+./generate_project.sh        # generates AppCat.xcodeproj from project.yml
 open AppCat.xcodeproj
 ```
 
-Build schemes:
-- **AppCat** → Release build, produces AppCat.app
-- **AppCat DEV** → Debug build with logging, produces AppCat DEV.app
+Schemes:
+- **AppCat** → Release build → `AppCat.app`
+- **AppCat DEV** → Debug build with logging → `AppCat DEV.app` (separate bundle ID, safe to run alongside the release)
 
 ---
 
 ## ❓ FAQ
 
-**Q: Does AppCat collect any data?**
-A: No. Zero analytics, zero telemetry, zero network calls. Fully offline.
+**Does AppCat collect any data?**
+No accounts, analytics, or telemetry. History and settings stay on your Mac. It does fetch favicons/titles and check for updates — see [Privacy](#-privacy).
 
-**Q: Why does the picker appear in the wrong position?**
-A: The picker tries to center near the cursor. If it's off-screen, it auto-adjusts. Check Settings → Advanced to tweak behavior.
+**Why does the `⌥⌘B` switcher not show other apps' windows?**
+It needs Accessibility permission. Grant it in System Settings → Privacy & Security → Accessibility, then reopen the switcher.
 
-**Q: Can I disable the picker and use only hotkeys?**
-A: Not yet, but this is planned. For now, set hotkeys and press them immediately.
+**Can I use only hotkeys and skip the picker?**
+Not yet — assign a hotkey per browser and press it right after copying a link. A dedicated hotkey-only mode is on the roadmap.
 
-**Q: Does this work with Raycast/Alfred URL handlers?**
-A: Yes, if they trigger the system default browser, AppCat will intercept.
+**Does this work with Raycast/Alfred link handlers?**
+Yes — anything that opens the system default browser goes through AppCat.
 
-**Q: How do I uninstall?**
-A: Drag AppCat from Applications to Trash, then reset your default browser in System Settings.
+**How do I uninstall?**
+Quit AppCat, drag it from Applications to Trash, and reset your default browser in System Settings.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] **Hotkey-only mode** (skip picker UI)
-- [ ] **Link history** (recent URLs with search)
-- [ ] **Per-domain browser profiles** (auto-select profile based on URL)
-- [ ] **iCloud sync** (rules & settings across Macs)
-- [ ] **Browser tab detection** (open in existing tab if possible)
-- [ ] **Custom app support** (add unlisted apps manually)
-
----
-
-## 🐛 Known Issues
-
-- Picker animation could be smoother (refactoring in progress)
-- Some Electron apps don't pass URLs correctly (investigating)
-- Browser profile detection may miss custom Firefox profiles
-
-Report bugs via [GitHub Issues](https://github.com/rmarinsky/AppCat/issues).
+- [ ] **Hotkey-only mode** (skip the picker UI entirely)
+- [ ] **Per-domain profile selection** (auto-pick a browser profile from the URL)
+- [ ] **iCloud sync** for rules & settings across Macs
+- [ ] **Open in an existing tab** when the target is already loaded
 
 ---
 
 ## 📄 License
 
-[MIT License](LICENSE) — use it, fork it, sell it, whatever.
+[MIT License](LICENSE) — use it, fork it, whatever.
 
 ---
 
 ## 🙏 Acknowledgments
 
-Built by [@rmarinsky](https://github.com/rmarinsky) because copy-pasting URLs between browsers is annoying.
+Built by [@rmarinsky](https://github.com/rmarinsky). Inspired by Choosy, Browserosaurus, and Velja — free, open-source, and actually maintained.
 
-Inspired by tools like Choosy, Browserosaurus, and Velja — but free, open-source, and actually maintained.
+Sibling apps: **[Papuga](https://github.com/rmarinsky/papuga)** (keyboard-layout fixer) and Diduny.
 
 ---
 
 ## 💬 Feedback
 
-If AppCat saves you 30+ context switches per day, consider:
-- ⭐ Starring this repo
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- 📢 Sharing with other multi-browser users
-
-**Links:**
-- [GitHub Issues](https://github.com/rmarinsky/AppCat/issues)
+- ⭐ Star the repo
+- 🐛 [Report a bug](https://github.com/rmarinsky/AppCat/issues)
+- 💡 Suggest a feature
 - [Releases](https://github.com/rmarinsky/AppCat/releases)
