@@ -190,7 +190,7 @@ git clone https://github.com/rmarinsky/AppCat.git
 cd AppCat
 
 # Generate Xcode project
-xcodegen generate
+./generate_project.sh
 
 # Open and build
 open AppCat.xcodeproj
