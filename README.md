@@ -102,6 +102,7 @@ Updates are delivered automatically via Sparkle once installed.
 - **Floating panel** near cursor with all installed browsers
 - **Compact Cmd+Tab-style row** with icons and names
 - **Keyboard navigation** (arrow keys, numbers, hidden type-to-focus + Return)
+- **Picker exclusions** in Settings → Picker for apps that should never appear
 - **Instant dismiss** (Escape or click outside)
 
 ### Browser Detection
@@ -134,6 +135,9 @@ Auto-route links by pattern:
 ### Keyboard Shortcuts
 | Action | Shortcut |
 |--------|----------|
+| Open picker manually | `Option+Tab` by default, configurable in Settings → Shortcuts |
+| Cmd-Tab-style switching | Optional Settings → Shortcuts mode: hold `Option`, press `Tab` / `Shift+Tab`, release `Option` |
+| Service-key trigger | Optional `Caps Lock` or `Escape`, with 1/2/3 taps; requires Input Monitoring |
 | Open with hotkey | Assign per-browser (e.g., `⌘+1` for Chrome) |
 | Private mode | `Option/Shift + Hotkey` |
 | Navigate picker | `Arrow Keys` |
@@ -211,7 +215,7 @@ A: No. Zero analytics, zero telemetry, zero network calls. Fully offline.
 A: The picker tries to center near the cursor. If it's off-screen, it auto-adjusts. Check Settings → Advanced to tweak behavior.
 
 **Q: Can I disable the picker and use only hotkeys?**
-A: Not yet, but this is planned. For now, set hotkeys and press them immediately.
+A: You can make it keyboard-first: use Settings → Shortcuts for hold-to-switch or service-key activation, and assign per-app hotkeys in Settings → Apps.
 
 **Q: Does this work with Raycast/Alfred URL handlers?**
 A: Yes, if they trigger the system default browser, AppCat will intercept.

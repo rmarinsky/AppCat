@@ -16,8 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let statsManager = StatsManager()
     lazy var updaterManager = UpdaterManager()
     lazy var appActivityMonitor = AppActivityMonitor(appState: appState)
+    let pickerActivationListener = PickerActivationListener()
     private var mainWindowController: MainWindowController?
     private var openMainWindowObserver: NSObjectProtocol?
+    private var pickerActivationSettingsObserver: NSObjectProtocol?
     /// Scheduled "open the main window" work. Stored so an incoming URL or a manual picker can
     /// cancel it outright instead of racing the fire-time guard.
     private var pendingMainWindowOpen: DispatchWorkItem?
@@ -50,6 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.openMainWindow()
             }
         }
+        pickerActivationSettingsObserver = NotificationCenter.default.addObserver(
+            forName: .pickerActivationSettingsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pickerActivationListener.refresh()
+            }
+        }
 
         browserManager.refreshBrowsers(into: appState)
         appManager.refreshApps(into: appState)
@@ -72,7 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionsManager.analyseIfNeeded(state: appState)
         _ = updaterManager
 
+        GlobalShortcuts.migrateLegacyDefaultsIfNeeded()
+        configurePickerActivationListener()
+
         KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
+            guard SettingsStorage.shared.pickerActivationMode == .toggleShortcut else { return }
             self?.openPickerManually()
         }
         KeyboardShortcuts.onKeyUp(for: .reopenLastPicker) { [weak self] in
@@ -112,10 +127,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    func applicationDidBecomeActive(_: Notification) {
+        pickerActivationListener.refresh()
+    }
+
     func applicationWillTerminate(_: Notification) {
         if let openMainWindowObserver {
             NotificationCenter.default.removeObserver(openMainWindowObserver)
         }
+        if let pickerActivationSettingsObserver {
+            NotificationCenter.default.removeObserver(pickerActivationSettingsObserver)
+        }
+        pickerActivationListener.stop()
         appActivityMonitor.stop()
     }
 
@@ -174,13 +197,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Global Shortcuts
 
-    /// ⌥⌘B: show the manual app/window switcher.
+    private func configurePickerActivationListener() {
+        pickerActivationListener.onHoldStep = { [weak self] delta in
+            self?.cycleManualPicker(delta: delta)
+        }
+        pickerActivationListener.onHoldRelease = { [weak self] in
+            self?.openFocusedManualPickerItem()
+        }
+        pickerActivationListener.onServiceKeyTrigger = { [weak self] in
+            self?.openPickerManually()
+        }
+        pickerActivationListener.refresh()
+    }
+
+    /// Show the manual app/window switcher.
     private func openPickerManually() {
         if appState.isPickerVisible {
             pickerCoordinator.dismissPicker(state: appState)
             return
         }
 
+        presentManualPicker()
+    }
+
+    private func cycleManualPicker(delta: Int) {
+        guard appState.pendingURL == nil else { return }
+        if !appState.isPickerVisible {
+            presentManualPicker()
+        }
+        guard appState.isManualPickerPresentation else { return }
+        pickerCoordinator.moveFocus(delta: delta, state: appState)
+    }
+
+    private func openFocusedManualPickerItem() {
+        guard appState.isPickerVisible, appState.isManualPickerPresentation else { return }
+        pickerCoordinator.openFocusedItem(state: appState)
+    }
+
+    private func presentManualPicker() {
         cancelScheduledMainWindowOpen()
         appActivityMonitor.refreshRunningApplications()
         if appState.cachedWindowsByAppID == nil {
@@ -191,6 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.clearPendingOpen()
         appState.isManualPickerPresentation = true
         pickerCoordinator.showPicker(state: appState)
+        guard appState.pickerActivationMode != .holdOptionTab else {
+            // Match the native app switcher: keep the visible list stable until Option is released.
+            return
+        }
         // Open instantly from the cached snapshot, then correct the list in place once a live
         // enumeration pass (off the main thread) lands.
         appActivityMonitor.refreshWindowsForVisiblePicker { [weak self] in

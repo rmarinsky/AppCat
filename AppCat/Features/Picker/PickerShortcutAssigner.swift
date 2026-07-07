@@ -107,3 +107,28 @@ enum PickerShortcutAssigner {
         return PickerShortcut(key: label, keyCode: resolvedKeyCode, source: .configured)
     }
 }
+
+enum PickerShortcutPolicy {
+    static func assignments(
+        for items: [PickerItem],
+        activationMode: PickerActivationMode,
+        selectWithNumberKeys: Bool
+    ) -> [String: PickerShortcut] {
+        guard activationMode == .toggleShortcut else { return [:] }
+        return PickerShortcutAssigner.assignments(for: items, positionalEnabled: selectWithNumberKeys)
+    }
+
+    static func item(
+        forKeyCode keyCode: UInt16,
+        in items: [PickerItem],
+        activationMode: PickerActivationMode,
+        selectWithNumberKeys: Bool
+    ) -> PickerItem? {
+        guard activationMode == .toggleShortcut else { return nil }
+        return PickerShortcutAssigner.item(
+            forKeyCode: keyCode,
+            in: items,
+            positionalEnabled: selectWithNumberKeys
+        )
+    }
+}

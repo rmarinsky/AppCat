@@ -8,8 +8,10 @@ struct BrowserCell: View {
     let isFocused: Bool
     let shortcut: PickerShortcut?
     let showsHotkey: Bool
+    let showsProfileMenuIndicator: Bool
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
+    var scale: CGFloat = 1
 
     init(
         browser: InstalledBrowser,
@@ -19,8 +21,10 @@ struct BrowserCell: View {
         profile: BrowserProfile? = nil,
         shortcut: PickerShortcut? = nil,
         showsHotkey: Bool = true,
+        showsProfileMenuIndicator: Bool = true,
         compact: Bool = false,
-        style: PickerPresentationStyle = .routing
+        style: PickerPresentationStyle = .routing,
+        scale: CGFloat = 1
     ) {
         self.browser = browser
         self.profile = profile
@@ -29,8 +33,10 @@ struct BrowserCell: View {
         self.isFocused = isFocused
         self.shortcut = shortcut
         self.showsHotkey = showsHotkey
+        self.showsProfileMenuIndicator = showsProfileMenuIndicator
         self.compact = compact
         self.style = style
+        self.scale = scale
     }
 
     private var displayHotkey: Character? {
@@ -42,6 +48,10 @@ struct BrowserCell: View {
         title
     }
 
+    private var showsProfileMenuChevron: Bool {
+        showsProfileMenuIndicator && profile == nil && browser.profiles.contains(where: \.isVisible)
+    }
+
     var body: some View {
         if compact {
             compactBody
@@ -51,13 +61,16 @@ struct BrowserCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize = PickerMetrics.iconSize(for: style)
-        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style)
-        let compactCellWidth = PickerMetrics.itemWidth(for: style)
-        let compactCellHeight = PickerMetrics.itemHeight(for: style)
-        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style)
+        let compactIconSize = PickerMetrics.iconSize(for: style, scale: scale)
+        let compactIconChromeSize = PickerMetrics.iconChromeSize(for: style, scale: scale)
+        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style, scale: scale)
+        let compactCellWidth = PickerMetrics.itemWidth(for: style, scale: scale)
+        let compactCellHeight = PickerMetrics.itemHeight(for: style, scale: scale)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style, scale: scale)
+        let hotkey = displayHotkey
+        let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false || hotkey != nil
 
-        return VStack(spacing: 2) {
+        return VStack(spacing: (style == .appSwitcher ? 4 : 2) * scale) {
             ZStack(alignment: .bottomLeading) {
                 if let icon = browser.icon {
                     Image(nsImage: icon)
@@ -70,11 +83,16 @@ struct BrowserCell: View {
                 }
 
                 if let profile {
-                    ProfileAvatarBadge(profile: profile)
-                        .offset(x: 4, y: -4)
+                    ProfileAvatarBadge(
+                        profile: profile,
+                        size: PickerMetrics.profileBadgeSize(scale: scale),
+                        borderWidth: PickerMetrics.profileBadgeBorderWidth(scale: scale)
+                    )
+                    .offset(x: 4 * scale, y: -4 * scale)
                 }
             }
             .frame(width: compactIconSize, height: compactIconSize)
+            .frame(width: compactIconChromeSize, height: compactIconChromeSize)
             .background {
                 if isFocused {
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
@@ -87,48 +105,50 @@ struct BrowserCell: View {
                 RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
-                        lineWidth: PickerMetrics.focusStrokeWidth(for: style)
+                        lineWidth: PickerMetrics.focusStrokeWidth(for: style, scale: scale)
                     )
             )
             .shadow(
                 color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
-                radius: style == .appSwitcher ? 12 : 5,
-                y: style == .appSwitcher ? 5 : 2
+                radius: (style == .appSwitcher ? 12 : 5) * scale,
+                y: (style == .appSwitcher ? 5 : 2) * scale
             )
 
-            HStack(spacing: 3) {
+            HStack(spacing: 3 * scale) {
                 Text(displayTitle)
-                    .font(.system(size: PickerMetrics.titleFontSize(for: style), weight: .medium))
+                    .font(.system(size: PickerMetrics.titleFontSize(for: style, scale: scale), weight: .medium))
                     .foregroundStyle(isFocused ? .primary : .secondary)
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                     .truncationMode(.tail)
 
-                if profile == nil && browser.profiles.contains(where: \.isVisible) {
+                if showsProfileMenuChevron {
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 7, weight: .semibold))
+                        .font(.system(size: 7 * scale, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style), alignment: .center)
+            .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style, scale: scale), alignment: .center)
 
-            HStack(spacing: 4) {
-                if let shortcut {
-                    SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
+            if showsSecondaryRow {
+                HStack(spacing: 4 * scale) {
+                    if let shortcut {
+                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true, scale: scale)
+                    }
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: PickerMetrics.subtitleFontSize(for: style, scale: scale), weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .truncationMode(.tail)
+                    }
+                    if let hotkey {
+                        HotkeyKeycapView(hotkey: hotkey, compact: true, scale: scale)
+                    }
                 }
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: PickerMetrics.subtitleFontSize(for: style), weight: .medium))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .multilineTextAlignment(.center)
-                        .truncationMode(.tail)
-                }
-                if let hotkey = displayHotkey {
-                    HotkeyKeycapView(hotkey: hotkey, compact: true)
-                }
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style, scale: scale), alignment: .center)
             }
-            .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
         }
         .frame(width: compactCellWidth, height: compactCellHeight)
         .contentShape(Rectangle())
@@ -167,7 +187,7 @@ struct BrowserCell: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                if profile == nil && browser.profiles.contains(where: \.isVisible) {
+                if showsProfileMenuChevron {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 7, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -197,22 +217,23 @@ struct BrowserCell: View {
 struct HotkeyKeycapView: View {
     let hotkey: Character
     var compact: Bool = false
+    var scale: CGFloat = 1
 
     var body: some View {
         Text(String(hotkey).uppercased())
-            .font(.system(size: compact ? 10 : 10, weight: .semibold, design: .rounded))
+            .font(.system(size: (compact ? 10 : 10) * scale, weight: .semibold, design: .rounded))
             .foregroundStyle(Color.white.opacity(0.95))
-            .padding(.horizontal, compact ? 3 : 3)
-            .frame(height: compact ? 18 : 18)
+            .padding(.horizontal, (compact ? 3 : 3) * scale)
+            .frame(height: (compact ? 18 : 18) * scale)
             .background(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
                     .fill(Color("BrandAccentDeep"))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 0.7)
+                RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 0.7 * scale)
             )
-            .shadow(color: .black.opacity(0.3), radius: 1.2, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.3), radius: 1.2 * scale, x: 0, y: 1 * scale)
     }
 }
 
@@ -220,20 +241,36 @@ struct SelectionKeycapView: View {
     let key: Character
     var compact: Bool = false
     var inline: Bool = false
+    var scale: CGFloat = 1
 
     private var size: CGFloat {
-        if inline { return 16 }
-        return compact ? 22 : 18
+        let base: CGFloat
+        if inline {
+            base = 16
+        } else {
+            base = compact ? 22 : 18
+        }
+        return base * scale
     }
 
     private var fontSize: CGFloat {
-        if inline { return 9 }
-        return compact ? 11 : 9
+        let base: CGFloat
+        if inline {
+            base = 9
+        } else {
+            base = compact ? 11 : 9
+        }
+        return base * scale
     }
 
     private var cornerRadius: CGFloat {
-        if inline { return 5 }
-        return compact ? 6 : 5
+        let base: CGFloat
+        if inline {
+            base = 5
+        } else {
+            base = compact ? 6 : 5
+        }
+        return base * scale
     }
 
     var body: some View {
@@ -247,9 +284,14 @@ struct SelectionKeycapView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(inline ? 0.22 : 0.35), lineWidth: 0.7)
+                    .stroke(Color.white.opacity(inline ? 0.22 : 0.35), lineWidth: 0.7 * scale)
             )
-            .shadow(color: .black.opacity(inline ? 0.18 : 0.35), radius: inline ? 0.8 : 1.2, x: 0, y: 1)
+            .shadow(
+                color: .black.opacity(inline ? 0.18 : 0.35),
+                radius: (inline ? 0.8 : 1.2) * scale,
+                x: 0,
+                y: 1 * scale
+            )
     }
 }
 

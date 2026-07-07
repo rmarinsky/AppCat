@@ -44,13 +44,13 @@ open AppCat.xcodeproj    # Select "AppCat DEV" scheme → Run
 
 ## Done criteria
 
-If a prompt changes source code (`*.swift`, project config, resources, scripts used by the app), finish by running the dev build:
+If a prompt changes source code (`*.swift`, project config, resources, scripts used by the app), finish by installing the DEV app:
 
 ```bash
-./scripts/dev-install.sh --build-only
+./scripts/dev-install.sh
 ```
 
-Docs-only changes do not need a build.
+Docs-only changes do not need a dev install.
 
 ## Release process
 
@@ -87,7 +87,7 @@ Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain
 - Prefer deleting stale docs or instructions over adding new explanatory pages.
 - Documentation should describe shipped behavior, build/release commands, and real ownership boundaries only. Do not document "planned" features unless the user explicitly asks for a roadmap.
 - When code changes user-facing behavior, update the nearest doc in the same PR; otherwise leave docs alone.
-- After source-code changes, run the dev build before the final response.
+- After source-code changes, run the dev install before the final response.
 
 ## Architecture
 
@@ -166,6 +166,10 @@ Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain
 - Stored per-browser/profile/app in `browsers.json` / `apps.json`
 - `AppsSettingsView.clearDuplicateHotkey()` prevents conflicts across all items
 - Matching uses `hotkeyKeyCode` (layout-independent) with fallback to character comparison
+- Global picker activation has two modes in Settings → Shortcuts:
+  - toggle shortcut mode uses `KeyboardShortcuts.Recorder` (`⌥Tab` by default)
+  - hold-to-switch mode uses `PickerActivationListener` (`CGEventTap`): hold `⌥`, press `Tab` / `⇧Tab`, release `⌥` to open the focused item
+- Optional service-key activation also uses `PickerActivationListener`: `Caps Lock` or `Escape`, with 1/2/3 taps. It requires Input Monitoring permission.
 
 ### Browser Detection
 

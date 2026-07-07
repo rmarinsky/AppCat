@@ -142,10 +142,11 @@ Do not make Cmd-Tab override the default path immediately.
 
 Safer plan:
 
-1. Add a configurable "App Switcher" shortcut, defaulting to something non-system like `⌥⌘Tab` or `⌃Tab`.
-2. Add an experimental "Replace Cmd-Tab" setting later.
-3. If enabled, use a low-level event tap and clearly explain the required permissions.
-4. Keep fallback to normal shortcut if macOS blocks or throttles the tap.
+1. Ship a configurable App Switcher activation mode.
+2. Keep the default toggle shortcut path for users who do not want Input Monitoring.
+3. Offer hold-to-switch mode: hold `⌥`, press `Tab` / `⇧Tab`, release `⌥` to open.
+4. Offer service-key trigger mode for `Caps Lock` / `Escape` with 1/2/3 taps.
+5. Keep full Cmd-Tab replacement out of the default path.
 
 Risks:
 
@@ -187,12 +188,14 @@ Performance budget:
 - Fix all open paths to pass `windowTarget`.
 - Sort switcher by last activation/usage first, then app name/title.
 - Make hidden/minimized app activation robust.
+- Add a Settings -> Picker exclusion list for apps that should never appear in routing or switching pickers.
 
 ### Phase 2: Cmd-Tab Style UI
 
 - Horizontal centered panel, no URL header in switcher mode.
-- One flat row of app/window items.
-- Focus ring, icon, normalized primary title, secondary app/context.
+- One flat row of app/window items, without a visual split between windowed and windowless apps.
+- Focus ring, icon, normalized primary title, secondary app/context. Keep AppCat orange for the focused item.
+- Settings -> Picker size slider scales the panel, icons, labels, and key hints from 50% to 200%.
 - Fast keyboard navigation and wraparound.
 
 ### Phase 3: Preview Layer
@@ -201,8 +204,9 @@ Performance budget:
 - Lazy focused preview only.
 - Add degraded state for missing Screen Recording permission.
 
-### Phase 4: Experimental Cmd-Tab Replacement
+### Phase 4: Advanced Activation
 
-- Add setting and onboarding warning.
-- Add event tap prototype.
-- Measure latency and failure cases before making it default.
+- Toggle shortcut mode stays the default path.
+- Hold-to-switch mode uses `⌥Tab` / `⌥⇧Tab` plus release-to-open.
+- Service-key activation supports `Caps Lock` / `Escape` with 1/2/3 taps.
+- Full `Cmd+Tab` replacement remains out of scope until real-device latency and permission failures are measured.

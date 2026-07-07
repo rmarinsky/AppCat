@@ -40,6 +40,16 @@ final class PickerCoordinator {
         pickerController?.refreshSnapshotForVisibleSession()
     }
 
+    func moveFocus(delta: Int, state: AppState) {
+        guard state.isPickerVisible else { return }
+        pickerController?.moveFocusForVisibleSession(delta: delta)
+    }
+
+    func openFocusedItem(state: AppState) {
+        guard state.isPickerVisible else { return }
+        pickerController?.openFocusedItemForVisibleSession()
+    }
+
     func dismissPicker(state: AppState) {
         pickerController?.close()
         // Clear routing state here too: on the auto-route path the picker controller may not

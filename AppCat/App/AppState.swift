@@ -36,7 +36,12 @@ final class AppState {
     /// Include menu-bar / background apps (`.accessory` / `.prohibited`) in the switcher.
     var showBackgroundApps: Bool = false
     var pickerLayout: PickerLayout = .horizontal
+    var pickerScale: Double = PickerScale.defaultValue
     var selectWithNumberKeys: Bool = true
+    var pickerActivationMode: PickerActivationMode = .toggleShortcut
+    var pickerServiceKey: PickerServiceKey = .off
+    var pickerServiceTapCount: PickerServiceTapCount = .two
+    var hiddenPickerAppIDs: Set<String> = []
     var pickerItemsSnapshot: [PickerItem] = []
     var isManualPickerPresentation: Bool = false
     var runningAppBundleIDs: Set<String> = []
@@ -149,7 +154,12 @@ final class AppState {
         lastOpenedURL = SettingsStorage.shared.lastURL
         recentLinksCount = SettingsStorage.shared.recentLinksCount
         pickerLayout = .horizontal
+        pickerScale = SettingsStorage.shared.pickerScale
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
+        pickerActivationMode = SettingsStorage.shared.pickerActivationMode
+        pickerServiceKey = SettingsStorage.shared.pickerServiceKey
+        pickerServiceTapCount = SettingsStorage.shared.pickerServiceTapCount
+        hiddenPickerAppIDs = SettingsStorage.shared.hiddenPickerAppIDs
         appLanguage = SettingsStorage.shared.appLanguage
         appUsage = AppUsageFileStore.usage.load()
         appActivations = AppUsageFileStore.activations.load()
