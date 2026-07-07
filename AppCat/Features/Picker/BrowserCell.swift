@@ -61,12 +61,12 @@ struct BrowserCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize = PickerMetrics.iconSize(for: style, scale: scale)
-        let compactIconChromeSize = PickerMetrics.iconChromeSize(for: style, scale: scale)
-        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style, scale: scale)
-        let compactCellWidth = PickerMetrics.itemWidth(for: style, scale: scale)
-        let compactCellHeight = PickerMetrics.itemHeight(for: style, scale: scale)
-        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style, scale: scale)
+        let compactIconSize = PickerMetrics.iconSize(scale: scale)
+        let compactIconChromeSize = PickerMetrics.iconChromeSize(scale: scale)
+        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(scale: scale)
+        let compactCellWidth = PickerMetrics.itemWidth(scale: scale)
+        let compactCellHeight = PickerMetrics.itemHeight(scale: scale)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(scale: scale)
         let hotkey = displayHotkey
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false || hotkey != nil
 
@@ -105,7 +105,7 @@ struct BrowserCell: View {
                 RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
-                        lineWidth: PickerMetrics.focusStrokeWidth(for: style, scale: scale)
+                        lineWidth: PickerMetrics.focusStrokeWidth(scale: scale)
                     )
             )
             .shadow(
@@ -116,7 +116,7 @@ struct BrowserCell: View {
 
             HStack(spacing: 3 * scale) {
                 Text(displayTitle)
-                    .font(.system(size: PickerMetrics.titleFontSize(for: style, scale: scale), weight: .medium))
+                    .font(.system(size: PickerMetrics.titleFontSize(scale: scale), weight: .medium))
                     .foregroundStyle(isFocused ? .primary : .secondary)
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
@@ -128,7 +128,7 @@ struct BrowserCell: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style, scale: scale), alignment: .center)
+            .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(scale: scale), alignment: .center)
 
             if showsSecondaryRow {
                 HStack(spacing: 4 * scale) {
@@ -137,7 +137,7 @@ struct BrowserCell: View {
                     }
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: PickerMetrics.subtitleFontSize(for: style, scale: scale), weight: .medium))
+                            .font(.system(size: PickerMetrics.subtitleFontSize(scale: scale), weight: .medium))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                             .multilineTextAlignment(.center)
@@ -147,7 +147,7 @@ struct BrowserCell: View {
                         HotkeyKeycapView(hotkey: hotkey, compact: true, scale: scale)
                     }
                 }
-                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style, scale: scale), alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(scale: scale), alignment: .center)
             }
         }
         .frame(width: compactCellWidth, height: compactCellHeight)

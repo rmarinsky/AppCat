@@ -34,10 +34,8 @@ struct ShortcutsSettingsView: View {
                 Picker("", selection: Binding(
                     get: { appState.pickerActivationMode },
                     set: { mode in
-                        appState.pickerActivationMode = mode
-                        SettingsStorage.shared.pickerActivationMode = mode
+                        appState.setPickerActivationMode(mode)
                         requestInputMonitoringIfNeeded()
-                        NotificationCenter.default.post(name: .pickerActivationSettingsChanged, object: nil)
                     }
                 )) {
                     ForEach(PickerActivationMode.allCases) { mode in
@@ -72,10 +70,8 @@ struct ShortcutsSettingsView: View {
                 Picker("", selection: Binding(
                     get: { appState.pickerServiceKey },
                     set: { key in
-                        appState.pickerServiceKey = key
-                        SettingsStorage.shared.pickerServiceKey = key
+                        appState.setPickerServiceKey(key)
                         requestInputMonitoringIfNeeded()
-                        NotificationCenter.default.post(name: .pickerActivationSettingsChanged, object: nil)
                     }
                 )) {
                     ForEach(PickerServiceKey.allCases) { key in
@@ -91,9 +87,7 @@ struct ShortcutsSettingsView: View {
                     Picker("", selection: Binding(
                         get: { appState.pickerServiceTapCount },
                         set: { count in
-                            appState.pickerServiceTapCount = count
-                            SettingsStorage.shared.pickerServiceTapCount = count
-                            NotificationCenter.default.post(name: .pickerActivationSettingsChanged, object: nil)
+                            appState.setPickerServiceTapCount(count)
                         }
                     )) {
                         ForEach(PickerServiceTapCount.allCases) { count in
@@ -111,7 +105,7 @@ struct ShortcutsSettingsView: View {
                     Button(String(localized: "Open Settings")) {
                         PickerActivationPermission.requestInputMonitoring()
                         PickerActivationPermission.openInputMonitoringSettings()
-                        NotificationCenter.default.post(name: .pickerActivationSettingsChanged, object: nil)
+                        appState.refreshPickerActivationSettings()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -151,8 +145,7 @@ struct ShortcutsSettingsView: View {
                     Toggle("", isOn: Binding(
                         get: { appState.selectWithNumberKeys },
                         set: { newValue in
-                            appState.selectWithNumberKeys = newValue
-                            SettingsStorage.shared.selectWithNumberKeys = newValue
+                            appState.setSelectWithNumberKeys(newValue)
                         }
                     ))
                     .toggleStyle(.switch)

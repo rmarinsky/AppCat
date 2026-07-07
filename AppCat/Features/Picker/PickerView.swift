@@ -417,63 +417,63 @@ enum PickerMetrics {
         value * clampedScale(scale)
     }
 
-    static func iconSize(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func iconSize(scale: CGFloat = 1) -> CGFloat {
         scaled(tileIconSize, by: scale)
     }
 
-    static func iconChromeSize(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func iconChromeSize(scale: CGFloat = 1) -> CGFloat {
         scaled(tileIconChromeSize, by: scale)
     }
 
-    static func fallbackIconSize(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func fallbackIconSize(scale: CGFloat = 1) -> CGFloat {
         scaled(tileFallbackIconSize, by: scale)
     }
 
-    static func itemWidth(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func itemWidth(scale: CGFloat = 1) -> CGFloat {
         scaled(tileWidth, by: scale)
     }
 
-    static func itemHeight(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func itemHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(tileHeight, by: scale)
     }
 
-    static func itemSpacing(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func itemSpacing(scale: CGFloat = 1) -> CGFloat {
         scaled(tileSpacing, by: scale)
     }
 
-    static func horizontalPadding(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func horizontalPadding(scale: CGFloat = 1) -> CGFloat {
         scaled(tileHorizontalPadding, by: scale)
     }
 
-    static func scrollHeight(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func scrollHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(tileHeight + tileVerticalPadding * 2, by: scale)
     }
 
-    static func verticalPadding(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func verticalPadding(scale: CGFloat = 1) -> CGFloat {
         scaled(tileVerticalPadding, by: scale)
     }
 
-    static func titleFontSize(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func titleFontSize(scale: CGFloat = 1) -> CGFloat {
         scaled(tileTitleFontSize, by: scale)
     }
 
-    static func titleHeight(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func titleHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(tileTitleHeight, by: scale)
     }
 
-    static func subtitleFontSize(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func subtitleFontSize(scale: CGFloat = 1) -> CGFloat {
         scaled(tileSubtitleFontSize, by: scale)
     }
 
-    static func subtitleHeight(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func subtitleHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(tileSubtitleHeight, by: scale)
     }
 
-    static func focusStrokeWidth(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func focusStrokeWidth(scale: CGFloat = 1) -> CGFloat {
         scaled(tileFocusStrokeWidth, by: scale)
     }
 
-    static func focusCornerRadius(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func focusCornerRadius(scale: CGFloat = 1) -> CGFloat {
         scaled(tileFocusCornerRadius, by: scale)
     }
 
@@ -485,13 +485,12 @@ enum PickerMetrics {
         scaled(1.5, by: scale)
     }
 
-    static func panelCornerRadius(for style: PickerPresentationStyle = .routing, scale: CGFloat = 1) -> CGFloat {
+    static func panelCornerRadius(scale: CGFloat = 1) -> CGFloat {
         scaled(panelCornerRadiusBase, by: scale)
     }
 
     static func panelHeight(
         showsHint: Bool,
-        style: PickerPresentationStyle = .routing,
         scale: CGFloat = 1
     ) -> CGFloat {
         let base = tileHeight + tileVerticalPadding * 2 + (showsHint ? hintHeightBase : 0)
@@ -504,24 +503,22 @@ enum PickerMetrics {
 
     static func contentWidth(
         itemCount: Int,
-        style: PickerPresentationStyle = .routing,
         scale: CGFloat = 1
     ) -> CGFloat {
         let count = max(1, itemCount)
-        return horizontalPadding(for: style, scale: scale) * 2
-            + CGFloat(count) * itemWidth(for: style, scale: scale)
-            + CGFloat(max(0, count - 1)) * itemSpacing(for: style, scale: scale)
+        return horizontalPadding(scale: scale) * 2
+            + CGFloat(count) * itemWidth(scale: scale)
+            + CGFloat(max(0, count - 1)) * itemSpacing(scale: scale)
     }
 
     static func panelWidth(
         itemCount: Int,
         availableWidth: CGFloat,
-        style: PickerPresentationStyle = .routing,
         scale: CGFloat = 1
     ) -> CGFloat {
-        let minPanelWidth = horizontalPadding(for: style, scale: scale) * 2 + itemWidth(for: style, scale: scale)
+        let minPanelWidth = horizontalPadding(scale: scale) * 2 + itemWidth(scale: scale)
         let maxWidth = max(minPanelWidth, availableWidth - screenMargin * 2)
-        return min(max(contentWidth(itemCount: itemCount, style: style, scale: scale), minPanelWidth), maxWidth)
+        return min(max(contentWidth(itemCount: itemCount, scale: scale), minPanelWidth), maxWidth)
     }
 }
 
@@ -606,21 +603,20 @@ struct PickerView: View {
             selectWithNumberKeys: appState.selectWithNumberKeys
         )
         let showsIncognitoHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
-        let panelHeight = PickerMetrics.panelHeight(showsHint: showsIncognitoHint, style: style, scale: scale)
-        let scrollHeight = PickerMetrics.scrollHeight(for: style, scale: scale)
+        let panelHeight = PickerMetrics.panelHeight(showsHint: showsIncognitoHint, scale: scale)
+        let scrollHeight = PickerMetrics.scrollHeight(scale: scale)
 
         return VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 GeometryReader { geometry in
                     let contentOverflows = PickerMetrics.contentWidth(
                         itemCount: items.count,
-                        style: style,
                         scale: scale
                     ) > geometry.size.width + 1
 
                     // Lazy rendering matters here: file pickers can include many LaunchServices apps.
                     ScrollView(.horizontal, showsIndicators: contentOverflows) {
-                        LazyHStack(spacing: PickerMetrics.itemSpacing(for: style, scale: scale)) {
+                        LazyHStack(spacing: PickerMetrics.itemSpacing(scale: scale)) {
                             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                                 pickerCell(
                                     item: item,
@@ -632,8 +628,8 @@ struct PickerView: View {
                                     .id(item.id)
                             }
                         }
-                        .padding(.horizontal, PickerMetrics.horizontalPadding(for: style, scale: scale))
-                        .padding(.vertical, PickerMetrics.verticalPadding(for: style, scale: scale))
+                        .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
+                        .padding(.vertical, PickerMetrics.verticalPadding(scale: scale))
                     }
                     .scrollDisabled(!contentOverflows)
                     .background(HorizontalWheelScrollBridge())
@@ -985,12 +981,12 @@ struct AppCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize = PickerMetrics.iconSize(for: style, scale: scale)
-        let compactIconChromeSize = PickerMetrics.iconChromeSize(for: style, scale: scale)
-        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style, scale: scale)
-        let compactCellWidth = PickerMetrics.itemWidth(for: style, scale: scale)
-        let compactCellHeight = PickerMetrics.itemHeight(for: style, scale: scale)
-        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style, scale: scale)
+        let compactIconSize = PickerMetrics.iconSize(scale: scale)
+        let compactIconChromeSize = PickerMetrics.iconChromeSize(scale: scale)
+        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(scale: scale)
+        let compactCellWidth = PickerMetrics.itemWidth(scale: scale)
+        let compactCellHeight = PickerMetrics.itemHeight(scale: scale)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(scale: scale)
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false
 
         return VStack(spacing: (style == .appSwitcher ? 4 : 2) * scale) {
@@ -1020,7 +1016,7 @@ struct AppCell: View {
                 RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
-                        lineWidth: PickerMetrics.focusStrokeWidth(for: style, scale: scale)
+                        lineWidth: PickerMetrics.focusStrokeWidth(scale: scale)
                     )
             )
             .shadow(
@@ -1030,12 +1026,12 @@ struct AppCell: View {
             )
 
             Text(title)
-                .font(.system(size: PickerMetrics.titleFontSize(for: style, scale: scale), weight: .medium))
+                .font(.system(size: PickerMetrics.titleFontSize(scale: scale), weight: .medium))
                 .foregroundStyle(isFocused ? .primary : .secondary)
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
                 .truncationMode(.tail)
-                .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style, scale: scale), alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(scale: scale), alignment: .center)
 
             if showsSecondaryRow {
                 HStack(spacing: 4 * scale) {
@@ -1045,14 +1041,14 @@ struct AppCell: View {
 
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: PickerMetrics.subtitleFontSize(for: style, scale: scale), weight: .medium))
+                            .font(.system(size: PickerMetrics.subtitleFontSize(scale: scale), weight: .medium))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                             .multilineTextAlignment(.center)
                             .truncationMode(.tail)
                     }
                 }
-                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style, scale: scale), alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(scale: scale), alignment: .center)
             }
         }
         .frame(width: compactCellWidth, height: compactCellHeight)

@@ -106,6 +106,24 @@ enum PickerServiceTapCount: Int, CaseIterable, Identifiable {
     }
 }
 
+struct PickerActivationSettings: Equatable {
+    let mode: PickerActivationMode
+    let serviceKey: PickerServiceKey
+    let serviceTapCount: PickerServiceTapCount
+    let serviceTapInterval: TimeInterval
+
+    static let defaultValue = PickerActivationSettings(
+        mode: .toggleShortcut,
+        serviceKey: .off,
+        serviceTapCount: .two,
+        serviceTapInterval: 0.45
+    )
+
+    var needsEventTap: Bool {
+        mode == .holdOptionTab || serviceKey != .off
+    }
+}
+
 enum PickerScale {
     static let minimum = 0.5
     static let defaultValue = 1.0

@@ -58,7 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.pickerActivationListener.refresh()
+                guard let self else { return }
+                self.pickerActivationListener.refresh(settings: self.appState.pickerActivationSettings)
             }
         }
 
@@ -87,8 +88,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configurePickerActivationListener()
 
         KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
-            guard SettingsStorage.shared.pickerActivationMode == .toggleShortcut else { return }
-            self?.openPickerManually()
+            guard let self, self.appState.pickerActivationMode == .toggleShortcut else { return }
+            self.openPickerManually()
         }
         KeyboardShortcuts.onKeyUp(for: .reopenLastPicker) { [weak self] in
             guard let self, let last = self.appState.lastOpenedURL else { return }
@@ -128,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_: Notification) {
-        pickerActivationListener.refresh()
+        pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
     }
 
     func applicationWillTerminate(_: Notification) {
@@ -207,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pickerActivationListener.onServiceKeyTrigger = { [weak self] in
             self?.openPickerManually()
         }
-        pickerActivationListener.refresh()
+        pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
     }
 
     /// Show the manual app/window switcher.

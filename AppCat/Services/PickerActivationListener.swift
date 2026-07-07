@@ -15,13 +15,15 @@ final class PickerActivationListener {
     private var runLoopSource: CFRunLoopSource?
     private var serviceTapCounter = TapSequenceCounter()
     private var holdSessionActive = false
+    private var settings: PickerActivationSettings = .defaultValue
 
     deinit {
         stop()
     }
 
-    func refresh() {
-        if needsEventTap {
+    func refresh(settings: PickerActivationSettings) {
+        self.settings = settings
+        if settings.needsEventTap {
             start()
         } else {
             stop()
@@ -107,13 +109,8 @@ final class PickerActivationListener {
         return Unmanaged.passUnretained(event)
     }
 
-    private var needsEventTap: Bool {
-        SettingsStorage.shared.pickerActivationMode == .holdOptionTab ||
-            SettingsStorage.shared.pickerServiceKey != .off
-    }
-
     private func handleHoldTab(keyCode: UInt16, flags: CGEventFlags) -> Bool {
-        guard SettingsStorage.shared.pickerActivationMode == .holdOptionTab else { return false }
+        guard settings.mode == .holdOptionTab else { return false }
         guard keyCode == UInt16(kVK_Tab), flags.contains(.maskAlternate) else { return false }
         guard flags.intersection([.maskCommand, .maskControl]).isEmpty else { return false }
 
@@ -134,14 +131,14 @@ final class PickerActivationListener {
     }
 
     private func handleServiceKeyDown(keyCode: UInt16, event: CGEvent) -> Bool {
-        guard SettingsStorage.shared.pickerServiceKey == .escape, keyCode == UInt16(kVK_Escape) else {
+        guard settings.serviceKey == .escape, keyCode == UInt16(kVK_Escape) else {
             return false
         }
         return registerServiceTap(event: event)
     }
 
     private func handleServiceFlagsChanged(keyCode: UInt16, event: CGEvent) -> Bool {
-        guard SettingsStorage.shared.pickerServiceKey == .capsLock, keyCode == UInt16(kVK_CapsLock) else {
+        guard settings.serviceKey == .capsLock, keyCode == UInt16(kVK_CapsLock) else {
             return false
         }
         return registerServiceTap(event: event)
@@ -152,8 +149,8 @@ final class PickerActivationListener {
 
         let didComplete = serviceTapCounter.registerTap(
             at: ProcessInfo.processInfo.systemUptime,
-            requiredCount: SettingsStorage.shared.pickerServiceTapCount.rawValue,
-            interval: SettingsStorage.shared.pickerServiceTapInterval
+            requiredCount: settings.serviceTapCount.rawValue,
+            interval: settings.serviceTapInterval
         )
         if didComplete {
             DispatchQueue.main.async { [onServiceKeyTrigger] in
@@ -177,4 +174,3 @@ private func pickerActivationCallback(
     let listener = Unmanaged<PickerActivationListener>.fromOpaque(userInfo).takeUnretainedValue()
     return listener.handle(type: type, event: event)
 }
-

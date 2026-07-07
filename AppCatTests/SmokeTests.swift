@@ -177,24 +177,12 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(width, expected, accuracy: 0.001)
     }
 
-    func testPickerPresentationStylesUseSameScaledTileMetrics() {
+    func testPickerMetricsScaleTogether() {
         let scale: CGFloat = 1.35
 
-        XCTAssertEqual(
-            PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, style: .routing, scale: scale),
-            PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, style: .appSwitcher, scale: scale),
-            accuracy: 0.001
-        )
-        XCTAssertEqual(
-            PickerMetrics.iconSize(for: .routing, scale: scale),
-            PickerMetrics.iconSize(for: .appSwitcher, scale: scale),
-            accuracy: 0.001
-        )
-        XCTAssertEqual(
-            PickerMetrics.itemWidth(for: .routing, scale: scale),
-            PickerMetrics.itemWidth(for: .appSwitcher, scale: scale),
-            accuracy: 0.001
-        )
+        XCTAssertEqual(PickerMetrics.iconSize(scale: scale), 118.8, accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.itemWidth(scale: scale), 126.9, accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, scale: scale), 461.7, accuracy: 0.001)
     }
 
     func testPickerIconGapUsesCompactAppSwitcherSpacing() {

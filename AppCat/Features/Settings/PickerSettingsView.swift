@@ -50,9 +50,7 @@ struct PickerSettingsView: View {
         Binding(
             get: { appState.pickerScale },
             set: { value in
-                let clampedValue = PickerScale.clamped(value)
-                appState.pickerScale = clampedValue
-                SettingsStorage.shared.pickerScale = clampedValue
+                appState.setPickerScale(value)
             }
         )
     }
@@ -77,8 +75,7 @@ struct PickerSettingsView: View {
                         isOn: Binding(
                             get: { appState.showWindowlessApps },
                             set: {
-                                appState.showWindowlessApps = $0
-                                SettingsStorage.shared.showWindowlessApps = $0
+                                appState.setShowWindowlessApps($0)
                             }
                         )
                     )
@@ -89,8 +86,7 @@ struct PickerSettingsView: View {
                         isOn: Binding(
                             get: { appState.showBackgroundApps },
                             set: {
-                                appState.showBackgroundApps = $0
-                                SettingsStorage.shared.showBackgroundApps = $0
+                                appState.setShowBackgroundApps($0)
                             }
                         )
                     )
@@ -326,9 +322,8 @@ struct PickerSettingsView: View {
     }
 
     private func setHiddenAppIDs(_ ids: Set<String>) {
-        appState.hiddenPickerAppIDs = ids
+        appState.setHiddenPickerAppIDs(ids)
         appState.pickerItemsSnapshot = []
-        SettingsStorage.shared.hiddenPickerAppIDs = ids
     }
 
     // MARK: - Rows

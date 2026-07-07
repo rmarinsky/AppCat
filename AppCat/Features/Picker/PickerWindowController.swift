@@ -502,17 +502,15 @@ final class PickerWindowController: NSObject {
     }
 
     private func panelSurfaceSize(for screen: NSScreen) -> NSSize {
-        let style = presentationStyle
         let scale = pickerScale
         let showsHint = appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
         return NSSize(
             width: PickerMetrics.panelWidth(
                 itemCount: itemCountForPanelSizing(),
                 availableWidth: screen.visibleFrame.width,
-                style: style,
                 scale: scale
             ),
-            height: PickerMetrics.panelHeight(showsHint: showsHint, style: style, scale: scale)
+            height: PickerMetrics.panelHeight(showsHint: showsHint, scale: scale)
         )
     }
 
@@ -574,13 +572,13 @@ final class PickerWindowController: NSObject {
     }
 
     private func applyPanelSurfaceAppearance(to surfaceView: NSView) {
-        let radius = PickerMetrics.panelCornerRadius(for: presentationStyle, scale: pickerScale)
+        let radius = PickerMetrics.panelCornerRadius(scale: pickerScale)
         if #available(macOS 26.0, *) {
             if let glassContainer = surfaceView as? NSGlassEffectContainerView {
                 glassContainer.spacing = 0
             }
             if let glassView = glassEffectView(in: surfaceView) {
-                glassView.style = .clear
+                glassView.style = .regular
                 glassView.cornerRadius = radius
                 glassView.tintColor = nil
             }
@@ -593,16 +591,15 @@ final class PickerWindowController: NSObject {
         surfaceView.layer?.masksToBounds = true
         surfaceView.layer?.backgroundColor = NSColor.clear.cgColor
         surfaceView.layer?.isOpaque = false
-        surfaceView.layer?.borderWidth = 0.5
-        surfaceView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.16).cgColor
+        surfaceView.layer?.borderWidth = 0
+        surfaceView.layer?.borderColor = nil
     }
 
     private func applyVisualEffectFallbackAppearance(to visualEffect: NSVisualEffectView) {
-        let style = presentationStyle
         visualEffect.material = .hudWindow
         visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
-        visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(for: style, scale: pickerScale)
+        visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(scale: pickerScale)
         visualEffect.layer?.cornerCurve = .continuous
         visualEffect.layer?.masksToBounds = true
         visualEffect.layer?.borderWidth = 0

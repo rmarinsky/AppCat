@@ -41,6 +41,7 @@ final class AppState {
     var pickerActivationMode: PickerActivationMode = .toggleShortcut
     var pickerServiceKey: PickerServiceKey = .off
     var pickerServiceTapCount: PickerServiceTapCount = .two
+    var pickerServiceTapInterval: TimeInterval = PickerActivationSettings.defaultValue.serviceTapInterval
     var hiddenPickerAppIDs: Set<String> = []
     var pickerItemsSnapshot: [PickerItem] = []
     var isManualPickerPresentation: Bool = false
@@ -98,6 +99,15 @@ final class AppState {
     var installedApps: [InstalledApp] {
         let installed = appsByFrequency.filter { !$0.isSystemApp }
         return installed.filter(\.declaresFileSupport) + installed.filter { !$0.declaresFileSupport }
+    }
+
+    var pickerActivationSettings: PickerActivationSettings {
+        PickerActivationSettings(
+            mode: pickerActivationMode,
+            serviceKey: pickerServiceKey,
+            serviceTapCount: pickerServiceTapCount,
+            serviceTapInterval: pickerServiceTapInterval
+        )
     }
 
     /// Apple / system apps, alphabetical — the bottom section of the Apps screen. These stay
@@ -159,6 +169,7 @@ final class AppState {
         pickerActivationMode = SettingsStorage.shared.pickerActivationMode
         pickerServiceKey = SettingsStorage.shared.pickerServiceKey
         pickerServiceTapCount = SettingsStorage.shared.pickerServiceTapCount
+        pickerServiceTapInterval = SettingsStorage.shared.pickerServiceTapInterval
         hiddenPickerAppIDs = SettingsStorage.shared.hiddenPickerAppIDs
         appLanguage = SettingsStorage.shared.appLanguage
         appUsage = AppUsageFileStore.usage.load()
@@ -199,5 +210,57 @@ final class AppState {
         pendingAdditionalURLs = []
         pendingLaunchURLs = []
         pendingURLTitle = nil
+    }
+
+    func setPickerScale(_ value: Double) {
+        let clampedValue = PickerScale.clamped(value)
+        pickerScale = clampedValue
+        SettingsStorage.shared.pickerScale = clampedValue
+    }
+
+    func setSelectWithNumberKeys(_ value: Bool) {
+        selectWithNumberKeys = value
+        SettingsStorage.shared.selectWithNumberKeys = value
+    }
+
+    func setPickerActivationMode(_ mode: PickerActivationMode) {
+        pickerActivationMode = mode
+        SettingsStorage.shared.pickerActivationMode = mode
+        notifyPickerActivationSettingsChanged()
+    }
+
+    func setPickerServiceKey(_ key: PickerServiceKey) {
+        pickerServiceKey = key
+        SettingsStorage.shared.pickerServiceKey = key
+        notifyPickerActivationSettingsChanged()
+    }
+
+    func setPickerServiceTapCount(_ count: PickerServiceTapCount) {
+        pickerServiceTapCount = count
+        SettingsStorage.shared.pickerServiceTapCount = count
+        notifyPickerActivationSettingsChanged()
+    }
+
+    func setShowWindowlessApps(_ value: Bool) {
+        showWindowlessApps = value
+        SettingsStorage.shared.showWindowlessApps = value
+    }
+
+    func setShowBackgroundApps(_ value: Bool) {
+        showBackgroundApps = value
+        SettingsStorage.shared.showBackgroundApps = value
+    }
+
+    func setHiddenPickerAppIDs(_ ids: Set<String>) {
+        hiddenPickerAppIDs = ids
+        SettingsStorage.shared.hiddenPickerAppIDs = ids
+    }
+
+    func refreshPickerActivationSettings() {
+        notifyPickerActivationSettingsChanged()
+    }
+
+    private func notifyPickerActivationSettingsChanged() {
+        NotificationCenter.default.post(name: .pickerActivationSettingsChanged, object: nil)
     }
 }
