@@ -185,7 +185,7 @@ struct PickerItem: Identifiable {
                 includingLaunchServicesCandidates: includingLaunchServicesCandidates
             )
         }
-        return apps.filter { $0.isVisible && $0.matchesHost(of: url) }
+        return apps.filter { $0.isVisible && !excludedBundleIDs.contains($0.id) && $0.matchesHost(of: url) }
     }
 
     static func matchingBrowsers(for url: URL?, in browsers: [InstalledBrowser]) -> [InstalledBrowser] {
@@ -206,17 +206,21 @@ struct PickerItem: Identifiable {
         activations: [String: AppUsage] = [:],
         regularBundleIDs: Set<String>? = nil,
         showWindowlessApps: Bool = true,
-        showBackgroundApps: Bool = false
+        showBackgroundApps: Bool = false,
+        hiddenAppIDs: Set<String> = []
     ) -> [PickerItem] {
         let browsers = matchingBrowsers(for: url, in: pickerBrowsers)
+            .filter { !hiddenAppIDs.contains($0.id) }
+        let allBrowsersForDisplay = allBrowsers.filter { !hiddenAppIDs.contains($0.id) }
+        let pickerApps = apps.filter { !hiddenAppIDs.contains($0.id) }
         let browserIDs = Set(allBrowsers.map(\.id))
         if url == nil {
             let runningBundleIDs = providedRunningBundleIDs ?? Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             let windowsByAppID = providedWindowsByAppID ?? WindowEnumerator.runningWindows()
             return switcherItems(
-                apps: apps,
+                apps: pickerApps,
                 browsers: browsers,
-                allBrowsers: allBrowsers,
+                allBrowsers: allBrowsersForDisplay,
                 browserIDs: browserIDs,
                 runningBundleIDs: runningBundleIDs,
                 regularBundleIDs: regularBundleIDs,
@@ -235,8 +239,8 @@ struct PickerItem: Identifiable {
         let inertAppIDs = Set(apps.filter { !$0.canOpenTarget }.map(\.id))
         let matchingApps = matchingApps(
             for: url,
-            in: apps,
-            excludingBundleIDs: browserIDs.union(inertAppIDs),
+            in: pickerApps,
+            excludingBundleIDs: browserIDs.union(inertAppIDs).union(hiddenAppIDs),
             includingLaunchServicesCandidates: true
         )
         let orderedApps: [InstalledApp]
@@ -244,6 +248,9 @@ struct PickerItem: Identifiable {
             orderedApps = matchingApps
         } else {
             orderedApps = matchingApps.sorted { lhs, rhs in
+                let lhsDate = appUsage[lhs.id]?.lastUsed ?? .distantPast
+                let rhsDate = appUsage[rhs.id]?.lastUsed ?? .distantPast
+                if lhsDate != rhsDate { return lhsDate > rhsDate }
                 let lhsCount = appUsage[lhs.id]?.count ?? 0
                 let rhsCount = appUsage[rhs.id]?.count ?? 0
                 if lhsCount != rhsCount { return lhsCount > rhsCount }
@@ -331,13 +338,13 @@ struct PickerItem: Identifiable {
             ))
         }
 
-        // Most-used first, recency as tiebreak, then name for a stable order among never-used apps.
+        // Most-recent first, usage count as tiebreak, then name for a stable order among never-used apps.
         func before(_ x: Entry, _ y: Entry) -> Bool {
             let rx = activations[x.id], ry = activations[y.id]
-            let cx = rx?.count ?? 0, cy = ry?.count ?? 0
-            if cx != cy { return cx > cy }
             let dx = rx?.lastUsed ?? .distantPast, dy = ry?.lastUsed ?? .distantPast
             if dx != dy { return dx > dy }
+            let cx = rx?.count ?? 0, cy = ry?.count ?? 0
+            if cx != cy { return cx > cy }
             return x.name.localizedCaseInsensitiveCompare(y.name) == .orderedAscending
         }
 
@@ -385,86 +392,133 @@ enum PickerPresentationStyle {
 enum PickerMetrics {
     static let screenMargin: CGFloat = 8
 
-    static func iconSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 84 : 56
+    private static let tileIconSize: CGFloat = 88
+    private static let tileIconChromeSize: CGFloat = 92
+    private static let tileFallbackIconSize: CGFloat = 64
+    private static let tileWidth: CGFloat = 94
+    private static let tileHeight: CGFloat = 148
+    private static let tileSpacing: CGFloat = 2
+    private static let tileHorizontalPadding: CGFloat = 28
+    private static let tileVerticalPadding: CGFloat = 9
+    private static let tileTitleFontSize: CGFloat = 14
+    private static let tileTitleHeight: CGFloat = 22
+    private static let tileSubtitleFontSize: CGFloat = 12
+    private static let tileSubtitleHeight: CGFloat = 18
+    private static let tileFocusStrokeWidth: CGFloat = 2
+    private static let tileFocusCornerRadius: CGFloat = 24
+    private static let panelCornerRadiusBase: CGFloat = 48
+    private static let hintHeightBase: CGFloat = 14
+
+    static func clampedScale(_ scale: CGFloat) -> CGFloat {
+        min(max(scale, CGFloat(PickerScale.minimum)), CGFloat(PickerScale.maximum))
     }
 
-    static func fallbackIconSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 60 : 40
+    private static func scaled(_ value: CGFloat, by scale: CGFloat) -> CGFloat {
+        value * clampedScale(scale)
     }
 
-    static func itemWidth(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 100 : 72
+    static func iconSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileIconSize, by: scale)
     }
 
-    static func itemHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 136 : 94
+    static func iconChromeSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileIconChromeSize, by: scale)
     }
 
-    static func itemSpacing(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 2 : 2
+    static func fallbackIconSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileFallbackIconSize, by: scale)
     }
 
-    static func horizontalPadding(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 24 : 10
+    static func itemWidth(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileWidth, by: scale)
     }
 
-    static func scrollHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 150 : 100
+    static func itemHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileHeight, by: scale)
     }
 
-    static func topPadding(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 12 : 4
+    static func itemSpacing(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileSpacing, by: scale)
     }
 
-    static func titleFontSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 13 : 11
+    static func horizontalPadding(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileHorizontalPadding, by: scale)
     }
 
-    static func titleHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 17 : 15
+    static func scrollHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileHeight + tileVerticalPadding * 2, by: scale)
     }
 
-    static func subtitleFontSize(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 11 : 10
+    static func verticalPadding(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileVerticalPadding, by: scale)
     }
 
-    static func subtitleHeight(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 19 : 17
+    static func titleFontSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileTitleFontSize, by: scale)
     }
 
-    static func focusStrokeWidth(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 3 : 2.25
+    static func titleHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileTitleHeight, by: scale)
     }
 
-    static func focusCornerRadius(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 20 : 12
+    static func subtitleFontSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileSubtitleFontSize, by: scale)
     }
 
-    static func panelCornerRadius(for style: PickerPresentationStyle = .routing) -> CGFloat {
-        style == .appSwitcher ? 24 : 16
+    static func subtitleHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileSubtitleHeight, by: scale)
     }
 
-    static func panelHeight(showsHint: Bool, style: PickerPresentationStyle = .routing) -> CGFloat {
-        if style == .appSwitcher { return 162 }
-        return showsHint ? 120 : 104
+    static func focusStrokeWidth(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileFocusStrokeWidth, by: scale)
     }
 
-    static func contentWidth(itemCount: Int, style: PickerPresentationStyle = .routing) -> CGFloat {
+    static func focusCornerRadius(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileFocusCornerRadius, by: scale)
+    }
+
+    static func profileBadgeSize(scale: CGFloat = 1) -> CGFloat {
+        scaled(16, by: scale)
+    }
+
+    static func profileBadgeBorderWidth(scale: CGFloat = 1) -> CGFloat {
+        scaled(1.5, by: scale)
+    }
+
+    static func panelCornerRadius(scale: CGFloat = 1) -> CGFloat {
+        scaled(panelCornerRadiusBase, by: scale)
+    }
+
+    static func panelHeight(
+        showsHint: Bool,
+        scale: CGFloat = 1
+    ) -> CGFloat {
+        let base = tileHeight + tileVerticalPadding * 2 + (showsHint ? hintHeightBase : 0)
+        return scaled(base, by: scale)
+    }
+
+    static func hintHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(hintHeightBase, by: scale)
+    }
+
+    static func contentWidth(
+        itemCount: Int,
+        scale: CGFloat = 1
+    ) -> CGFloat {
         let count = max(1, itemCount)
-        return horizontalPadding(for: style) * 2
-            + CGFloat(count) * itemWidth(for: style)
-            + CGFloat(max(0, count - 1)) * itemSpacing(for: style)
+        return horizontalPadding(scale: scale) * 2
+            + CGFloat(count) * itemWidth(scale: scale)
+            + CGFloat(max(0, count - 1)) * itemSpacing(scale: scale)
     }
 
     static func panelWidth(
         itemCount: Int,
         availableWidth: CGFloat,
-        style: PickerPresentationStyle = .routing
+        scale: CGFloat = 1
     ) -> CGFloat {
-        let minPanelWidth = horizontalPadding(for: style) * 2 + itemWidth(for: style)
+        let minPanelWidth = horizontalPadding(scale: scale) * 2 + itemWidth(scale: scale)
         let maxWidth = max(minPanelWidth, availableWidth - screenMargin * 2)
-        return min(max(contentWidth(itemCount: itemCount, style: style), minPanelWidth), maxWidth)
+        return min(max(contentWidth(itemCount: itemCount, scale: scale), minPanelWidth), maxWidth)
     }
 }
 
@@ -508,7 +562,6 @@ struct PickerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.pickerCoordinator) private var pickerCoordinator
 
-    @State private var hoveredIndex: Int?
     @State private var profilePopoverBrowserID: String?
 
     private var presentationStyle: PickerPresentationStyle {
@@ -531,7 +584,8 @@ struct PickerView: View {
             activations: appState.appActivations,
             regularBundleIDs: appState.regularAppBundleIDs,
             showWindowlessApps: appState.showWindowlessApps,
-            showBackgroundApps: appState.showBackgroundApps
+            showBackgroundApps: appState.showBackgroundApps,
+            hiddenAppIDs: appState.hiddenPickerAppIDs
         )
     }
 
@@ -542,46 +596,53 @@ struct PickerView: View {
     private var horizontalBody: some View {
         let items = pickerItems
         let style = presentationStyle
-        let shortcuts = PickerShortcutAssigner.assignments(
+        let scale = CGFloat(appState.pickerScale)
+        let shortcuts = PickerShortcutPolicy.assignments(
             for: items,
-            positionalEnabled: appState.selectWithNumberKeys
+            activationMode: appState.pickerActivationMode,
+            selectWithNumberKeys: appState.selectWithNumberKeys
         )
-        let showsHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
-        let panelHeight = PickerMetrics.panelHeight(showsHint: showsHint, style: style)
+        let showsIncognitoHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
+        let panelHeight = PickerMetrics.panelHeight(showsHint: showsIncognitoHint, scale: scale)
+        let scrollHeight = PickerMetrics.scrollHeight(scale: scale)
 
         return VStack(spacing: 0) {
             ScrollViewReader { proxy in
-                // Lazy rendering matters here: file pickers can include many LaunchServices apps.
-                ScrollView(.horizontal, showsIndicators: true) {
-                    LazyHStack(spacing: PickerMetrics.itemSpacing(for: style)) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            if style == .appSwitcher, index > 0,
-                               item.isBackgroundRunning, !items[index - 1].isBackgroundRunning
-                            {
-                                switcherGroupDivider
+                GeometryReader { geometry in
+                    let contentOverflows = PickerMetrics.contentWidth(
+                        itemCount: items.count,
+                        scale: scale
+                    ) > geometry.size.width + 1
+
+                    // Lazy rendering matters here: file pickers can include many LaunchServices apps.
+                    ScrollView(.horizontal, showsIndicators: contentOverflows) {
+                        LazyHStack(spacing: PickerMetrics.itemSpacing(scale: scale)) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                pickerCell(
+                                    item: item,
+                                    index: index,
+                                    shortcut: shortcuts[item.id],
+                                    style: style,
+                                    scale: scale
+                                )
+                                    .id(item.id)
                             }
-                            pickerCell(
-                                item: item,
-                                index: index,
-                                shortcut: shortcuts[item.id],
-                                style: style
-                            )
-                                .id(item.id)
                         }
+                        .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
+                        .padding(.vertical, PickerMetrics.verticalPadding(scale: scale))
                     }
-                    .padding(.horizontal, PickerMetrics.horizontalPadding(for: style))
-                    .padding(.top, PickerMetrics.topPadding(for: style))
-                    .padding(.bottom, 0)
+                    .scrollDisabled(!contentOverflows)
+                    .background(HorizontalWheelScrollBridge())
+                    .frame(height: scrollHeight)
                 }
-                .background(HorizontalWheelScrollBridge())
-                .frame(height: PickerMetrics.scrollHeight(for: style))
+                .frame(height: scrollHeight)
                 .onChange(of: appState.focusedBrowserIndex) { _, _ in
                     scrollFocusedItemIntoView(proxy: proxy, items: items)
                 }
             }
 
-            if showsHint {
-                compactHintBar
+            if showsIncognitoHint {
+                compactHintBar(scale: scale)
             }
         }
         .onAppear {
@@ -595,26 +656,31 @@ struct PickerView: View {
         item: PickerItem,
         index: Int,
         shortcut: PickerShortcut?,
-        style: PickerPresentationStyle = .routing
+        style: PickerPresentationStyle = .routing,
+        scale: CGFloat = 1
     ) -> some View {
         let hasVisibleProfiles = item.browser?.profiles.contains(where: \.isVisible) == true
-        let isFocused = appState.focusedBrowserIndex == index || hoveredIndex == index
+        let isFocused = appState.focusedBrowserIndex == index
 
         PickerCell(
             item: item,
             isFocused: isFocused,
             shortcut: shortcut,
             compact: true,
-            style: style
+            style: style,
+            scale: scale
         )
-        // Dim running-but-windowless apps so the eye lands on the active desktops first; a focused
-        // or hovered tile returns to full strength.
-        .opacity(item.isBackgroundRunning && style == .appSwitcher && !isFocused ? 0.5 : 1)
         .onTapGesture {
             handleItemTap(item)
         }
         .popover(isPresented: Binding(
-            get: { item.browser != nil && item.profile == nil && hasVisibleProfiles && profilePopoverBrowserID == item.browser?.id },
+            get: {
+                item.browser != nil
+                    && item.profile == nil
+                    && item.windowTarget == nil
+                    && hasVisibleProfiles
+                    && profilePopoverBrowserID == item.browser?.id
+            },
             set: { if !$0 { profilePopoverBrowserID = nil } }
         )) {
             if let browser = item.browser {
@@ -625,7 +691,8 @@ struct PickerView: View {
             }
         }
         .onHover { isHovered in
-            hoveredIndex = isHovered ? index : nil
+            guard isHovered, appState.isPickerVisible else { return }
+            appState.focusedBrowserIndex = index
         }
         .contextMenu {
             if let app = item.app {
@@ -669,28 +736,19 @@ struct PickerView: View {
         }
     }
 
-    /// Separates the "has open windows" group from the dimmed "running, no windows" group.
-    private var switcherGroupDivider: some View {
-        RoundedRectangle(cornerRadius: 0.5)
-            .fill(Color.primary.opacity(0.14))
-            .frame(width: 1, height: 92)
-            .padding(.horizontal, 9)
-    }
-
-    private var compactHintBar: some View {
+    private func compactHintBar(scale: CGFloat) -> some View {
         HStack(spacing: 4) {
             Image(systemName: "option")
-                .font(.system(size: 8, weight: .medium))
+                .font(.system(size: 8 * scale, weight: .medium))
             Text("/")
-                .font(.system(size: 9))
+                .font(.system(size: 9 * scale))
             Image(systemName: "shift")
-                .font(.system(size: 8, weight: .medium))
+                .font(.system(size: 8 * scale, weight: .medium))
             Text("+ key for private mode")
-                .font(.system(size: 9))
+                .font(.system(size: 9 * scale))
         }
         .foregroundStyle(.secondary)
-        .padding(.top, 0)
-        .padding(.bottom, 6)
+        .frame(height: PickerMetrics.hintHeight(scale: scale), alignment: .center)
     }
 
     private func handleItemTap(_ item: PickerItem) {
@@ -850,29 +908,33 @@ struct PickerCell: View {
     let shortcut: PickerShortcut?
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
+    var scale: CGFloat = 1
 
     var body: some View {
         if let browser = item.browser {
             BrowserCell(
                 browser: browser,
                 title: item.displayName,
-                subtitle: item.windowTarget == nil ? nil : item.secondaryDisplayName,
+                subtitle: style == .appSwitcher || item.windowTarget == nil ? nil : item.secondaryDisplayName,
                 isFocused: isFocused,
                 profile: item.profile,
                 shortcut: shortcut,
                 showsHotkey: false,
+                showsProfileMenuIndicator: item.windowTarget == nil,
                 compact: compact,
-                style: style
+                style: style,
+                scale: scale
             )
         } else if let app = item.app {
             AppCell(
                 app: app,
                 title: item.displayName,
-                subtitle: item.secondaryDisplayName,
+                subtitle: style == .appSwitcher ? nil : item.secondaryDisplayName,
                 isFocused: isFocused,
                 shortcut: shortcut,
                 compact: compact,
-                style: style
+                style: style,
+                scale: scale
             )
         }
     }
@@ -888,6 +950,7 @@ struct AppCell: View {
     let shortcut: PickerShortcut?
     var compact: Bool = false
     var style: PickerPresentationStyle = .routing
+    var scale: CGFloat = 1
 
     init(
         app: InstalledApp,
@@ -896,7 +959,8 @@ struct AppCell: View {
         isFocused: Bool,
         shortcut: PickerShortcut? = nil,
         compact: Bool = false,
-        style: PickerPresentationStyle = .routing
+        style: PickerPresentationStyle = .routing,
+        scale: CGFloat = 1
     ) {
         self.app = app
         self.title = title ?? app.displayName
@@ -905,6 +969,7 @@ struct AppCell: View {
         self.shortcut = shortcut
         self.compact = compact
         self.style = style
+        self.scale = scale
     }
 
     var body: some View {
@@ -916,13 +981,15 @@ struct AppCell: View {
     }
 
     private var compactBody: some View {
-        let compactIconSize = PickerMetrics.iconSize(for: style)
-        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(for: style)
-        let compactCellWidth = PickerMetrics.itemWidth(for: style)
-        let compactCellHeight = PickerMetrics.itemHeight(for: style)
-        let focusCornerRadius = PickerMetrics.focusCornerRadius(for: style)
+        let compactIconSize = PickerMetrics.iconSize(scale: scale)
+        let compactIconChromeSize = PickerMetrics.iconChromeSize(scale: scale)
+        let compactFallbackIconSize = PickerMetrics.fallbackIconSize(scale: scale)
+        let compactCellWidth = PickerMetrics.itemWidth(scale: scale)
+        let compactCellHeight = PickerMetrics.itemHeight(scale: scale)
+        let focusCornerRadius = PickerMetrics.focusCornerRadius(scale: scale)
+        let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false
 
-        return VStack(spacing: 2) {
+        return VStack(spacing: (style == .appSwitcher ? 4 : 2) * scale) {
             ZStack {
                 if let icon = app.icon {
                     Image(nsImage: icon)
@@ -936,6 +1003,7 @@ struct AppCell: View {
                 }
             }
             .frame(width: compactIconSize, height: compactIconSize)
+            .frame(width: compactIconChromeSize, height: compactIconChromeSize)
             .background {
                 if isFocused {
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
@@ -948,44 +1016,39 @@ struct AppCell: View {
                 RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused ? Color("BrandAccentDeep") : Color.clear,
-                        lineWidth: PickerMetrics.focusStrokeWidth(for: style)
+                        lineWidth: PickerMetrics.focusStrokeWidth(scale: scale)
                     )
             )
             .shadow(
                 color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
-                radius: style == .appSwitcher ? 12 : 5,
-                y: style == .appSwitcher ? 5 : 2
+                radius: (style == .appSwitcher ? 12 : 5) * scale,
+                y: (style == .appSwitcher ? 5 : 2) * scale
             )
 
             Text(title)
-                .font(.system(size: PickerMetrics.titleFontSize(for: style), weight: .medium))
+                .font(.system(size: PickerMetrics.titleFontSize(scale: scale), weight: .medium))
                 .foregroundStyle(isFocused ? .primary : .secondary)
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
                 .truncationMode(.tail)
-                .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(for: style), alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.titleHeight(scale: scale), alignment: .center)
 
-            if let subtitle {
-                HStack(spacing: 4) {
+            if showsSecondaryRow {
+                HStack(spacing: 4 * scale) {
                     if let shortcut {
-                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
+                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true, scale: scale)
                     }
 
-                    Text(subtitle)
-                        .font(.system(size: PickerMetrics.subtitleFontSize(for: style), weight: .medium))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .multilineTextAlignment(.center)
-                        .truncationMode(.tail)
-                }
-                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
-            } else {
-                HStack(spacing: 4) {
-                    if let shortcut {
-                        SelectionKeycapView(key: shortcut.key, compact: true, inline: true)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: PickerMetrics.subtitleFontSize(scale: scale), weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .truncationMode(.tail)
                     }
                 }
-                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(for: style), alignment: .center)
+                .frame(width: compactCellWidth, height: PickerMetrics.subtitleHeight(scale: scale), alignment: .center)
             }
         }
         .frame(width: compactCellWidth, height: compactCellHeight)

@@ -1,14 +1,27 @@
 import KeyboardShortcuts
 
-/// System-wide hotkeys. Defaults match the Figma Shortcuts screen:
-/// ⌥⌘B opens the picker manually, ⌥⌘⇧B re-opens the last picker.
+enum GlobalShortcuts {
+    static let openPickerManuallyDefault = KeyboardShortcuts.Shortcut(.tab, modifiers: [.option])
+    static let openPickerManuallyLegacyDefault = KeyboardShortcuts.Shortcut(.b, modifiers: [.option, .command])
+    static let reopenLastPickerDefault = KeyboardShortcuts.Shortcut(.b, modifiers: [.option, .command, .shift])
+
+    static func migrateLegacyDefaultsIfNeeded() {
+        guard KeyboardShortcuts.getShortcut(for: .openPickerManually) == openPickerManuallyLegacyDefault else {
+            return
+        }
+
+        KeyboardShortcuts.setShortcut(openPickerManuallyDefault, for: .openPickerManually)
+    }
+}
+
+/// System-wide hotkeys.
 extension KeyboardShortcuts.Name {
     static let openPickerManually = Self(
         "openPickerManually",
-        default: .init(.b, modifiers: [.option, .command])
+        default: GlobalShortcuts.openPickerManuallyDefault
     )
     static let reopenLastPicker = Self(
         "reopenLastPicker",
-        default: .init(.b, modifiers: [.option, .command, .shift])
+        default: GlobalShortcuts.reopenLastPickerDefault
     )
 }
