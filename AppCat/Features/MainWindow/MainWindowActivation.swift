@@ -15,6 +15,12 @@ enum MainWindowActivation {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Whether the main window is currently on screen. The picker uses this to avoid demoting
+    /// the app to `.accessory` (hiding the Dock icon) while the main window is visible.
+    static var isMainWindowVisible: Bool {
+        NSApp.windows.contains { $0.identifier == windowIdentifier && $0.isVisible }
+    }
+
     static func configure(_ window: NSWindow) {
         window.identifier = windowIdentifier
         window.titleVisibility = .hidden

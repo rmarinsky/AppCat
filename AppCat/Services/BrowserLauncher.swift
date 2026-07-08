@@ -153,20 +153,26 @@ final class BrowserLauncher {
     // MARK: - Open in native app
 
     func open(url: URL, with app: InstalledApp) {
-        // Step 1: Check if the app has a custom URL converter (like Browserosaurus convertUrl)
-        if let definition = AppDefinition.registryByID[app.id],
-           let convertURL = definition.convertURL,
-           let deepURL = convertURL(url)
-        {
-            Log.apps.info("Using convertURL for \(app.displayName): \(url) → \(deepURL)")
-            if NSWorkspace.shared.open(deepURL) {
-                Log.apps.info("Opened \(deepURL) with \(app.displayName) via converted URL")
-                return
-            }
-            Log.apps.warning("Converted URL open failed, falling back to direct open")
+        openCandidateURLs(Self.candidateURLs(for: url, app: app)[...], originalURL: url, app: app)
+    }
+
+    private func openCandidateURLs(_ urls: ArraySlice<URL>, originalURL: URL, app: InstalledApp) {
+        guard let url = urls.first else {
+            Log.apps.warning("Could not open \(originalURL) with \(app.displayName); activating selected app as fallback")
+            activate(app: app)
+            return
         }
 
-        // Step 2: Open the HTTPS URL directly with the app (like `open -a "AppName" URL`)
+        openWithSelectedApp(url, app: app) { [weak self] _ in
+            self?.openCandidateURLs(urls.dropFirst(), originalURL: originalURL, app: app)
+        }
+    }
+
+    private func openWithSelectedApp(
+        _ url: URL,
+        app: InstalledApp,
+        onFailure: @escaping @MainActor (Error) -> Void
+    ) {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
 
@@ -174,42 +180,52 @@ final class BrowserLauncher {
             [url],
             withApplicationAt: app.appURL,
             configuration: config
-        ) { _, error in
+        ) { openedApp, error in
             if let error {
-                guard !url.isFileURL else {
-                    Log.apps.error("Failed to open file with \(app.displayName): \(error.localizedDescription)")
-                    return
+                Log.apps.warning("Failed to open \(url) with \(app.displayName): \(error.localizedDescription)")
+                Task { @MainActor in onFailure(error) }
+                return
+            }
+
+            Log.apps.info("Opened \(url) with \(app.displayName)")
+            Task { @MainActor in
+                if let openedApp {
+                    self.activateRunningApplication(openedApp, displayName: app.displayName)
+                } else {
+                    self.activateRunningApp(bundleID: app.id)
                 }
-                Log.apps.warning("Direct open failed for \(app.displayName): \(error.localizedDescription), trying URL scheme")
-                // Step 3: Fallback to generic URL scheme transformation
-                Task { @MainActor in
-                    self.openViaScheme(url: url, app: app)
-                }
-            } else {
-                Log.apps.info("Opened \(url) with \(app.displayName)")
             }
         }
     }
 
-    private func openViaScheme(url: URL, app: InstalledApp) {
-        guard let scheme = app.urlSchemes.first,
-              var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        else {
-            Log.apps.error("No URL scheme available for \(app.displayName)")
-            return
+    static func candidateURLs(for url: URL, app: InstalledApp) -> [URL] {
+        var urls: [URL] = []
+        if !url.isFileURL,
+           let definition = AppDefinition.registryByID[app.id],
+           let deepURL = definition.convertURL?(url)
+        {
+            urls.append(deepURL)
         }
 
+        urls.append(url)
+
+        if !url.isFileURL,
+           let scheme = app.urlSchemes.first,
+           let schemeURL = fallbackSchemeURL(for: url, scheme: scheme),
+           !urls.contains(schemeURL)
+        {
+            urls.append(schemeURL)
+        }
+
+        return urls
+    }
+
+    static func fallbackSchemeURL(for url: URL, scheme: String) -> URL? {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
         components.scheme = scheme
-        guard let deepURL = components.url else {
-            Log.apps.error("Failed to construct deep link URL for \(app.displayName)")
-            return
-        }
-
-        if NSWorkspace.shared.open(deepURL) {
-            Log.apps.info("Opened \(deepURL) with \(app.displayName) via URL scheme")
-        } else {
-            Log.apps.error("Scheme open failed for \(app.displayName)")
-        }
+        return components.url
     }
 
     // MARK: - Helpers

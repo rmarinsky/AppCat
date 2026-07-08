@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+private enum PickerPanelViewID {
+    static let surface = NSUserInterfaceItemIdentifier("PickerPanelSurface")
+    static let glass = NSUserInterfaceItemIdentifier("PickerPanelGlass")
+    static let hosting = NSUserInterfaceItemIdentifier("PickerPanelHosting")
+}
+
 /// Borderless NSPanel returns false for canBecomeKey by default,
 /// which prevents keyboard and mouse input. Override to allow it.
 private class KeyablePanel: NSPanel {
@@ -37,42 +43,80 @@ final class PickerWindowController: NSObject {
         self.coordinator = coordinator
     }
 
+    /// Build the panel + SwiftUI hosting view without presenting — the first real show() then
+    /// skips window/view-graph construction. Safe to call once at launch; no-op if built.
+    func prewarm() {
+        guard panel == nil else { return }
+        let screen = screenNearCursor()
+        buildPanelIfNeeded(size: panelSize(for: screen))
+        panel?.layoutIfNeeded()
+        Log.picker.debug("Picker panel pre-warmed")
+    }
+
+    private func buildPanelIfNeeded(size: NSSize) {
+        guard panel == nil else { return }
+        let newPanel = makePanel(size: size)
+        panel = newPanel
+
+        let hostingView = NSHostingView(
+            rootView: PickerView()
+                .environment(appState)
+                .environment(\.pickerCoordinator, coordinator)
+        )
+        hostingView.identifier = PickerPanelViewID.hosting
+        hostingView.autoresizingMask = [.width, .height]
+        let container = pickerContentContainer(in: newPanel) ?? newPanel.contentView!
+        hostingView.frame = container.bounds
+        // Keep hosting view background transparent so vibrancy shows through
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        hostingView.layer?.isOpaque = false
+        installHostingView(hostingView, in: newPanel, fallbackContainer: container)
+    }
+
     func show() {
         isClosing = false
+        // Every show() starts a fresh session: a second link can arrive while the picker is
+        // already open (no close in between), and reusing the previous session's snapshot would
+        // render stale items in a panel sized and positioned for the wrong list.
+        appState.pickerItemsSnapshot = []
         seedPickerSnapshotIfPossible()
+        // Reset focus here, not only in the view's onAppear — after a pre-warm the hidden view
+        // has already "appeared" once and onAppear may not fire again for the real presentation.
+        appState.focusedBrowserIndex = 0
         let screen = screenNearCursor()
         let targetSize = panelSize(for: screen)
 
-        if panel == nil {
-            let newPanel = makePanel(size: targetSize)
-            self.panel = newPanel
-
-            let hostingView = NSHostingView(
-                rootView: PickerView()
-                    .environment(appState)
-                    .environment(\.pickerCoordinator, coordinator)
-            )
-            hostingView.autoresizingMask = [.width, .height]
-            hostingView.frame = newPanel.contentView!.bounds
-            // Keep hosting view background transparent so vibrancy shows through
-            hostingView.wantsLayer = true
-            hostingView.layer?.backgroundColor = .clear
-            newPanel.contentView?.addSubview(hostingView)
-        }
+        buildPanelIfNeeded(size: targetSize)
 
         guard let panel else { return }
         resizePanelIfNeeded(panel, to: targetSize)
+        // Material/corner radius differ between routing and app-switcher styles; a pre-warmed or
+        // reused panel may carry the other style's look, so re-apply on every show.
+        if let surfaceView = surfaceView(in: panel) {
+            applyPanelSurfaceAppearance(to: surfaceView)
+        }
+        if let visualEffect = materialView(in: panel) {
+            applyVisualEffectFallbackAppearance(to: visualEffect)
+        }
 
         positionPanel(panel, on: screen)
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
 
-        // Activate the app so macOS delivers key/mouse events to the panel.
-        // Use .accessory policy to avoid showing a dock icon.
-        NSApp.setActivationPolicy(.accessory)
-        NSApp.activate(ignoringOtherApps: true)
+        // Activate the app so macOS delivers key/mouse events to the panel. Demote to
+        // .accessory (no Dock icon) only when the main window isn't on screen — otherwise a
+        // link click while Settings is open would strip the app's Dock presence.
+        if !MainWindowActivation.isMainWindowVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
 
-        panel.makeKeyAndOrderFront(nil)
-        panel.makeFirstResponder(panel.contentView?.subviews.first)
+        if shouldActivateAppForCurrentPresentation {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
+            panel.makeFirstResponder(hostingView(in: panel))
+        } else {
+            panel.orderFrontRegardless()
+        }
 
         installMonitors()
 
@@ -89,11 +133,17 @@ final class PickerWindowController: NSObject {
         appState.pickerItemsSnapshot = []
         removeMonitors()
         panel?.orderOut(nil)
-        NSApp.setActivationPolicy(.accessory)
+        if !MainWindowActivation.isMainWindowVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
         DispatchQueue.main.async { [weak self] in
             self?.isClosing = false
         }
         Log.picker.debug("Picker dismissed")
+    }
+
+    private var shouldActivateAppForCurrentPresentation: Bool {
+        !(appState.isManualPickerPresentation && appState.pickerActivationMode == .holdOptionTab)
     }
 
     // MARK: - Monitors
@@ -186,10 +236,11 @@ final class PickerWindowController: NSObject {
             let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
 
             if canHandlePickerShortcut(event),
-               let item = PickerShortcutAssigner.item(
+               let item = PickerShortcutPolicy.item(
                    forKeyCode: pressedKeyCode,
                    in: items,
-                   positionalEnabled: appState.selectWithNumberKeys
+                   activationMode: appState.pickerActivationMode,
+                   selectWithNumberKeys: appState.selectWithNumberKeys
                )
             {
                 guard !event.isARepeat else { return true }
@@ -207,6 +258,7 @@ final class PickerWindowController: NSObject {
     }
 
     private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
+        guard appState.pickerActivationMode == .toggleShortcut else { return false }
         var blocked: NSEvent.ModifierFlags = [.command, .control]
         if appState.isManualPickerPresentation {
             blocked.insert([.shift, .option])
@@ -301,7 +353,8 @@ final class PickerWindowController: NSObject {
             activations: appState.appActivations,
             regularBundleIDs: appState.regularAppBundleIDs,
             showWindowlessApps: appState.showWindowlessApps,
-            showBackgroundApps: appState.showBackgroundApps
+            showBackgroundApps: appState.showBackgroundApps,
+            hiddenAppIDs: appState.hiddenPickerAppIDs
         )
     }
 
@@ -350,6 +403,59 @@ final class PickerWindowController: NSObject {
         return browserCount + appCount
     }
 
+    /// Rebuild the switcher snapshot after a live window-cache refresh landed while the picker
+    /// is on screen. Skips churn when the visible list is unchanged; otherwise keeps the user's
+    /// focused tile by remapping the focus index by item id, then re-fits the panel.
+    func refreshSnapshotForVisibleSession() {
+        guard appState.isPickerVisible, appState.isManualPickerPresentation, !isClosing else { return }
+
+        let oldItems = appState.pickerItemsSnapshot
+        let oldIndex = appState.focusedBrowserIndex
+        appState.pickerItemsSnapshot = []
+        refreshPickerItemsSnapshot()
+        let newItems = appState.pickerItemsSnapshot
+
+        guard !newItems.isEmpty else {
+            appState.pickerItemsSnapshot = oldItems
+            return
+        }
+        guard newItems.map(\.id) != oldItems.map(\.id) else { return }
+
+        appState.focusedBrowserIndex = Self.remappedFocusIndex(
+            oldItems: oldItems,
+            newItems: newItems,
+            oldIndex: oldIndex
+        )
+        if let panel {
+            let screen = screenNearCursor()
+            resizePanelIfNeeded(panel, to: panelSize(for: screen))
+            positionPanel(panel, on: screen)
+        }
+        Log.picker.debug("Picker snapshot refreshed in place (\(oldItems.count) → \(newItems.count) items)")
+    }
+
+    func moveFocusForVisibleSession(delta: Int) {
+        guard appState.isPickerVisible else { return }
+        clearTypeAheadBuffer()
+        moveFocusWrapping(delta, itemCount: itemCountForFocusNavigation())
+    }
+
+    func openFocusedItemForVisibleSession() {
+        guard appState.isPickerVisible else { return }
+        let items = pickerItemsForCurrentSession()
+        guard items.indices.contains(appState.focusedBrowserIndex) else { return }
+        open(items[appState.focusedBrowserIndex], source: .pickerHotkey)
+    }
+
+    /// Where focus should land after the item list is replaced: follow the focused item's id,
+    /// fall back to the same position clamped into bounds.
+    static func remappedFocusIndex(oldItems: [PickerItem], newItems: [PickerItem], oldIndex: Int) -> Int {
+        guard !newItems.isEmpty else { return 0 }
+        guard oldItems.indices.contains(oldIndex) else { return 0 }
+        let focusedID = oldItems[oldIndex].id
+        return newItems.firstIndex { $0.id == focusedID } ?? min(oldIndex, newItems.count - 1)
+    }
+
     private func seedPickerSnapshotIfPossible() {
         guard appState.pickerItemsSnapshot.isEmpty else { return }
         // For the no-URL apps/windows picker we need the running-apps cache to be warm, otherwise
@@ -392,15 +498,19 @@ final class PickerWindowController: NSObject {
     }
 
     private func panelSize(for screen: NSScreen) -> NSSize {
-        let style = presentationStyle
+        panelSurfaceSize(for: screen)
+    }
+
+    private func panelSurfaceSize(for screen: NSScreen) -> NSSize {
+        let scale = pickerScale
         let showsHint = appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
         return NSSize(
             width: PickerMetrics.panelWidth(
                 itemCount: itemCountForPanelSizing(),
                 availableWidth: screen.visibleFrame.width,
-                style: style
+                scale: scale
             ),
-            height: PickerMetrics.panelHeight(showsHint: showsHint, style: style)
+            height: PickerMetrics.panelHeight(showsHint: showsHint, scale: scale)
         )
     }
 
@@ -415,45 +525,185 @@ final class PickerWindowController: NSObject {
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
 
-        let visualEffect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-        visualEffect.wantsLayer = true
-        applyLiquidGlassAppearance(to: visualEffect)
-        panel.contentView = visualEffect
+        let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size), style: presentationStyle))
+        panel.contentView = surfaceView
 
         panel.delegate = self
 
         return panel
     }
 
-    private func applyLiquidGlassAppearance(to visualEffect: NSVisualEffectView) {
-        let style = presentationStyle
-        visualEffect.material = style == .appSwitcher ? .hudWindow : .popover
+    private func makePanelSurfaceView(frame: NSRect) -> NSView {
+        if #available(macOS 26.0, *) {
+            return makeGlassSurfaceView(frame: frame)
+        }
+
+        let surfaceView = NSView(frame: frame)
+        surfaceView.identifier = PickerPanelViewID.surface
+        surfaceView.wantsLayer = true
+        applyPanelSurfaceAppearance(to: surfaceView)
+
+        let visualEffect = NSVisualEffectView(frame: surfaceView.bounds)
+        visualEffect.autoresizingMask = [.width, .height]
+        visualEffect.wantsLayer = true
+        applyVisualEffectFallbackAppearance(to: visualEffect)
+        surfaceView.addSubview(visualEffect)
+        return surfaceView
+    }
+
+    @available(macOS 26.0, *)
+    private func makeGlassSurfaceView(frame: NSRect) -> NSGlassEffectContainerView {
+        let container = NSGlassEffectContainerView(frame: frame)
+        container.identifier = PickerPanelViewID.surface
+        container.spacing = 0
+
+        let glassView = NSGlassEffectView(frame: container.bounds)
+        glassView.identifier = PickerPanelViewID.glass
+        glassView.autoresizingMask = [.width, .height]
+        container.contentView = glassView
+
+        applyPanelSurfaceAppearance(to: container)
+        return container
+    }
+
+    private func applyPanelSurfaceAppearance(to surfaceView: NSView) {
+        let radius = PickerMetrics.panelCornerRadius(scale: pickerScale)
+        if #available(macOS 26.0, *) {
+            if let glassContainer = surfaceView as? NSGlassEffectContainerView {
+                glassContainer.spacing = 0
+            }
+            if let glassView = glassEffectView(in: surfaceView) {
+                glassView.style = .regular
+                glassView.cornerRadius = radius
+                glassView.tintColor = nil
+            }
+            return
+        }
+
+        surfaceView.wantsLayer = true
+        surfaceView.layer?.cornerRadius = radius
+        surfaceView.layer?.cornerCurve = .continuous
+        surfaceView.layer?.masksToBounds = true
+        surfaceView.layer?.backgroundColor = NSColor.clear.cgColor
+        surfaceView.layer?.isOpaque = false
+        surfaceView.layer?.borderWidth = 0
+        surfaceView.layer?.borderColor = nil
+    }
+
+    private func applyVisualEffectFallbackAppearance(to visualEffect: NSVisualEffectView) {
+        visualEffect.material = .hudWindow
         visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
-        visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(for: style)
+        visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(scale: pickerScale)
+        visualEffect.layer?.cornerCurve = .continuous
         visualEffect.layer?.masksToBounds = true
-        visualEffect.layer?.borderWidth = style == .appSwitcher ? 0.75 : 0.5
-        visualEffect.layer?.borderColor = NSColor.white.withAlphaComponent(style == .appSwitcher ? 0.22 : 0.14).cgColor
-        visualEffect.layer?.backgroundColor = NSColor.black.withAlphaComponent(style == .appSwitcher ? 0.10 : 0.06).cgColor
+        visualEffect.layer?.borderWidth = 0
+        visualEffect.layer?.borderColor = nil
+        visualEffect.layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    private func refreshPanelAppearance() {
+        guard let panel else { return }
+        if let surfaceView = surfaceView(in: panel) {
+            applyPanelSurfaceAppearance(to: surfaceView)
+        }
+        if let visualEffect = materialView(in: panel) {
+            applyVisualEffectFallbackAppearance(to: visualEffect)
+        }
+    }
+
+    private func materialView(in panel: NSPanel) -> NSVisualEffectView? {
+        panel.contentView.flatMap { firstDescendant(of: NSVisualEffectView.self, in: $0) }
+    }
+
+    private func surfaceView(in panel: NSPanel) -> NSView? {
+        panel.contentView.flatMap { firstDescendant(in: $0, matching: { $0.identifier == PickerPanelViewID.surface }) }
+    }
+
+    private func hostingView(in panel: NSPanel) -> NSView? {
+        panel.contentView.flatMap { firstDescendant(in: $0, matching: { $0.identifier == PickerPanelViewID.hosting }) }
+    }
+
+    private func pickerContentContainer(in panel: NSPanel) -> NSView? {
+        if #available(macOS 26.0, *), let glassView = glassEffectView(in: panel) {
+            return glassView.contentView ?? glassView
+        }
+        guard let surfaceView = surfaceView(in: panel) else { return panel.contentView }
+        return surfaceView
+    }
+
+    private func installHostingView(_ hostingView: NSView, in panel: NSPanel, fallbackContainer: NSView) {
+        if #available(macOS 26.0, *), let glassView = glassEffectView(in: panel) {
+            hostingView.frame = glassView.bounds
+            glassView.contentView = hostingView
+            return
+        }
+        fallbackContainer.addSubview(hostingView)
+    }
+
+    @available(macOS 26.0, *)
+    private func glassEffectView(in panel: NSPanel) -> NSGlassEffectView? {
+        panel.contentView.flatMap { glassEffectView(in: $0) }
+    }
+
+    @available(macOS 26.0, *)
+    private func glassEffectView(in root: NSView) -> NSGlassEffectView? {
+        firstDescendant(of: NSGlassEffectView.self, in: root)
+    }
+
+    private var pickerScale: CGFloat {
+        PickerMetrics.clampedScale(CGFloat(appState.pickerScale))
+    }
+
+    private func panelSurfaceFrame(in bounds: NSRect, style _: PickerPresentationStyle) -> NSRect {
+        bounds
+    }
+
+    private func firstDescendant<T: NSView>(of type: T.Type, in root: NSView) -> T? {
+        firstDescendant(in: root, matching: { $0 is T }) as? T
+    }
+
+    private func firstDescendant(in root: NSView, matching matches: (NSView) -> Bool) -> NSView? {
+        if matches(root) { return root }
+        for subview in root.subviews {
+            if matches(subview) { return subview }
+            if let nested = firstDescendant(in: subview, matching: matches) {
+                return nested
+            }
+        }
+        return nil
     }
 
     private func resizePanelIfNeeded(_ panel: NSPanel, to targetSize: NSSize) {
-        guard panel.frame.size != targetSize else { return }
-
-        panel.setContentSize(targetSize)
+        if panel.frame.size != targetSize {
+            panel.setContentSize(targetSize)
+        }
         if let contentView = panel.contentView {
             contentView.frame = NSRect(origin: .zero, size: targetSize)
-            if let visualEffect = contentView as? NSVisualEffectView {
-                applyLiquidGlassAppearance(to: visualEffect)
+            if let surfaceView = surfaceView(in: panel) {
+                applyPanelSurfaceAppearance(to: surfaceView)
+                layoutPanelSurfaceContent(surfaceView)
             }
-            for subview in contentView.subviews {
-                subview.frame = contentView.bounds
+            if let visualEffect = materialView(in: panel) {
+                applyVisualEffectFallbackAppearance(to: visualEffect)
             }
+        }
+    }
+
+    private func layoutPanelSurfaceContent(_ surfaceView: NSView) {
+        if #available(macOS 26.0, *), let glassView = glassEffectView(in: surfaceView) {
+            glassView.frame = surfaceView.bounds
+            glassView.contentView?.frame = glassView.bounds
+            return
+        }
+
+        for subview in surfaceView.subviews {
+            subview.frame = surfaceView.bounds
         }
     }
 
@@ -485,7 +735,7 @@ final class PickerWindowController: NSObject {
         // Position centered on cursor, shifted up slightly
         var origin = NSPoint(
             x: mouseLocation.x - panelSize.width / 2,
-            y: mouseLocation.y - panelSize.height / 2 + 40
+            y: mouseLocation.y - panelSize.height / 2 + 40 * pickerScale
         )
 
         // Clamp to screen edges
@@ -504,9 +754,22 @@ final class PickerWindowController: NSObject {
 // MARK: - NSWindowDelegate
 
 extension PickerWindowController: NSWindowDelegate {
+    nonisolated func windowDidBecomeKey(_: Notification) {
+        Task { @MainActor [weak self] in
+            self?.refreshPanelAppearance()
+        }
+    }
+
+    nonisolated func windowDidBecomeMain(_: Notification) {
+        Task { @MainActor [weak self] in
+            self?.refreshPanelAppearance()
+        }
+    }
+
     nonisolated func windowDidResignKey(_: Notification) {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            self.refreshPanelAppearance()
             guard !self.isClosing,
                   self.appState.isPickerVisible,
                   self.panel?.isVisible == true
