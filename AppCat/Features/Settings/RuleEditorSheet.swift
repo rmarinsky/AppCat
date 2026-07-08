@@ -23,10 +23,10 @@ struct RuleEditorSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    sectionCaption("MATCH")
+                    sectionCaption(String(localized: "MATCH"))
                     matchCard
 
-                    sectionCaption("DESTINATION")
+                    sectionCaption(String(localized: "DESTINATION"))
                     destinationCard
                 }
                 .padding(20)
@@ -41,17 +41,17 @@ struct RuleEditorSheet: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("URL Rule")
+                Text(String(localized: "URL Rule"))
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.primary)
-                Text("Match a link pattern and choose where it should open.")
+                Text(String(localized: "Match a link pattern and choose where it should open."))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
 
-            Toggle("Enabled", isOn: $rule.isEnabled)
+            Toggle(String(localized: "Enabled"), isOn: $rule.isEnabled)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
@@ -157,7 +157,7 @@ struct RuleEditorSheet: View {
             detail: String(localized: "AppCat will route matching links to this browser.")
         ) {
             Picker("", selection: $rule.browserID) {
-                Text("Select...").tag("")
+                Text(String(localized: "Select...")).tag("")
                 ForEach(browsers) { browser in
                     Text(browser.displayName).tag(browser.id)
                 }
@@ -175,7 +175,7 @@ struct RuleEditorSheet: View {
             detail: String(localized: "Any Profile uses the browser's last-used profile.")
         ) {
             Picker("", selection: profileBinding) {
-                Text("Any Profile").tag(String?.none)
+                Text(String(localized: "Any Profile")).tag(String?.none)
                 if let browser = selectedBrowser {
                     ForEach(browser.profiles) { profile in
                         Text(profileLabel(profile)).tag(Optional(profile.directoryName))
@@ -195,7 +195,7 @@ struct RuleEditorSheet: View {
             detail: String(localized: "AppCat will route matching links or files to this app.")
         ) {
             Picker("", selection: $rule.browserID) {
-                Text("Select...").tag("")
+                Text(String(localized: "Select...")).tag("")
                 ForEach(apps) { app in
                     Text(app.displayName).tag(app.id)
                 }
@@ -218,7 +218,7 @@ struct RuleEditorSheet: View {
                     Image(systemName: showRegexExamples ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                         .frame(width: 12)
-                    Text("Examples")
+                    Text(String(localized: "Examples"))
                         .font(.system(size: 12, weight: .medium))
                     Spacer()
                 }
@@ -251,7 +251,7 @@ struct RuleEditorSheet: View {
                         pattern: #"/work$"#,
                         description: String(localized: "The link must end with this. $ means \"end\".")
                     )
-                    Text("Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash.")
+                    Text(String(localized: "Tip: dots and slashes have a special meaning. Write \\. and \\/ to match a literal dot or slash."))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -265,7 +265,7 @@ struct RuleEditorSheet: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Button("Cancel", action: onCancel)
+            Button(String(localized: "Cancel"), action: onCancel)
                 .buttonStyle(.plain)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.primary)
@@ -286,7 +286,7 @@ struct RuleEditorSheet: View {
             Button {
                 onSave(rule)
             } label: {
-                Text("Save")
+                Text(String(localized: "Save"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
@@ -375,7 +375,7 @@ struct RuleEditorSheet: View {
                 Button {
                     rule.pattern = pattern
                 } label: {
-                    Text("Use")
+                    Text(String(localized: "Use"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Color("BrandAccentDeep"))
                 }

@@ -48,7 +48,7 @@ struct AppsScreenView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header
 
-                Text("Choose which apps open your files — and which formats each one handles.")
+                Text(String(localized: "Choose which apps open your files — and which formats each one handles."))
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
 
@@ -59,18 +59,18 @@ struct AppsScreenView: View {
                 }
 
                 if filteredInstalled.isEmpty, filteredSystem.isEmpty {
-                    Text(search.isEmpty ? "No apps detected." : "No apps match \u{201C}\(search)\u{201D}.")
+                    Text(emptyStateText)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .padding(.top, 4)
                 } else {
                     if !filteredInstalled.isEmpty {
-                        section(title: "INSTALLED · MOST USED FIRST", apps: filteredInstalled, showUsage: true)
+                        section(title: String(localized: "INSTALLED · MOST USED FIRST"), apps: filteredInstalled, showUsage: true)
                     }
                     if !filteredSystem.isEmpty {
-                        section(title: "APPLE & SYSTEM", apps: filteredSystem, showUsage: false)
+                        section(title: String(localized: "APPLE & SYSTEM"), apps: filteredSystem, showUsage: false)
                     }
-                    Text("System apps stay at the bottom. Toggle any app off to hide it from the picker.")
+                    Text(String(localized: "System apps stay at the bottom. Toggle any app off to hide it from the picker."))
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
@@ -102,8 +102,8 @@ struct AppsScreenView: View {
             Spacer()
             #if DEBUG
                 Menu {
-                    Button("Picker handoff") { testHandoff(.userPicked) }
-                    Button("Rule handoff") { testHandoff(.ruleMatched) }
+                    Button(String(localized: "Picker handoff")) { testHandoff(.userPicked) }
+                    Button(String(localized: "Rule handoff")) { testHandoff(.ruleMatched) }
                 } label: {
                     Image(systemName: "play.circle.fill")
                         .font(.system(size: 13, weight: .medium))
@@ -172,11 +172,11 @@ struct AppsScreenView: View {
             Image(systemName: "lock.shield")
                 .font(.system(size: 12))
                 .foregroundStyle(Color("BrandAccentDeep"))
-            Text("Grant Accessibility to see open windows & projects.")
+            Text(String(localized: "Grant Accessibility to see open windows & projects."))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Spacer()
-            Button("Open Settings") {
+            Button(String(localized: "Open Settings")) {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
                 }
@@ -197,7 +197,14 @@ struct AppsScreenView: View {
         )
     }
 
-    private func section(title: LocalizedStringKey, apps: [InstalledApp], showUsage: Bool) -> some View {
+    private var emptyStateText: String {
+        if search.isEmpty {
+            return String(localized: "No apps detected.")
+        }
+        return String(format: String(localized: "No apps match %@."), search)
+    }
+
+    private func section(title: String, apps: [InstalledApp], showUsage: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
@@ -261,7 +268,7 @@ struct AppsScreenView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     if windowCount >= 2 {
-                        Text("\(windowCount) windows")
+                        Text("\(windowCount) \(String(localized: "windows"))")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 6)
@@ -278,7 +285,7 @@ struct AppsScreenView: View {
             Spacer(minLength: 8)
 
             if showUsage, count > 0 {
-                Text("used \(count)×")
+                Text("\(String(localized: "used")) \(count)×")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
@@ -288,7 +295,7 @@ struct AppsScreenView: View {
             }
 
             Button { editingApp = app } label: {
-                Text("Edit formats")
+                Text(String(localized: "Edit formats"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 10)
@@ -328,14 +335,14 @@ struct AppsScreenView: View {
             editingHotkeyTarget = target
         } label: {
             HStack(spacing: 6) {
-                Text("Shortcut")
+                Text(String(localized: "Shortcut"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
                 if let key = app.hotkey {
                     SelectionKeycapView(key: key, compact: true, inline: true)
                 } else {
-                    Text("Set")
+                    Text(String(localized: "Set"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -367,7 +374,7 @@ struct AppsScreenView: View {
         let formats = app.fileFormats
         if formats.isEmpty {
             let handlesAll = AppDefinition.registryByID[app.id]?.handlesAllFiles == true
-            Text(handlesAll ? "Any file type" : "No declared formats")
+            Text(handlesAll ? String(localized: "Any file type") : String(localized: "No declared formats"))
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
         } else {

@@ -98,30 +98,32 @@ final class BrowserLauncher {
         }
     }
 
-    func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil, windowTarget: AppWindowTarget? = nil) {
+    @discardableResult
+    func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil, windowTarget: AppWindowTarget? = nil) -> Bool {
         if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.browser.info("Activated \(browser.displayName) window '\(windowTarget.title)'")
-            return
+            return true
         }
 
         if let profile {
             Log.browser.info("Ignoring profile '\(profile.displayName)' for manual activation of \(browser.displayName)")
         }
 
-        activateApplication(
+        return activateApplication(
             bundleID: browser.id,
             displayName: browser.displayName,
             reopenWindowlessWith: nil
         )
     }
 
-    func activate(app: InstalledApp, windowTarget: AppWindowTarget? = nil) {
+    @discardableResult
+    func activate(app: InstalledApp, windowTarget: AppWindowTarget? = nil) -> Bool {
         if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.apps.info("Activated \(app.displayName) window '\(windowTarget.title)'")
-            return
+            return true
         }
 
-        activateApplication(
+        return activateApplication(
             bundleID: app.id,
             displayName: app.displayName,
             reopenWindowlessWith: app.appURL
@@ -288,16 +290,16 @@ final class BrowserLauncher {
 
     // MARK: - Helpers
 
-    private func activateApplication(bundleID: String, displayName: String, reopenWindowlessWith appURL: URL?) {
+    private func activateApplication(bundleID: String, displayName: String, reopenWindowlessWith appURL: URL?) -> Bool {
         guard let runningApp = dependencies.runningApplication(bundleID) else {
             Log.apps.info("Skipping activation for \(displayName) because it is no longer running")
-            return
+            return false
         }
 
         activateRunningApplication(runningApp, displayName: displayName)
         if let appURL, dependencies.hasOpenWindows(bundleID) == false {
             reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
-            return
+            return true
         }
 
         retryActivateIfActivationDidNotStick(
@@ -306,6 +308,7 @@ final class BrowserLauncher {
             displayName: displayName,
             reopenWindowlessWith: appURL
         )
+        return true
     }
 
     @discardableResult

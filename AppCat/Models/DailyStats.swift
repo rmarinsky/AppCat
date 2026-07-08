@@ -8,6 +8,7 @@ struct DailyStats: Codable, Equatable {
     var autoRouteCount: Int
     var pickerHotkeyCount: Int
     var pickerClickCount: Int
+    var manualPickerSwitchCount: Int
     /// Per-rule usage counts — used to build the "Top rules" leaderboard.
     /// Capped to 50 rules per day to keep the file small.
     var rulesCounts: [UUID: Int]
@@ -19,6 +20,7 @@ struct DailyStats: Codable, Equatable {
         autoRouteCount: Int = 0,
         pickerHotkeyCount: Int = 0,
         pickerClickCount: Int = 0,
+        manualPickerSwitchCount: Int = 0,
         rulesCounts: [UUID: Int] = [:],
         secondsSaved: Int = 0
     ) {
@@ -26,6 +28,7 @@ struct DailyStats: Codable, Equatable {
         self.autoRouteCount = autoRouteCount
         self.pickerHotkeyCount = pickerHotkeyCount
         self.pickerClickCount = pickerClickCount
+        self.manualPickerSwitchCount = manualPickerSwitchCount
         self.rulesCounts = rulesCounts
         self.secondsSaved = secondsSaved
     }
@@ -36,6 +39,7 @@ struct DailyStats: Codable, Equatable {
         autoRouteCount = try container.decodeIfPresent(Int.self, forKey: .autoRouteCount) ?? 0
         pickerHotkeyCount = try container.decodeIfPresent(Int.self, forKey: .pickerHotkeyCount) ?? 0
         pickerClickCount = try container.decodeIfPresent(Int.self, forKey: .pickerClickCount) ?? 0
+        manualPickerSwitchCount = try container.decodeIfPresent(Int.self, forKey: .manualPickerSwitchCount) ?? 0
         rulesCounts = try container.decodeIfPresent([UUID: Int].self, forKey: .rulesCounts) ?? [:]
         secondsSaved = try container.decodeIfPresent(Int.self, forKey: .secondsSaved) ?? 0
     }

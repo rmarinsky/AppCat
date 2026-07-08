@@ -22,14 +22,14 @@ struct BrowsersSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("INSTALLED BROWSERS")
+                Text(String(localized: "INSTALLED BROWSERS"))
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(0.44)
                     .foregroundStyle(.tertiary)
 
                 card
 
-                Text("Drag to reorder · shortcut keys pick by position · assign a key to open a browser or profile directly")
+                Text(String(localized: "Drag to reorder · shortcut keys pick by position · assign a key to open a browser or profile directly"))
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -96,7 +96,7 @@ struct BrowsersSettingsView: View {
                 .foregroundStyle(.primary)
 
             if browser.hasProfiles {
-                Text("\(browser.profiles.count) profiles")
+                Text("\(browser.profiles.count) \(String(localized: "profiles"))")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)
@@ -232,14 +232,14 @@ struct BrowsersSettingsView: View {
             editingHotkeyTarget = target
         } label: {
             HStack(spacing: 6) {
-                Text(compact ? "Key" : "Shortcut")
+                Text(compact ? String(localized: "Key") : String(localized: "Shortcut"))
                     .font(.system(size: compact ? 10 : 11, weight: .medium))
                     .foregroundStyle(.secondary)
 
                 if let key {
                     SelectionKeycapView(key: key, compact: true, inline: true)
                 } else {
-                    Text("Set")
+                    Text(String(localized: "Set"))
                         .font(.system(size: compact ? 10 : 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }

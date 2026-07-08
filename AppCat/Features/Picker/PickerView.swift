@@ -702,7 +702,7 @@ struct PickerView: View {
                     Text("\(String(localized: "Open in")) \(item.displayName)")
                 }
             } else if let browser = item.browser {
-                Button("Open") {
+                Button(String(localized: "Open")) {
                     pickerCoordinator?.openURL(
                         with: browser,
                         mode: .normal,
@@ -712,13 +712,13 @@ struct PickerView: View {
                     )
                 }
                 if item.windowTarget == nil, browser.supportsPrivateMode {
-                    Button("Open Private") {
+                    Button(String(localized: "Open Private")) {
                         pickerCoordinator?.openURL(with: browser, mode: .privateMode, profile: item.profile, state: appState)
                     }
                 }
                 if item.windowTarget == nil, item.profile == nil && hasVisibleProfiles {
                     Divider()
-                    Menu("Open with Profile") {
+                    Menu(String(localized: "Open with Profile")) {
                         ForEach(browser.profiles.filter(\.isVisible)) { profile in
                             Button {
                                 pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
@@ -744,7 +744,7 @@ struct PickerView: View {
                 .font(.system(size: 9 * scale))
             Image(systemName: "shift")
                 .font(.system(size: 8 * scale, weight: .medium))
-            Text("+ key for private mode")
+            Text(String(localized: "+ key for private mode"))
                 .font(.system(size: 9 * scale))
         }
         .foregroundStyle(.secondary)

@@ -16,17 +16,17 @@
 "Set as Default" = "Зробити типовим";
 "Set as Default also makes AppCat the handler for browser-readable web files." = "«Зробити типовим» також призначає AppCat обробником web-файлів, які читають браузери.";
 "Set as Default handles http/https links. File handlers are configured below." = "«Зробити типовим» обробляє http/https посилання. Обробники файлів налаштовуються нижче.";
-"Set as Default also configures supported web and dev file handlers." = "«Зробити типовим» також налаштовує підтримувані web і dev file handlers.";
+"Set as Default also configures supported web and dev file handlers." = "«Зробити типовим» також реєструє підтримувані web і dev-файли.";
 "Web Files" = "Web-файли";
 "Web & Dev Files" = "Web і dev-файли";
 "AppCat handles web files" = "AppCat обробляє web-файли";
-"AppCat handles web and dev files" = "AppCat обробляє web і dev-файли";
+"AppCat handles web and dev files" = "AppCat обробляє файли для браузера і розробки";
 "AppCat does not handle web files" = "AppCat не обробляє web-файли";
-"AppCat does not handle web and dev files" = "AppCat не обробляє web і dev-файли";
+"AppCat does not handle web and dev files" = "AppCat не обробляє файли для браузера і розробки";
 "Set for Web Files" = "Зробити типовим для web-файлів";
 "Set for Files" = "Зробити типовим для файлів";
 "Applies to HTML, XHTML, SVG, web archive, web location, internet shortcut, and MHTML files." = "Застосовується до HTML, XHTML, SVG, web archive, web location, internet shortcut і MHTML файлів.";
-"Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Застосовується до файлів, які читають браузери, а також dev/config файлів: .env, YAML, shell scripts, Dockerfile, Makefile і systemd units.";
+"Applies to browser-readable files plus developer/config files like .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Застосовується до файлів для браузера і розробки: .env, YAML, shell scripts, Dockerfile, Makefile і systemd units.";
 "Startup" = "Запуск";
 "Launch at login" = "Запускати при вході";
 "Picker" = "Пікер";
@@ -56,8 +56,8 @@
 "SET KEY" = "ВСТАНОВИТИ КЛАВІШУ";
 "Key was already in use and has been reassigned" = "Клавішу вже було призначено, її перевизначено";
 
-"File handlers registered" = "File handlers зареєстровані";
-"File handlers not registered" = "File handlers не зареєстровані";
+"File handlers registered" = "Типи файлів зареєстровані";
+"File handlers not registered" = "Типи файлів не зареєстровані";
 "Needed for Finder double-click on .env, YAML, Dockerfile, Makefile, and similar files." = "Потрібно для double-click у Finder на .env, YAML, Dockerfile, Makefile та схожих файлах.";
 "Register" = "Зареєструвати";
 "No File Associations" = "Немає асоціацій файлів";
@@ -139,7 +139,7 @@
 
 "Open with Profile" = "Відкрити з профілем";
 "Open" = "Відкрити";
-"Open Private" = "Відкрити в приватному режимі";
+"Open Private" = "Відкрити приватне вікно";
 "Open in" = "Відкрити в";
 "+ key for private mode" = "+ клавіша для приватного режиму";
 "No URL" = "Немає URL";
@@ -236,18 +236,18 @@
 "DECISIONS SKIPPED · THIS YEAR" = "ЗЕКОНОМЛЕНО ЧАСУ · ЗА РІК";
 "TIME SAVED · THIS YEAR" = "ЗЕКОНОМЛЕНО ЧАСУ · ЦЬОГО РОКУ";
 "TIME SAVED · TOTAL" = "ЗЕКОНОМЛЕНО ЧАСУ · ЗАГАЛОМ";
-"which browser dialogs never seen" = "разів не довелося обирати браузер вручну";
+"which browser dialogs never seen" = "виборів браузера пропущено";
 "opens handled by AppCat this year" = "відкриттів через AppCat цього року";
 "opens handled by AppCat" = "відкриттів через AppCat";
 "hrs" = "год";
 "min" = "хв";
 "sec" = "с";
-"Links herded" = "Відкриттів загалом";
+"Links herded" = "Відкриттів через AppCat";
 "Total opens" = "Відкриттів загалом";
 "Auto-routed" = "За правилами";
 "Opened by rules" = "За правилами";
 "Active rules" = "Активні правила";
-"Links herded this week" = "Відкриттів за останні 7 днів";
+"Links herded this week" = "Відкриттів цього тижня";
 "Opens over the last 7 days" = "Відкриттів за останні 7 днів";
 "per day" = "по днях";
 "by day" = "по днях";
@@ -343,3 +343,43 @@
 "Choose which files AppCat opens in %@" = "Виберіть, які файли AppCat відкриває в %@";
 
 "Drag to reorder · number keys pick a browser · toggle profiles to show them in the picker" = "Перетягніть для зміни порядку · цифрові клавіші вибирають браузер · увімкніть профілі, щоб показати їх у пікері";
+
+"app switches" = "перемикань застосунків";
+"Estimate: ~7s per rule route, ~3s per picker hotkey, ~2s per picker click, +3s for profile routing, ~1s per manual app switch." = "Оцінка: ~7 с за маршрут правилом, ~3 с за hotkey у пікері, ~2 с за click у пікері, +3 с за маршрут у профіль, ~1 с за ручне перемикання застосунку.";
+
+"No apps detected." = "Застосунки не знайдені.";
+"No apps match %@." = "Немає застосунків за запитом «%@».";
+"INSTALLED · MOST USED FIRST" = "ВСТАНОВЛЕНІ · НАЙЧАСТІШІ ЗВЕРХУ";
+"APPLE & SYSTEM" = "APPLE І СИСТЕМНІ";
+"Picker handoff" = "Handoff пікера";
+"Rule handoff" = "Handoff правила";
+"Any file type" = "Будь-який тип файлу";
+"No declared formats" = "Немає заявлених форматів";
+"Formats are read from the app. Add or remove any to override what %@ opens." = "Формати зчитані із застосунку. Додайте або приберіть формати, щоб змінити, що відкриває %@.";
+"When macOS can't match a file's type, AppCat sends it to %@." = "Коли macOS не може визначити тип файлу, AppCat відправляє його в %@.";
+"profiles" = "профілів";
+"Key" = "Клавіша";
+
+"Check" = "Перевірити";
+"About the app" = "Про застосунок";
+"Update available" = "Доступне оновлення";
+"Current" = "Поточна";
+"Latest" = "Найновіша";
+"Checked" = "Перевірено";
+"today" = "сьогодні";
+"Update now" = "Оновити зараз";
+"Author" = "Автор";
+"I build practical macOS tools that remove small daily frictions from your work routine." = "Я роблю практичні macOS-інструменти, які прибирають дрібне щоденне тертя з робочої рутини.";
+"event platform" = "платформа для івентів";
+"support development" = "підтримати розробку";
+"Checking" = "Перевіряю";
+"Unavailable" = "Недоступно";
+"Current app" = "Поточна";
+"Installed" = "Встановлено";
+"Download" = "Завантажити";
+"Dictation and transcription for macOS" = "Диктування і транскрипція для macOS";
+"Press a key, say the thought, get clean text. Meeting recordings and Dynamic Notch feedback included." = "Натиснув клавішу, сказав думку, отримав чистий текст. Плюс записи зустрічей і Dynamic Notch feedback.";
+"Fixes text typed in the wrong keyboard layout" = "Виправляє текст, набраний не тією розкладкою";
+"Select text, press a shortcut, get the right language without retyping." = "Виділив текст, натиснув shortcut, отримав правильну мову без ручного перенабору.";
+"Control where links and files open" = "Контроль над тим, куди відкриваються посилання і файли";
+"Routes URLs, browsers, profiles, and apps without copy-paste between Chrome, Safari, Slack, and IDEs." = "Роутить URL, браузери, профілі й застосунки без копіпасту між Chrome, Safari, Slack і IDE.";

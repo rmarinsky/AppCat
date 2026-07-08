@@ -33,6 +33,9 @@ enum TimeSavedConstants {
     static let pickerHotkey: TimeInterval = 3
     /// Picker shown, user clicked or pressed Return on focused item.
     static let pickerClick: TimeInterval = 2
+    /// Manual app/window switch from the picker. This is intentionally small:
+    /// the user did choose a target faster, but no URL/file routing happened.
+    static let manualPickerSwitch: TimeInterval = 1
     /// Extra credit when the open targeted a specific browser *profile*, not just
     /// an app. The manual alternative there is longer — you'd also have to open
     /// the profile switcher and pick the right profile — so a profile-accurate
