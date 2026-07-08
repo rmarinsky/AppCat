@@ -208,14 +208,28 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(width, 684, accuracy: 0.001)
     }
 
-    func testAppSwitcherPanelCentersInVisibleFrame() {
-        let origin = PickerPanelPositioning.centeredOrigin(
+    func testPickerPanelPositionsNearCursor() {
+        let origin = PickerPanelPositioning.nearCursorOrigin(
+            mouseLocation: NSPoint(x: 700, y: 500),
             panelSize: NSSize(width: 352, height: 162),
-            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800)
+            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800),
+            scale: 1
         )
 
         XCTAssertEqual(origin.x, 524, accuracy: 0.001)
-        XCTAssertEqual(origin.y, 369, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 459, accuracy: 0.001)
+    }
+
+    func testPickerPanelPositionClampsToVisibleFrame() {
+        let origin = PickerPanelPositioning.nearCursorOrigin(
+            mouseLocation: NSPoint(x: 40, y: 30),
+            panelSize: NSSize(width: 352, height: 162),
+            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800),
+            scale: 1
+        )
+
+        XCTAssertEqual(origin.x, 108, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 58, accuracy: 0.001)
     }
 
     func testTypeAheadFocusesAppByName() {

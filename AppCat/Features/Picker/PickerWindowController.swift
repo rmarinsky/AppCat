@@ -16,11 +16,21 @@ private class KeyablePanel: NSPanel {
 }
 
 enum PickerPanelPositioning {
-    static func centeredOrigin(panelSize: NSSize, visibleFrame: NSRect) -> NSPoint {
-        NSPoint(
-            x: visibleFrame.midX - panelSize.width / 2,
-            y: visibleFrame.midY - panelSize.height / 2
+    static func nearCursorOrigin(
+        mouseLocation: NSPoint,
+        panelSize: NSSize,
+        visibleFrame: NSRect,
+        scale: CGFloat
+    ) -> NSPoint {
+        let scale = PickerMetrics.clampedScale(scale)
+        var origin = NSPoint(
+            x: mouseLocation.x - panelSize.width / 2,
+            y: mouseLocation.y - panelSize.height / 2 + 40 * scale
         )
+        let margin = PickerMetrics.screenMargin
+        origin.x = max(visibleFrame.minX + margin, min(origin.x, visibleFrame.maxX - panelSize.width - margin))
+        origin.y = max(visibleFrame.minY + margin, min(origin.y, visibleFrame.maxY - panelSize.height - margin))
+        return origin
     }
 }
 
@@ -91,8 +101,7 @@ final class PickerWindowController: NSObject {
 
         guard let panel else { return }
         resizePanelIfNeeded(panel, to: targetSize)
-        // Material/corner radius differ between routing and app-switcher styles; a pre-warmed or
-        // reused panel may carry the other style's look, so re-apply on every show.
+        // A pre-warmed or reused panel may carry stale layer state, so re-apply on every show.
         if let surfaceView = surfaceView(in: panel) {
             applyPanelSurfaceAppearance(to: surfaceView)
         }
@@ -493,10 +502,6 @@ final class PickerWindowController: NSObject {
 
     // MARK: - Panel
 
-    private var presentationStyle: PickerPresentationStyle {
-        appState.isManualPickerPresentation ? .appSwitcher : .routing
-    }
-
     private func panelSize(for screen: NSScreen) -> NSSize {
         panelSurfaceSize(for: screen)
     }
@@ -529,7 +534,7 @@ final class PickerWindowController: NSObject {
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
 
-        let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size), style: presentationStyle))
+        let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size)))
         panel.contentView = surfaceView
 
         panel.delegate = self
@@ -659,7 +664,7 @@ final class PickerWindowController: NSObject {
         PickerMetrics.clampedScale(CGFloat(appState.pickerScale))
     }
 
-    private func panelSurfaceFrame(in bounds: NSRect, style _: PickerPresentationStyle) -> NSRect {
+    private func panelSurfaceFrame(in bounds: NSRect) -> NSRect {
         bounds
     }
 
@@ -715,33 +720,16 @@ final class PickerWindowController: NSObject {
     }
 
     private func positionPanel(_ panel: NSPanel, on screen: NSScreen) {
-        if presentationStyle == .appSwitcher {
-            panel.setFrameOrigin(PickerPanelPositioning.centeredOrigin(
-                panelSize: panel.frame.size,
-                visibleFrame: screen.visibleFrame
-            ))
-            return
-        }
-
         positionNearCursor(panel, on: screen)
     }
 
     private func positionNearCursor(_ panel: NSPanel, on screen: NSScreen) {
-        let mouseLocation = NSEvent.mouseLocation
-        let panelSize = panel.frame.size
-        let visibleFrame = screen.visibleFrame
-
-        // Position centered on cursor, shifted up slightly
-        var origin = NSPoint(
-            x: mouseLocation.x - panelSize.width / 2,
-            y: mouseLocation.y - panelSize.height / 2 + 40 * pickerScale
-        )
-
-        // Clamp to screen edges
-        origin.x = max(visibleFrame.minX + 8, min(origin.x, visibleFrame.maxX - panelSize.width - 8))
-        origin.y = max(visibleFrame.minY + 8, min(origin.y, visibleFrame.maxY - panelSize.height - 8))
-
-        panel.setFrameOrigin(origin)
+        panel.setFrameOrigin(PickerPanelPositioning.nearCursorOrigin(
+            mouseLocation: NSEvent.mouseLocation,
+            panelSize: panel.frame.size,
+            visibleFrame: screen.visibleFrame,
+            scale: pickerScale
+        ))
     }
 
     private func itemCountForPanelSizing() -> Int {
