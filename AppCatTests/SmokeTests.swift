@@ -600,6 +600,27 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(item.displayName, "Chrome - Work")
     }
 
+    @MainActor
+    func testManualPickerShowsRunningBrowserAsAppTileInsteadOfProfileAction() {
+        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
+        var browser = makeBrowser(profiles: [profile], profileType: .chromium)
+        browser.isVisible = false
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [browser],
+            allBrowsers: [browser],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [browser.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [browser.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), [browser.id])
+        XCTAssertNil(items[0].profile)
+    }
+
     func testWebFilesPutBrowsersBeforeAppsInPickerOrder() throws {
         let htmlURL = try makeTempFile(named: "index.html")
         let yamlURL = try makeTempFile(named: "config.yaml")

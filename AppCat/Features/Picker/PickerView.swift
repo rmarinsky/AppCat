@@ -378,7 +378,7 @@ struct PickerItem: Identifiable {
 
     private static func browserSwitcherItems(for browser: InstalledBrowser, windows: [AppWindowTarget]) -> [PickerItem] {
         guard windows.count >= 2 else {
-            return browser.isVisible ? [PickerItem(browser: browser)] : buildItems(browsers: [browser], apps: [])
+            return [PickerItem(browser: browser)]
         }
         return windows.map { PickerItem(browser: browser, windowTarget: $0) }
     }

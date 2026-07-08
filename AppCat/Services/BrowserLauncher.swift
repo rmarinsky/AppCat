@@ -2,11 +2,78 @@ import AppKit
 import os
 
 @MainActor
+protocol BrowserLauncherRunningApplication: AnyObject {
+    var isActive: Bool { get }
+    var isTerminated: Bool { get }
+    var localizedName: String? { get }
+    var processIdentifier: pid_t { get }
+
+    @discardableResult func activate(options: NSApplication.ActivationOptions) -> Bool
+    @discardableResult func unhide() -> Bool
+}
+
+extension NSRunningApplication: BrowserLauncherRunningApplication {}
+
+@MainActor
 final class BrowserLauncher {
     enum OpenMode {
         case normal
         case background
         case privateMode
+    }
+
+    struct Dependencies {
+        var activateWindowTarget: @MainActor (AppWindowTarget) -> Bool
+        var runningApplication: @MainActor (String) -> BrowserLauncherRunningApplication?
+        var hasOpenWindows: @MainActor (String) -> Bool?
+        var openURLs: @MainActor ([URL], URL, NSWorkspace.OpenConfiguration, @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
+        var sendReopenEvent: @MainActor (BrowserLauncherRunningApplication, String) -> Void
+        var runExecutable: @MainActor (String, [String]) throws -> Void
+        var schedule: @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> Void
+
+        static let live = Dependencies(
+            activateWindowTarget: { WindowEnumerator.activate($0) },
+            runningApplication: { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first },
+            hasOpenWindows: { WindowEnumerator.hasOpenWindows(bundleID: $0) },
+            openURLs: { urls, appURL, configuration, completion in
+                NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: configuration) { app, error in
+                    Task { @MainActor in completion(app, error) }
+                }
+            },
+            sendReopenEvent: { app, displayName in
+                let target = NSAppleEventDescriptor(processIdentifier: app.processIdentifier)
+                let event = NSAppleEventDescriptor.appleEvent(
+                    withEventClass: AEEventClass(kCoreEventClass),
+                    eventID: AEEventID(kAEReopenApplication),
+                    targetDescriptor: target,
+                    returnID: AEReturnID(kAutoGenerateReturnID),
+                    transactionID: AETransactionID(kAnyTransactionID)
+                )
+                do {
+                    _ = try event.sendEvent(options: [.noReply, .canSwitchLayer], timeout: 1)
+                } catch {
+                    Log.apps.debug("Reopen event for \(displayName) failed: \(error.localizedDescription)")
+                }
+            },
+            runExecutable: { executablePath, arguments in
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: executablePath)
+                process.arguments = arguments
+                try process.run()
+            },
+            schedule: { delay, action in
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    action()
+                }
+            }
+        )
+    }
+
+    private let dependencies: Dependencies
+
+    init(dependencies: Dependencies = .live) {
+        self.dependencies = dependencies
     }
 
     func open(url: URL, with browser: InstalledBrowser, mode: OpenMode = .normal, profile: BrowserProfile? = nil) {
@@ -32,33 +99,32 @@ final class BrowserLauncher {
     }
 
     func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil, windowTarget: AppWindowTarget? = nil) {
-        if let windowTarget, WindowEnumerator.activate(windowTarget) {
+        if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.browser.info("Activated \(browser.displayName) window '\(windowTarget.title)'")
             return
         }
 
         if let profile {
-            openProfileWindow(browser: browser, profile: profile)
-            return
+            Log.browser.info("Ignoring profile '\(profile.displayName)' for manual activation of \(browser.displayName)")
         }
 
         activateApplication(
             bundleID: browser.id,
-            appURL: browser.appURL,
-            displayName: browser.displayName
+            displayName: browser.displayName,
+            reopenWindowlessWith: nil
         )
     }
 
     func activate(app: InstalledApp, windowTarget: AppWindowTarget? = nil) {
-        if let windowTarget, WindowEnumerator.activate(windowTarget) {
+        if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.apps.info("Activated \(app.displayName) window '\(windowTarget.title)'")
             return
         }
 
         activateApplication(
             bundleID: app.id,
-            appURL: app.appURL,
-            displayName: app.displayName
+            displayName: app.displayName,
+            reopenWindowlessWith: app.appURL
         )
     }
 
@@ -70,10 +136,10 @@ final class BrowserLauncher {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = !inBackground
 
-        NSWorkspace.shared.open(
+        dependencies.openURLs(
             urls,
-            withApplicationAt: browser.appURL,
-            configuration: config
+            browser.appURL,
+            config
         ) { _, error in
             if let error {
                 Log.browser.error("Failed to open \(urls.count) URL(s) with \(browser.displayName): \(error.localizedDescription)")
@@ -96,12 +162,8 @@ final class BrowserLauncher {
             .appendingPathComponent(executableName(for: browser))
             .path
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = args + urls.map(\.absoluteString)
-
         do {
-            try process.run()
+            try dependencies.runExecutable(executablePath, args + urls.map(\.absoluteString))
             Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in private mode")
             activateRunningApp(bundleID: browser.id)
         } catch {
@@ -136,12 +198,8 @@ final class BrowserLauncher {
 
         args.append(contentsOf: urls.map(\.absoluteString))
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = args
-
         do {
-            try process.run()
+            try dependencies.runExecutable(executablePath, args)
             Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) profile '\(profile.displayName)'")
             activateRunningApp(bundleID: browser.id)
         } catch {
@@ -176,10 +234,10 @@ final class BrowserLauncher {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
 
-        NSWorkspace.shared.open(
+        dependencies.openURLs(
             [url],
-            withApplicationAt: app.appURL,
-            configuration: config
+            app.appURL,
+            config
         ) { openedApp, error in
             if let error {
                 Log.apps.warning("Failed to open \(url) with \(app.displayName): \(error.localizedDescription)")
@@ -230,61 +288,36 @@ final class BrowserLauncher {
 
     // MARK: - Helpers
 
-    private func activateApplication(bundleID: String, appURL: URL, displayName: String) {
-        if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-            activateRunningApplication(runningApp, displayName: displayName)
-            if WindowEnumerator.hasOpenWindows(bundleID: bundleID) == false {
-                reopenApplication(bundleID: bundleID, appURL: appURL, displayName: displayName)
-                return
-            }
-            retryLaunchIfActivationDidNotStick(
-                runningApp,
-                bundleID: bundleID,
-                appURL: appURL,
-                displayName: displayName
-            )
+    private func activateApplication(bundleID: String, displayName: String, reopenWindowlessWith appURL: URL?) {
+        guard let runningApp = dependencies.runningApplication(bundleID) else {
+            Log.apps.info("Skipping activation for \(displayName) because it is no longer running")
             return
         }
 
-        launchApplication(bundleID: bundleID, appURL: appURL, displayName: displayName)
-    }
-
-    private func reopenApplication(bundleID: String, appURL: URL, displayName: String) {
-        Log.apps.info("Reopening \(displayName) because it is running without open windows")
-        launchApplication(bundleID: bundleID, appURL: appURL, displayName: displayName)
-    }
-
-    private func launchApplication(bundleID: String, appURL: URL, displayName: String) {
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.openApplication(at: appURL, configuration: config) { launchedApp, error in
-            if let error {
-                Log.apps.error("Failed to activate \(displayName): \(error.localizedDescription)")
-            } else {
-                Log.apps.info("Launched \(displayName)")
-                Task { @MainActor in
-                    if let launchedApp {
-                        self.activateRunningApplication(launchedApp, displayName: displayName)
-                        self.sendReopenEvent(to: launchedApp, displayName: displayName)
-                    } else if let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
-                        self.activateRunningApplication(runningApp, displayName: displayName)
-                        self.sendReopenEvent(to: runningApp, displayName: displayName)
-                    }
-                }
-            }
+        activateRunningApplication(runningApp, displayName: displayName)
+        if let appURL, dependencies.hasOpenWindows(bundleID) == false {
+            reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
+            return
         }
+
+        retryActivateIfActivationDidNotStick(
+            runningApp,
+            bundleID: bundleID,
+            displayName: displayName,
+            reopenWindowlessWith: appURL
+        )
     }
 
     @discardableResult
-    private func activateRunningApplication(_ app: NSRunningApplication, displayName: String) -> Bool {
+    private func activateRunningApplication(_ app: BrowserLauncherRunningApplication, displayName: String) -> Bool {
         app.unhide()
         let options = strongActivationOptions
         let activated = app.activate(options: options)
         Log.apps.info("Activated \(displayName)")
 
         for delay in [0.15, 0.55] {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            dependencies.schedule(delay) { [weak app] in
+                guard let app else { return }
                 guard !app.isTerminated else { return }
                 app.unhide()
                 app.activate(options: options)
@@ -302,84 +335,44 @@ final class BrowserLauncher {
         return options
     }
 
-    private func retryLaunchIfActivationDidNotStick(
-        _ runningApp: NSRunningApplication,
+    private func retryActivateIfActivationDidNotStick(
+        _ runningApp: BrowserLauncherRunningApplication,
         bundleID: String,
+        displayName: String,
+        reopenWindowlessWith appURL: URL?
+    ) {
+        dependencies.schedule(0.35) { [weak self, weak runningApp] in
+            guard let self, let runningApp else { return }
+            guard !runningApp.isTerminated else { return }
+            let hasOpenWindows = self.dependencies.hasOpenWindows(bundleID)
+            guard !runningApp.isActive || hasOpenWindows == false else { return }
+            if let appURL, hasOpenWindows == false {
+                reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
+                return
+            }
+            activateRunningApplication(runningApp, displayName: displayName)
+        }
+    }
+
+    private func reopenWindowlessApplication(
+        _ app: BrowserLauncherRunningApplication,
         appURL: URL,
         displayName: String
     ) {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            guard !runningApp.isTerminated else { return }
-            let hasOpenWindows = WindowEnumerator.hasOpenWindows(bundleID: bundleID)
-            guard !runningApp.isActive || hasOpenWindows == false else { return }
-            if hasOpenWindows == false {
-                reopenApplication(bundleID: bundleID, appURL: appURL, displayName: displayName)
-            } else {
-                launchApplication(bundleID: bundleID, appURL: appURL, displayName: displayName)
-            }
-        }
-    }
-
-    private func sendReopenEvent(to app: NSRunningApplication, displayName: String) {
-        let target = NSAppleEventDescriptor(processIdentifier: app.processIdentifier)
-        let event = NSAppleEventDescriptor.appleEvent(
-            withEventClass: AEEventClass(kCoreEventClass),
-            eventID: AEEventID(kAEReopenApplication),
-            targetDescriptor: target,
-            returnID: AEReturnID(kAutoGenerateReturnID),
-            transactionID: AETransactionID(kAnyTransactionID)
-        )
-        do {
-            _ = try event.sendEvent(options: [.noReply, .canSwitchLayer], timeout: 1)
-        } catch {
-            Log.apps.debug("Reopen event for \(displayName) failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func openProfileWindow(browser: InstalledBrowser, profile: BrowserProfile) {
-        guard browser.profileType != nil else {
-            activate(browser: browser)
-            return
-        }
-
-        let executablePath = browser.appURL
-            .appendingPathComponent("Contents/MacOS")
-            .appendingPathComponent(executableName(for: browser))
-            .path
-
-        var args: [String] = []
-        switch browser.profileType {
-        case .chromium:
-            args.append("--profile-directory=\(profile.directoryName)")
-        case .firefox:
-            args.append(contentsOf: ["-P", profile.displayName])
-        case nil:
-            break
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = args
-
-        do {
-            try process.run()
-            Log.browser.info("Activated \(browser.displayName) profile '\(profile.displayName)'")
-            activateRunningApp(bundleID: browser.id)
-        } catch {
-            Log.browser.error("Failed to activate profile for \(browser.displayName): \(error.localizedDescription)")
-            activate(browser: browser)
-        }
+        Log.apps.info("Reopening \(displayName) because it is running without open windows at \(appURL.path)")
+        dependencies.sendReopenEvent(app, displayName)
+        activateRunningApplication(app, displayName: displayName)
     }
 
     private func activateRunningApp(bundleID: String) {
-        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-        if let app = running.first {
+        if let app = dependencies.runningApplication(bundleID) {
             activateRunningApplication(app, displayName: app.localizedName ?? bundleID)
         } else {
             // Browser is still launching — wait briefly then activate
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else { return }
+            dependencies.schedule(0.8) { [weak self] in
+                guard let self,
+                      let app = self.dependencies.runningApplication(bundleID)
+                else { return }
                 self.activateRunningApplication(app, displayName: app.localizedName ?? bundleID)
             }
         }
