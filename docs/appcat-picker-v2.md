@@ -30,7 +30,7 @@ Used when the user invokes the picker manually with no pending URL or file.
 
 Content rules:
 
-- One horizontal row of app/window items using the same near-cursor floating surface as the routing picker.
+- One centered horizontal row of app/window items using the same floating surface styling as the routing picker.
 - Visible app windows are first-class items in the row.
 - Running apps without windows are optional and appear dimmed when enabled.
 - Background and menu-bar apps are optional and hidden by default.

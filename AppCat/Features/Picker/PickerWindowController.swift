@@ -16,6 +16,13 @@ private class KeyablePanel: NSPanel {
 }
 
 enum PickerPanelPositioning {
+    static func centeredOrigin(panelSize: NSSize, visibleFrame: NSRect) -> NSPoint {
+        NSPoint(
+            x: visibleFrame.midX - panelSize.width / 2,
+            y: visibleFrame.midY - panelSize.height / 2
+        )
+    }
+
     static func nearCursorOrigin(
         mouseLocation: NSPoint,
         panelSize: NSSize,
@@ -720,6 +727,14 @@ final class PickerWindowController: NSObject {
     }
 
     private func positionPanel(_ panel: NSPanel, on screen: NSScreen) {
+        if appState.isManualPickerPresentation {
+            panel.setFrameOrigin(PickerPanelPositioning.centeredOrigin(
+                panelSize: panel.frame.size,
+                visibleFrame: screen.visibleFrame
+            ))
+            return
+        }
+
         positionNearCursor(panel, on: screen)
     }
 

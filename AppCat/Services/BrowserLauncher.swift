@@ -112,7 +112,7 @@ final class BrowserLauncher {
         return activateApplication(
             bundleID: browser.id,
             displayName: browser.displayName,
-            reopenWindowlessWith: nil
+            reopenWindowlessWith: browser.appURL
         )
     }
 

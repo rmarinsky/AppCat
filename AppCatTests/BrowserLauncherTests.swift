@@ -3,18 +3,18 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
-    func testManualActivationOfWindowlessRunningBrowserOnlyActivatesExistingApp() {
+    func testManualActivationOfWindowlessRunningBrowserSendsReopenEventToExistingApp() {
         let app = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: false)
         let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let browser = makeBrowser()
 
-        launcher.activate(browser: makeBrowser())
-        world.drainScheduledActions()
+        launcher.activate(browser: browser)
 
         XCTAssertGreaterThanOrEqual(app.activateCount, 2)
         XCTAssertGreaterThanOrEqual(app.unhideCount, 2)
         XCTAssertTrue(world.openedURLs.isEmpty)
-        XCTAssertTrue(world.reopenEvents.isEmpty)
+        XCTAssertEqual(world.reopenEvents, [browser.displayName])
         XCTAssertTrue(world.executableRuns.isEmpty)
     }
 

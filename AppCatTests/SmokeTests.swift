@@ -208,7 +208,17 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(width, 684, accuracy: 0.001)
     }
 
-    func testPickerPanelPositionsNearCursor() {
+    func testManualPickerPanelCentersInVisibleFrame() {
+        let origin = PickerPanelPositioning.centeredOrigin(
+            panelSize: NSSize(width: 352, height: 162),
+            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800)
+        )
+
+        XCTAssertEqual(origin.x, 524, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 369, accuracy: 0.001)
+    }
+
+    func testRoutingPickerPanelPositionsNearCursor() {
         let origin = PickerPanelPositioning.nearCursorOrigin(
             mouseLocation: NSPoint(x: 700, y: 500),
             panelSize: NSSize(width: 352, height: 162),
@@ -220,7 +230,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(origin.y, 459, accuracy: 0.001)
     }
 
-    func testPickerPanelPositionClampsToVisibleFrame() {
+    func testRoutingPickerPanelPositionClampsToVisibleFrame() {
         let origin = PickerPanelPositioning.nearCursorOrigin(
             mouseLocation: NSPoint(x: 40, y: 30),
             panelSize: NSSize(width: 352, height: 162),
