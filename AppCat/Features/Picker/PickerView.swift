@@ -489,16 +489,16 @@ enum PickerMetrics {
         scaled(panelCornerRadiusBase, by: scale)
     }
 
-    static func panelHeight(
-        showsHint: Bool,
-        scale: CGFloat = 1
-    ) -> CGFloat {
-        let base = tileHeight + tileVerticalPadding * 2 + (showsHint ? hintHeightBase : 0)
-        return scaled(base, by: scale)
+    static func panelHeight(scale: CGFloat = 1) -> CGFloat {
+        scaled(tileHeight + tileVerticalPadding * 2, by: scale)
     }
 
     static func hintHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(hintHeightBase, by: scale)
+    }
+
+    static func hintBottomInset(scale: CGFloat = 1) -> CGFloat {
+        scaled(5, by: scale)
     }
 
     static func contentWidth(
@@ -603,10 +603,10 @@ struct PickerView: View {
             selectWithNumberKeys: appState.selectWithNumberKeys
         )
         let showsIncognitoHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
-        let panelHeight = PickerMetrics.panelHeight(showsHint: showsIncognitoHint, scale: scale)
+        let panelHeight = PickerMetrics.panelHeight(scale: scale)
         let scrollHeight = PickerMetrics.scrollHeight(scale: scale)
 
-        return VStack(spacing: 0) {
+        return ZStack(alignment: .bottom) {
             ScrollViewReader { proxy in
                 GeometryReader { geometry in
                     let contentOverflows = PickerMetrics.contentWidth(
@@ -625,7 +625,7 @@ struct PickerView: View {
                                     style: style,
                                     scale: scale
                                 )
-                                    .id(item.id)
+                                .id(item.id)
                             }
                         }
                         .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
@@ -643,6 +643,8 @@ struct PickerView: View {
 
             if showsIncognitoHint {
                 compactHintBar(scale: scale)
+                    .padding(.bottom, PickerMetrics.hintBottomInset(scale: scale))
+                    .allowsHitTesting(false)
             }
         }
         .onAppear {
@@ -748,6 +750,7 @@ struct PickerView: View {
                 .font(.system(size: 9 * scale))
         }
         .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
         .frame(height: PickerMetrics.hintHeight(scale: scale), alignment: .center)
     }
 
@@ -989,7 +992,7 @@ struct AppCell: View {
         let focusCornerRadius = PickerMetrics.focusCornerRadius(scale: scale)
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false
 
-        return VStack(spacing: (style == .appSwitcher ? 4 : 2) * scale) {
+        return VStack(spacing: 4 * scale) {
             ZStack {
                 if let icon = app.icon {
                     Image(nsImage: icon)
@@ -1009,7 +1012,7 @@ struct AppCell: View {
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                         .fill(.ultraThinMaterial)
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
-                        .fill(Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.18 : 0.14))
+                        .fill(Color("BrandAccentDeep").opacity(0.18))
                 }
             }
             .overlay(
@@ -1020,9 +1023,9 @@ struct AppCell: View {
                     )
             )
             .shadow(
-                color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
-                radius: (style == .appSwitcher ? 12 : 5) * scale,
-                y: (style == .appSwitcher ? 5 : 2) * scale
+                color: isFocused ? Color("BrandAccentDeep").opacity(0.24) : .clear,
+                radius: 12 * scale,
+                y: 5 * scale
             )
 
             Text(title)

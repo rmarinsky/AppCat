@@ -142,12 +142,16 @@ final class BrowserLauncher {
             urls,
             browser.appURL,
             config
-        ) { _, error in
+        ) { [weak self] openedApp, error in
+            guard let self else { return }
             if let error {
                 Log.browser.error("Failed to open \(urls.count) URL(s) with \(browser.displayName): \(error.localizedDescription)")
             } else {
                 let mode = inBackground ? "background" : "foreground"
                 Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in \(mode)")
+                if !inBackground {
+                    activateBrowserIfWindowlessAfterOpen(browser, openedApp: openedApp)
+                }
             }
         }
     }
@@ -378,6 +382,18 @@ final class BrowserLauncher {
                 else { return }
                 self.activateRunningApplication(app, displayName: app.localizedName ?? bundleID)
             }
+        }
+    }
+
+    private func activateBrowserIfWindowlessAfterOpen(
+        _ browser: InstalledBrowser,
+        openedApp: BrowserLauncherRunningApplication?
+    ) {
+        guard dependencies.hasOpenWindows(browser.id) == false else { return }
+        if let openedApp {
+            activateRunningApplication(openedApp, displayName: browser.displayName)
+        } else {
+            activateRunningApp(bundleID: browser.id)
         }
     }
 

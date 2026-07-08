@@ -185,6 +185,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, scale: scale), 461.7, accuracy: 0.001)
     }
 
+    func testPrivateModeHintStaysInsideStandardPickerHeight() {
+        XCTAssertEqual(PickerMetrics.panelHeight(), PickerMetrics.scrollHeight(), accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.hintBottomInset(), 5, accuracy: 0.001)
+    }
+
     func testPickerIconGapUsesCompactAppSwitcherSpacing() {
         let iconGap = PickerMetrics.itemWidth()
             - PickerMetrics.iconSize()

@@ -503,14 +503,13 @@ final class PickerWindowController: NSObject {
 
     private func panelSurfaceSize(for screen: NSScreen) -> NSSize {
         let scale = pickerScale
-        let showsHint = appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
         return NSSize(
             width: PickerMetrics.panelWidth(
                 itemCount: itemCountForPanelSizing(),
                 availableWidth: screen.visibleFrame.width,
                 scale: scale
             ),
-            height: PickerMetrics.panelHeight(showsHint: showsHint, scale: scale)
+            height: PickerMetrics.panelHeight(scale: scale)
         )
     }
 

@@ -70,7 +70,7 @@ struct BrowserCell: View {
         let hotkey = displayHotkey
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false || hotkey != nil
 
-        return VStack(spacing: (style == .appSwitcher ? 4 : 2) * scale) {
+        return VStack(spacing: 4 * scale) {
             ZStack(alignment: .bottomLeading) {
                 if let icon = browser.icon {
                     Image(nsImage: icon)
@@ -98,7 +98,7 @@ struct BrowserCell: View {
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
                         .fill(.ultraThinMaterial)
                     RoundedRectangle(cornerRadius: focusCornerRadius, style: .continuous)
-                        .fill(Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.18 : 0.14))
+                        .fill(Color("BrandAccentDeep").opacity(0.18))
                 }
             }
             .overlay(
@@ -109,9 +109,9 @@ struct BrowserCell: View {
                     )
             )
             .shadow(
-                color: isFocused ? Color("BrandAccentDeep").opacity(style == .appSwitcher ? 0.24 : 0.12) : .clear,
-                radius: (style == .appSwitcher ? 12 : 5) * scale,
-                y: (style == .appSwitcher ? 5 : 2) * scale
+                color: isFocused ? Color("BrandAccentDeep").opacity(0.24) : .clear,
+                radius: 12 * scale,
+                y: 5 * scale
             )
 
             HStack(spacing: 3 * scale) {

@@ -93,6 +93,43 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testNormalURLOpenReactivatesRunningBrowserWithoutWindows() throws {
+        let app = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: false)
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let browser = makeBrowser()
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+
+        launcher.open(urls: [url], with: browser)
+        world.drainScheduledActions()
+
+        XCTAssertEqual(world.openedURLs.count, 1)
+        XCTAssertEqual(world.openedURLs[0].urls, [url])
+        XCTAssertGreaterThanOrEqual(app.activateCount, 2)
+        XCTAssertGreaterThanOrEqual(app.unhideCount, 2)
+        XCTAssertTrue(world.reopenEvents.isEmpty)
+        XCTAssertTrue(world.executableRuns.isEmpty)
+    }
+
+    @MainActor
+    func testNormalURLOpenDoesNotManuallyReactivateBrowserWithOpenWindows() throws {
+        let app = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: true)
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let browser = makeBrowser()
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+
+        launcher.open(urls: [url], with: browser)
+        world.drainScheduledActions()
+
+        XCTAssertEqual(world.openedURLs.count, 1)
+        XCTAssertEqual(app.activateCount, 0)
+        XCTAssertEqual(app.unhideCount, 0)
+        XCTAssertTrue(world.reopenEvents.isEmpty)
+        XCTAssertTrue(world.executableRuns.isEmpty)
+    }
+
+    @MainActor
     func testProfileURLOpenStillUsesProfileExecutable() throws {
         let world = FakeBrowserLauncherWorld()
         let launcher = BrowserLauncher(dependencies: world.dependencies())

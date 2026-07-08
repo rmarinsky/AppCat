@@ -20,8 +20,9 @@ Content rules:
 - Native files: configured and LaunchServices-capable apps first.
 - Developer/text files: editors and explicitly configured apps stay visible; view-only browsers reported only by LaunchServices are hidden unless the user pinned that browser through custom formats.
 - Unknown files: capable LaunchServices apps and configured unknown-type apps are shown, except picker-hidden apps and apps that cannot meaningfully open links or files.
+- When a chosen browser is still running but has no open windows, AppCat re-activates it after the URL handoff so a browser closed with the red window button can surface again.
 
-The routing picker does not show window previews. Its private-mode hint appears only for link routing, not for app switching or file routing.
+The routing picker does not show window previews. Its private-mode hint appears only for link routing, not for app switching or file routing, and sits inside the lower picker padding so link routing keeps the same surface height as the app switcher.
 
 ## App Switcher
 
