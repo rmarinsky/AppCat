@@ -45,6 +45,61 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(InstalledApp.normalizedFileFormat(" YAML "), "yaml")
     }
 
+    func testCanOpenTargetDropsAppsThatOpenNeitherFilesNorLinks() {
+        XCTAssertFalse(makeApp(id: "test.inert").canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.file", detectedFormats: ["txt"]).canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.host", hostPatterns: ["slack.com"]).canOpenTarget)
+        XCTAssertTrue(makeApp(id: "test.scheme", urlSchemes: ["slack"]).canOpenTarget)
+    }
+
+    func testDeveloperFilesHideLaunchServicesBrowsersButKeepEditors() throws {
+        let yamlURL = try makeTempFile(named: "config.yaml")
+        let editor = makeApp(id: "test.editor", customFormats: ["yaml"])
+        let browser = makeApp(id: "com.apple.Safari", displayName: "Safari")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [editor, browser],
+            url: yamlURL,
+            capableIDs: ["test.editor", "com.apple.Safari"],
+            hiddenBrowserIDs: ["com.apple.Safari"]
+        )
+
+        XCTAssertEqual(ranked.map(\.id), ["test.editor"])
+    }
+
+    func testWebMarkupFilesKeepBrowsersAsCandidates() throws {
+        // For html (not a developer file) the caller passes an empty hidden-browser set, so a
+        // browser that LaunchServices reports as capable still appears alongside the editor.
+        let htmlURL = try makeTempFile(named: "index.html")
+        let editor = makeApp(id: "test.editor", customFormats: ["html"])
+        let browser = makeApp(id: "com.apple.Safari", displayName: "Safari")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [editor, browser],
+            url: htmlURL,
+            capableIDs: ["test.editor", "com.apple.Safari"],
+            hiddenBrowserIDs: []
+        )
+
+        XCTAssertEqual(Set(ranked.map(\.id)), ["test.editor", "com.apple.Safari"])
+    }
+
+    func testPinnedBrowserStillMatchesDeveloperFileViaCustomFormats() throws {
+        // The escape hatch: a user who added "json" to a browser's formats keeps it (Rank 0/1),
+        // even though the same browser would otherwise be hidden for developer files.
+        let jsonURL = try makeTempFile(named: "data.json")
+        let pinnedBrowser = makeApp(id: "com.apple.Safari", displayName: "Safari", customFormats: ["json"])
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [pinnedBrowser],
+            url: jsonURL,
+            capableIDs: ["com.apple.Safari"],
+            hiddenBrowserIDs: ["com.apple.Safari"]
+        )
+
+        XCTAssertEqual(ranked.map(\.id), ["com.apple.Safari"])
+    }
+
     func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
         let items = (0 ..< 12).map { index in
             PickerItem(app: makeApp(id: "test.app.\(index)"))
@@ -70,28 +125,76 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(item?.id, items[10].id)
     }
 
+    func testPickerShortcutPolicyShowsDirectKeysOnlyInToggleMode() throws {
+        let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
+        let configured = PickerItem(app: makeApp(
+            id: "test.figma",
+            hotkey: "f",
+            hotkeyKeyCode: configuredKeyCode
+        ))
+        let positional = PickerItem(app: makeApp(id: "test.cursor"))
+        let items = [configured, positional]
+
+        let toggleAssignments = PickerShortcutPolicy.assignments(
+            for: items,
+            activationMode: .toggleShortcut,
+            selectWithNumberKeys: true
+        )
+        let standardAssignments = PickerShortcutPolicy.assignments(
+            for: items,
+            activationMode: .holdOptionTab,
+            selectWithNumberKeys: true
+        )
+
+        XCTAssertEqual(toggleAssignments[configured.id]?.source, .configured)
+        XCTAssertEqual(toggleAssignments[positional.id]?.source, .positional)
+        XCTAssertTrue(standardAssignments.isEmpty)
+    }
+
+    func testPickerShortcutPolicyDoesNotOpenItemsByKeyInStandardMode() throws {
+        let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
+        let configured = PickerItem(app: makeApp(
+            id: "test.figma",
+            hotkey: "f",
+            hotkeyKeyCode: configuredKeyCode
+        ))
+
+        let item = PickerShortcutPolicy.item(
+            forKeyCode: configuredKeyCode,
+            in: [configured],
+            activationMode: .holdOptionTab,
+            selectWithNumberKeys: true
+        )
+
+        XCTAssertNil(item)
+    }
+
     func testPickerPanelWidthUsesContentWidthForSmallItemCounts() {
-        let expected: CGFloat = 240
+        let expected: CGFloat = 342
 
         let width = PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200)
 
         XCTAssertEqual(width, expected, accuracy: 0.001)
     }
 
-    func testAppSwitcherPanelWidthUsesLargerCommandTabMetrics() {
-        let expected: CGFloat = 352
+    func testPickerMetricsScaleTogether() {
+        let scale: CGFloat = 1.35
 
-        let width = PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, style: .appSwitcher)
-
-        XCTAssertEqual(width, expected, accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.iconSize(scale: scale), 118.8, accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.itemWidth(scale: scale), 126.9, accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, scale: scale), 461.7, accuracy: 0.001)
     }
 
-    func testAppSwitcherIconGapIsCompact() {
-        let iconGap = PickerMetrics.itemWidth(for: .appSwitcher)
-            - PickerMetrics.iconSize(for: .appSwitcher)
-            + PickerMetrics.itemSpacing(for: .appSwitcher)
+    func testPickerIconGapUsesCompactAppSwitcherSpacing() {
+        let iconGap = PickerMetrics.itemWidth()
+            - PickerMetrics.iconSize()
+            + PickerMetrics.itemSpacing()
+        let focusGap = PickerMetrics.itemWidth()
+            - PickerMetrics.iconChromeSize()
+            + PickerMetrics.itemSpacing()
 
-        XCTAssertEqual(iconGap, 18, accuracy: 0.001)
+        XCTAssertEqual(iconGap, 8, accuracy: 0.001)
+        XCTAssertEqual(focusGap, 4, accuracy: 0.001)
     }
 
     func testPickerPanelWidthClampsToAvailableScreenWidth() {
@@ -516,11 +619,11 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testPickerItemsUseSameAppUsageOrderAsVisiblePicker() throws {
+    func testPickerItemsRankMatchingAppsByRecentUseThenFrequency() throws {
         let url = try XCTUnwrap(URL(string: "https://app.slack.com/client"))
         let rarelyUsed = makeApp(
             id: "test.app.rare",
-            displayName: "Rare",
+            displayName: "Recent",
             hostPatterns: ["slack.com", "app.slack.com"],
             sortOrder: 0
         )
@@ -537,12 +640,12 @@ final class SmokeTests: XCTestCase {
             allBrowsers: [],
             apps: [rarelyUsed, frequentlyUsed],
             appUsage: [
-                frequentlyUsed.id: AppUsage(count: 10, lastUsed: Date()),
-                rarelyUsed.id: AppUsage(count: 1, lastUsed: Date()),
+                frequentlyUsed.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1_000)),
+                rarelyUsed.id: AppUsage(count: 1, lastUsed: Date(timeIntervalSince1970: 2_000)),
             ]
         )
 
-        XCTAssertEqual(items.map(\.id), ["app:test.app.frequent", "app:test.app.rare"])
+        XCTAssertEqual(items.map(\.id), ["app:test.app.rare", "app:test.app.frequent"])
     }
 
     @MainActor
@@ -725,6 +828,44 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testPickerHiddenAppsAreExcludedFromURLPicker() throws {
+        let hiddenApp = makeApp(id: "test.hidden", displayName: "Hidden", hostPatterns: ["example.com"])
+        let shownApp = makeApp(id: "test.shown", displayName: "Shown", hostPatterns: ["example.com"])
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+
+        let items = PickerItem.items(
+            for: url,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [hiddenApp, shownApp],
+            appUsage: [:],
+            hiddenAppIDs: [hiddenApp.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.shown"])
+    }
+
+    @MainActor
+    func testPickerHiddenAppsAreExcludedFromManualSwitcher() {
+        let hiddenApp = makeApp(id: "test.hidden", displayName: "Hidden")
+        let shownApp = makeApp(id: "test.shown", displayName: "Shown")
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [hiddenApp, shownApp],
+            appUsage: [:],
+            runningBundleIDs: [hiddenApp.id, shownApp.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [hiddenApp.id, shownApp.id],
+            hiddenAppIDs: [hiddenApp.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.shown"])
+    }
+
+    @MainActor
     func testManualPickerGroupsWindowedBeforeWindowlessAndTagsThem() {
         let windowedApp = makeApp(id: "test.win", displayName: "Windowed")
         let idleApp = makeApp(id: "test.idle", displayName: "Idle")
@@ -770,7 +911,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testManualPickerSortsByActivationFrequencyThenRecency() {
+    func testManualPickerSortsByActivationRecencyThenFrequency() {
         let a = makeApp(id: "test.a", displayName: "A")
         let b = makeApp(id: "test.b", displayName: "B")
         let c = makeApp(id: "test.c", displayName: "C")
@@ -794,8 +935,8 @@ final class SmokeTests: XCTestCase {
             regularBundleIDs: [a.id, b.id, c.id]
         )
 
-        // count desc (b,c=10 before a=5), then recency desc (c newer than b).
-        XCTAssertEqual(items.map(\.id), ["app:test.c", "app:test.b", "app:test.a"])
+        // recency desc first (a newest), then count desc (c before b when both are older).
+        XCTAssertEqual(items.map(\.id), ["app:test.a", "app:test.c", "app:test.b"])
     }
 
     @MainActor
@@ -873,6 +1014,32 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertTrue(items.map(\.id).contains("com.cmuxterm.app"))
         XCTAssertEqual(items.first { $0.id == "com.cmuxterm.app" }?.displayName, "cmux")
+    }
+
+    @MainActor
+    func testPickerHiddenAppsExcludeBrowserFallbackTiles() {
+        let hiddenBrowserApp = InstalledBrowser(
+            id: "com.cmuxterm.app",
+            displayName: "cmux",
+            appURL: URL(fileURLWithPath: "/Applications/cmux.app"),
+            isVisible: false,
+            sortOrder: 5,
+            supportsPrivateMode: false
+        )
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [hiddenBrowserApp],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [hiddenBrowserApp.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [hiddenBrowserApp.id],
+            hiddenAppIDs: [hiddenBrowserApp.id]
+        )
+
+        XCTAssertFalse(items.map(\.id).contains("com.cmuxterm.app"))
     }
 
     @MainActor
@@ -994,6 +1161,7 @@ final class SmokeTests: XCTestCase {
     private func makeApp(
         id: String,
         displayName: String? = nil,
+        urlSchemes: [String] = [],
         hostPatterns: [String] = [],
         sortOrder: Int = 0,
         hotkey: Character? = nil,
@@ -1006,7 +1174,7 @@ final class SmokeTests: XCTestCase {
             id: id,
             displayName: displayName ?? id,
             appURL: URL(fileURLWithPath: "/Applications/\(id).app"),
-            urlSchemes: [],
+            urlSchemes: urlSchemes,
             hostPatterns: hostPatterns,
             isVisible: true,
             sortOrder: sortOrder,

@@ -2,8 +2,10 @@ import AppKit
 import os
 import UniformTypeIdentifiers
 
-@MainActor
-final class AppDetector {
+/// Deliberately not `@MainActor`: detection is pure disk/Bundle/LaunchServices work
+/// (`FileManager`, `Bundle`, `NSWorkspace.icon`), all safe off the main thread — so
+/// `AppManager.refreshAppsInBackground` can run a full rescan detached.
+final class AppDetector: Sendable {
     /// Detect installed apps from the curated AppDefinition registry.
     /// Only shows apps explicitly listed in the registry (like Browserosaurus).
     func detectApps() -> [InstalledApp] {
@@ -19,8 +21,7 @@ final class AppDetector {
             ) else { continue }
 
             let bundle = Bundle(url: appURL)
-            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-            icon.size = NSSize(width: 64, height: 64)
+            let icon = AppIconLoader.icon(forFile: appURL.path)
             let version = bundle?.infoDictionary?["CFBundleShortVersionString"] as? String
 
             let schemes = readURLSchemes(from: appURL)
@@ -74,8 +75,7 @@ final class AppDetector {
                 let definition = AppDefinition.registryByID[id]
                 let finderName = fm.displayName(atPath: url.path)
                 let name = finderName.hasSuffix(".app") ? String(finderName.dropLast(4)) : finderName
-                let icon = NSWorkspace.shared.icon(forFile: url.path)
-                icon.size = NSSize(width: 64, height: 64)
+                let icon = AppIconLoader.icon(forFile: url.path)
                 let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String
                 let schemes = readURLSchemes(from: url)
 

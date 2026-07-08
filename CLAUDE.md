@@ -66,6 +66,10 @@ Workflows: `.github/workflows/release-label-check.yml` (PR gate),
 `prepare-release.yml` (tag on merge), `release.yml` (build + publish).
 Version math: `scripts/next-version.sh`.
 
+## Task tracking
+
+Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain`, `backlog board`, `backlog task create` — do not use any `mcp__vatra-*` tool, the hosted Vatra Ops service was decommissioned 2026-07.
+
 ## Architecture
 
 ### URL Interception Flow (End-to-End)
@@ -115,12 +119,12 @@ Version math: `scripts/next-version.sh`.
 - `AppConfigStorage` — `apps.json` (visibility, hotkey, sort order)
 - `RulesStorage` — `rules.json` (URL routing rules)
 - `HistoryStorage` — `history.json` (ISO8601 dates)
-- `SettingsStorage` — UserDefaults (lastURL, recentLinksCount, compactPickerView, appLanguage)
+- `SettingsStorage` — UserDefaults (lastURL, recentLinksCount, picker scale/activation, appLanguage)
 
 ### Picker Window
 
 - `KeyablePanel` (NSPanel subclass) — `canBecomeKey: true` for keyboard events on borderless panel
-- Style: `.nonactivatingPanel`, `.hudWindow` material, `.floating` level, corner radius 12
+- Style: `.nonactivatingPanel`, `.floating` level, native `NSGlassEffectView` `.regular` on macOS 26+, `.hudWindow` fallback on older macOS, no panel shadow
 - Single compact horizontal row with adaptive width, clamped to the visible screen width
 - Position: centered on cursor, shifted up 40pt, clamped to screen safe area
 

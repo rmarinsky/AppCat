@@ -42,11 +42,22 @@ open AppCat.xcodeproj    # Select "AppCat DEV" scheme → Run
 | AppCat DEV | Debug | AppCat DEV | ua.com.rmarinsky.appcat.dev |
 | AppCat | Release | AppCat | ua.com.rmarinsky.appcat |
 
+## Done criteria
+
+If a prompt changes source code (`*.swift`, project config, resources, scripts used by the app), finish by installing the DEV app:
+
+```bash
+./scripts/dev-install.sh
+```
+
+Docs-only changes do not need a dev install.
+
 ## Release process
 
 **NEVER push directly to `main`** — not commits, not tags. Everything goes through a PR.
 **NEVER create or push `v*` tags by hand** — CI does that.
 **NEVER hand-edit** `MARKETING_VERSION` in `project.yml` or the Sparkle `appcast.xml`.
+**Every release must go through a PR and the release-label version flow.** No direct release without a version update/tag produced by CI.
 
 To ship a release:
 
@@ -65,6 +76,18 @@ git tag** — `project.yml`'s `MARKETING_VERSION` is only a placeholder.
 Workflows: `.github/workflows/release-label-check.yml` (PR gate),
 `prepare-release.yml` (tag on merge), `release.yml` (build + publish).
 Version math: `scripts/next-version.sh`.
+
+## Task tracking
+
+Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain`, `backlog board`, `backlog task create` — do not use any `mcp__vatra-*` tool, the hosted Vatra Ops service was decommissioned 2026-07.
+
+## Ponytail rules
+
+- Use the smallest change that preserves behavior: reuse existing managers/services before adding new layers.
+- Prefer deleting stale docs or instructions over adding new explanatory pages.
+- Documentation should describe shipped behavior, build/release commands, and real ownership boundaries only. Do not document "planned" features unless the user explicitly asks for a roadmap.
+- When code changes user-facing behavior, update the nearest doc in the same PR; otherwise leave docs alone.
+- After source-code changes, run the dev install before the final response.
 
 ## Architecture
 
@@ -115,12 +138,12 @@ Version math: `scripts/next-version.sh`.
 - `AppConfigStorage` — `apps.json` (visibility, hotkey, sort order)
 - `RulesStorage` — `rules.json` (URL routing rules)
 - `HistoryStorage` — `history.json` (ISO8601 dates)
-- `SettingsStorage` — UserDefaults (lastURL, recentLinksCount, compactPickerView, appLanguage)
+- `SettingsStorage` — UserDefaults (lastURL, recentLinksCount, picker scale/activation, appLanguage)
 
 ### Picker Window
 
 - `KeyablePanel` (NSPanel subclass) — `canBecomeKey: true` for keyboard events on borderless panel
-- Style: `.nonactivatingPanel`, `.hudWindow` material, `.floating` level, corner radius 12
+- Style: `.nonactivatingPanel`, `.floating` level, native `NSGlassEffectView` `.regular` on macOS 26+, `.hudWindow` fallback on older macOS, no panel shadow
 - Single compact horizontal row with adaptive width, clamped to the visible screen width
 - Position: centered on cursor, shifted up 40pt, clamped to screen safe area
 
@@ -143,6 +166,10 @@ Version math: `scripts/next-version.sh`.
 - Stored per-browser/profile/app in `browsers.json` / `apps.json`
 - `AppsSettingsView.clearDuplicateHotkey()` prevents conflicts across all items
 - Matching uses `hotkeyKeyCode` (layout-independent) with fallback to character comparison
+- Global picker activation has two modes in Settings → Shortcuts:
+  - toggle shortcut mode uses `KeyboardShortcuts.Recorder` (`⌥Tab` by default)
+  - hold-to-switch mode uses `PickerActivationListener` (`CGEventTap`): hold `⌥`, press `Tab` / `⇧Tab`, release `⌥` to open the focused item
+- Optional service-key activation also uses `PickerActivationListener`: `Caps Lock` or `Escape`, with 1/2/3 taps. It requires Input Monitoring permission.
 
 ### Browser Detection
 
@@ -158,12 +185,6 @@ Version math: `scripts/next-version.sh`.
 - `convertURL` — optional closure for deep link conversion (e.g., `https://teams.microsoft.com` → `msteams:`)
 - Apps appear in picker only when pending URL's host matches their patterns
 
-### Merge Strategy
-
-`MergeUtility.mergeDetectedWithSaved()` preserves user config when browsers/apps are added/removed:
-1. Saved items still installed → apply config, keep order
-2. New items → append at end with incremented sortOrder
-
 ## Logging
 
 `Log` enum with typed `os.Logger` instances: `.app`, `.browser`, `.picker`, `.settings`, `.profiles`, `.rules`, `.apps`, `.history`
@@ -175,7 +196,7 @@ Version math: `scripts/next-version.sh`.
 - **Storage singletons** — `.shared` pattern, called only from managers
 - **Codable separation** — `InstalledBrowser` (has `NSImage`) separate from `BrowserConfig` (Codable)
 - **`DEV_BUILD` compile condition** — available for debug-only code paths
-- **SPM packages:** `LaunchAtLogin-Modern` (sindresorhus), `Pow` (EmergeTools animations)
+- **SPM packages:** `Sparkle`, `LaunchAtLogin-Modern`, `KeyboardShortcuts`
 
 ## Key Files to Edit
 

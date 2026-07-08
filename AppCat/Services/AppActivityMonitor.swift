@@ -6,10 +6,16 @@ final class AppActivityMonitor {
     private var observers: [NSObjectProtocol] = []
     private var windowRefreshTask: Task<Void, Never>?
     private var windowPollingTask: Task<Void, Never>?
+    private var appListRefreshTask: Task<Void, Never>?
     private let workspaceNotificationCenter = NSWorkspace.shared.notificationCenter
     private let windowRefreshDebounce: TimeInterval = 0.25
     // Backstop poll; real changes arrive via workspace notifications, so this can be coarse.
     private let windowPollInterval: UInt64 = 5_000_000_000
+    /// Coalesces installed-app rescans triggered by app launch/termination bursts.
+    private let appListRefreshDebounce: UInt64 = 2_000_000_000
+    /// Fired (debounced) when a running app launches or terminates — the installed-app list
+    /// may be stale (e.g. a freshly installed app was just started for the first time).
+    var onAppListChanged: (@MainActor () -> Void)?
 
     init(appState: AppState) {
         self.appState = appState
@@ -33,6 +39,8 @@ final class AppActivityMonitor {
         windowRefreshTask = nil
         windowPollingTask?.cancel()
         windowPollingTask = nil
+        appListRefreshTask?.cancel()
+        appListRefreshTask = nil
     }
 
     func refreshRunningApplications() {
@@ -58,6 +66,22 @@ final class AppActivityMonitor {
         appState.appWindowActivityUpdatedAt = Date()
     }
 
+    /// One-shot detached enumeration for a picker that is already on screen. Deliberately
+    /// bypasses `scheduleWindowRefresh`'s isPickerVisible guard: the switcher opens instantly
+    /// from the cached snapshot and requests this live pass to correct the list in place.
+    /// `completion` runs on the main actor after the fresh windows are published.
+    func refreshWindowsForVisiblePicker(completion: @escaping @MainActor () -> Void) {
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let windows = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
+            await MainActor.run { [weak self] in
+                guard let self, let appState = self.appState else { return }
+                appState.runningWindowsByAppID = windows
+                appState.appWindowActivityUpdatedAt = Date()
+                completion()
+            }
+        }
+    }
+
     private func observeWorkspaceChanges() {
         observe(NSWorkspace.didLaunchApplicationNotification)
         observe(NSWorkspace.didTerminateApplicationNotification)
@@ -68,7 +92,6 @@ final class AppActivityMonitor {
     }
 
     private func observe(_ notificationName: Notification.Name) {
-        let isActivation = notificationName == NSWorkspace.didActivateApplicationNotification
         let observer = workspaceNotificationCenter.addObserver(
             forName: notificationName,
             object: nil,
@@ -77,13 +100,13 @@ final class AppActivityMonitor {
             let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             let activatedBundleID = activatedApp?.bundleIdentifier
             Task { @MainActor [weak self] in
-                self?.handleWorkspaceChange(activatedBundleID: activatedBundleID, isActivation: isActivation)
+                self?.handleWorkspaceChange(notificationName, activatedBundleID: activatedBundleID)
             }
         }
         observers.append(observer)
     }
 
-    private func handleWorkspaceChange(activatedBundleID: String?, isActivation: Bool) {
+    private func handleWorkspaceChange(_ notificationName: Notification.Name, activatedBundleID: String?) {
         // Ignore AppCat's own activation (e.g. when it activates to show the picker). Otherwise
         // every picker presentation would kick off an AX enumeration on the present frame — and
         // AppCat shouldn't rank itself in its own switcher.
@@ -92,11 +115,27 @@ final class AppActivityMonitor {
         }
         // Tally real usage: count an app each time it becomes frontmost. This is the switcher's
         // frequency + recency signal.
-        if isActivation, let activatedBundleID {
+        if notificationName == NSWorkspace.didActivateApplicationNotification, let activatedBundleID {
             appState?.recordAppActivation(activatedBundleID)
+        }
+        if notificationName == NSWorkspace.didLaunchApplicationNotification
+            || notificationName == NSWorkspace.didTerminateApplicationNotification
+        {
+            scheduleAppListRefresh()
         }
         refreshRunningApplications()
         scheduleWindowRefresh(after: windowRefreshDebounce)
+    }
+
+    private func scheduleAppListRefresh() {
+        appListRefreshTask?.cancel()
+        let debounce = appListRefreshDebounce
+        appListRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: debounce)
+            guard !Task.isCancelled else { return }
+            self?.onAppListChanged?()
+            self?.appListRefreshTask = nil
+        }
     }
 
     private func startWindowPolling() {

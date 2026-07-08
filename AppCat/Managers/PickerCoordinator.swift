@@ -21,13 +21,45 @@ final class PickerCoordinator {
         if pickerController == nil {
             pickerController = PickerWindowController(appState: state, coordinator: self)
         }
-        pickerController?.show()
+        // Mark visible before ordering front: the SwiftUI content's onAppear gates its focus/
+        // snapshot seeding on this flag (to stay inert during pre-warm) and can fire mid-show().
         state.isPickerVisible = true
+        pickerController?.show()
+    }
+
+    /// Build the picker panel + SwiftUI hierarchy ahead of time (ordered out) so the first real
+    /// presentation doesn't pay window/view-graph construction on the click-to-picker path.
+    func prewarmPicker(state: AppState) {
+        guard pickerController == nil, !state.isPickerVisible else { return }
+        pickerController = PickerWindowController(appState: state, coordinator: self)
+        pickerController?.prewarm()
+    }
+
+    /// Forward a live window-cache refresh to the visible manual switcher session.
+    func refreshManualPickerSession() {
+        pickerController?.refreshSnapshotForVisibleSession()
+    }
+
+    func moveFocus(delta: Int, state: AppState) {
+        guard state.isPickerVisible else { return }
+        pickerController?.moveFocusForVisibleSession(delta: delta)
+    }
+
+    func openFocusedItem(state: AppState) {
+        guard state.isPickerVisible else { return }
+        pickerController?.openFocusedItemForVisibleSession()
     }
 
     func dismissPicker(state: AppState) {
         pickerController?.close()
+        // Clear routing state here too: on the auto-route path the picker controller may not
+        // exist yet, and its close() (which also clears) never runs — a stale pendingURL would
+        // otherwise block main-window opens and Dock-icon reopen forever. Double-clear is
+        // idempotent for the controller-backed path.
         state.isPickerVisible = false
+        state.clearPendingOpen()
+        state.isManualPickerPresentation = false
+        state.pickerItemsSnapshot = []
     }
 
     func openURL(

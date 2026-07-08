@@ -8,7 +8,7 @@ AppCat sits in your menu bar and decides where things open:
 
 - Click a **link** → pick the browser, profile, or native app (or let a rule route it automatically).
 - Open a **file** → pick from the apps that can actually handle it.
-- Press **⌥⌘B** → jump to any running app *or a specific open window* from a Cmd-Tab-style switcher.
+- Press **⌥Tab** → jump to any running app *or a specific open window* from a Cmd-Tab-style switcher.
 
 Stop launching the wrong browser profile, stop dragging files onto Dock icons, and stop alt-tabbing through six windows to find the one you want.
 
@@ -29,8 +29,8 @@ Set AppCat as your default browser and it intercepts every link:
 - **Private/incognito:** hold `Option` or `Shift` while pressing a picker key to open the link in a private window.
 - Multiple links at once open together in the target you choose.
 
-### 🐈 App & window switcher (`⌥⌘B`)
-The reason AppCat earns its name. Press `⌥⌘B` anywhere to open a HUD switcher showing:
+### 🐈 App & window switcher (`⌥Tab`)
+The reason AppCat earns its name. Press `⌥Tab` anywhere to open a HUD switcher showing:
 
 - **Running apps and their individual open windows** as tiles — pick a specific window (e.g. the right VS Code project or Chrome window), not just the app.
 - Apps **with open windows first**, background/menu-bar apps dimmed below a divider (both toggleable).
@@ -71,8 +71,10 @@ Beyond the pickers, AppCat has a full window (Dock icon appears while it's open)
 
 | Shortcut | Action |
 |----------|--------|
-| `⌥⌘B` | Open the app/window switcher |
+| `⌥Tab` | Open the app/window switcher |
 | `⌥⌘⇧B` | Re-open the last picker |
+| Hold `⌥`, press `Tab` / `⇧Tab` | Optional hold-to-switch mode |
+| `Caps Lock` or `Escape` taps | Optional service-key trigger |
 
 Both are rebindable under **Settings → Shortcuts**.
 
@@ -82,7 +84,7 @@ Both are rebindable under **Settings → Shortcuts**.
 |-----|--------|
 | `Arrow keys` / `Tab` | Move focus (wraps around) |
 | Type letters | Type-to-focus by app, browser, profile, or window name |
-| `1`…`0` then `Q`…`M` | Jump to that position (or a custom character you assign per item) |
+| `1`…`0` then `Q`…`M` | Jump to that position in toggle mode (or use a custom character you assign per item) |
 | `Return` | Open the focused item |
 | `Escape` | Dismiss |
 | `Option` / `Shift` + key | *(link picker only)* open in private mode |
@@ -110,7 +112,7 @@ Both are rebindable under **Settings → Shortcuts**.
 
 ### First-time setup
 1. **Set AppCat as your default browser** — Settings → General → Set as Default Browser.
-2. **Grant Accessibility** (for the `⌥⌘B` window switcher) when prompted, or in System Settings → Privacy & Security → Accessibility.
+2. **Grant Accessibility** (for the `⌥Tab` window switcher) when prompted, or in System Settings → Privacy & Security → Accessibility.
 3. **Assign hotkeys (optional)** — the **Browsers** and **Apps** screens let you set a character per item; the **Shortcuts** tab holds the two global hotkeys.
 4. **Add URL rules (optional)** — Settings → Rules.
 
@@ -128,7 +130,7 @@ Both are rebindable under **Settings → Shortcuts**.
 Menu bar icon → the main window has these tabs:
 
 - **General** — default browser, launch at login, language.
-- **Picker** — what the `⌥⌘B` switcher includes (running-without-windows apps, background/menu-bar apps).
+- **Picker** — what the manual switcher includes (running-without-windows apps, background/menu-bar apps, picker exclusions, size).
 - **Browsers** — visibility, order, per-browser & per-profile hotkeys.
 - **Apps** — visibility, hotkeys, and per-app file-format editing.
 - **Rules** — URL routing rules.
@@ -164,11 +166,11 @@ Schemes:
 **Does AppCat collect any data?**
 No accounts, analytics, or telemetry. History and settings stay on your Mac. It does fetch favicons/titles and check for updates — see [Privacy](#-privacy).
 
-**Why does the `⌥⌘B` switcher not show other apps' windows?**
+**Why does the `⌥Tab` switcher not show other apps' windows?**
 It needs Accessibility permission. Grant it in System Settings → Privacy & Security → Accessibility, then reopen the switcher.
 
-**Can I use only hotkeys and skip the picker?**
-Not yet — assign a hotkey per browser and press it right after copying a link. A dedicated hotkey-only mode is on the roadmap.
+**Can I make it keyboard-first?**
+Yes. Use Settings → Shortcuts for hold-to-switch or service-key activation, and assign per-browser/per-app picker hotkeys in Settings → Browsers or Settings → Apps.
 
 **Does this work with Raycast/Alfred link handlers?**
 Yes — anything that opens the system default browser goes through AppCat.

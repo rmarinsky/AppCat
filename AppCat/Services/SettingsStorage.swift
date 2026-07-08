@@ -52,12 +52,100 @@ enum PickerLayout: String, CaseIterable, Identifiable {
     }
 }
 
+enum PickerActivationMode: String, CaseIterable, Identifiable {
+    case toggleShortcut
+    case holdOptionTab
+
+    var id: String { rawValue }
+
+    var localizedDisplayName: String {
+        switch self {
+        case .toggleShortcut:
+            String(localized: "Toggle")
+        case .holdOptionTab:
+            String(localized: "Hold ⌥Tab")
+        }
+    }
+}
+
+enum PickerServiceKey: String, CaseIterable, Identifiable {
+    case off
+    case capsLock
+    case escape
+
+    var id: String { rawValue }
+
+    var localizedDisplayName: String {
+        switch self {
+        case .off:
+            String(localized: "Off")
+        case .capsLock:
+            String(localized: "Caps Lock")
+        case .escape:
+            String(localized: "Escape")
+        }
+    }
+}
+
+enum PickerServiceTapCount: Int, CaseIterable, Identifiable {
+    case one = 1
+    case two = 2
+    case three = 3
+
+    var id: Int { rawValue }
+
+    var localizedDisplayName: String {
+        switch self {
+        case .one:
+            String(localized: "1 tap")
+        case .two:
+            String(localized: "2 taps")
+        case .three:
+            String(localized: "3 taps")
+        }
+    }
+}
+
+struct PickerActivationSettings: Equatable {
+    let mode: PickerActivationMode
+    let serviceKey: PickerServiceKey
+    let serviceTapCount: PickerServiceTapCount
+    let serviceTapInterval: TimeInterval
+
+    static let defaultValue = PickerActivationSettings(
+        mode: .toggleShortcut,
+        serviceKey: .off,
+        serviceTapCount: .two,
+        serviceTapInterval: 0.45
+    )
+
+    var needsEventTap: Bool {
+        mode == .holdOptionTab || serviceKey != .off
+    }
+}
+
+enum PickerScale {
+    static let minimum = 0.5
+    static let defaultValue = 1.0
+    static let maximum = 2.0
+
+    static func clamped(_ value: Double) -> Double {
+        min(max(value, minimum), maximum)
+    }
+}
+
 final class SettingsStorage {
     static let shared = SettingsStorage()
 
     private let defaults = UserDefaults.standard
     private let appLanguageKey = "appLanguage"
     private let pickerLayoutKey = "pickerLayout"
+    private let pickerActivationModeKey = "pickerActivationMode"
+    private let pickerServiceKeyKey = "pickerServiceKey"
+    private let pickerServiceTapCountKey = "pickerServiceTapCount"
+    private let pickerScaleKey = "pickerScale"
+    private let hiddenPickerAppIDsKey = "hiddenPickerAppIDs"
+    let pickerServiceTapInterval: TimeInterval = 0.45
 
     // MARK: - Simple values
 
@@ -77,6 +165,53 @@ final class SettingsStorage {
     var selectWithNumberKeys: Bool {
         get { defaults.object(forKey: "selectWithNumberKeys") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "selectWithNumberKeys") }
+    }
+
+    var hiddenPickerAppIDs: Set<String> {
+        get { Set(defaults.stringArray(forKey: hiddenPickerAppIDsKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: hiddenPickerAppIDsKey) }
+    }
+
+    var pickerScale: Double {
+        get {
+            guard let value = defaults.object(forKey: pickerScaleKey) as? Double else {
+                return PickerScale.defaultValue
+            }
+            return PickerScale.clamped(value)
+        }
+        set { defaults.set(PickerScale.clamped(newValue), forKey: pickerScaleKey) }
+    }
+
+    var pickerActivationMode: PickerActivationMode {
+        get {
+            guard let value = defaults.string(forKey: pickerActivationModeKey),
+                  let mode = PickerActivationMode(rawValue: value)
+            else {
+                return .toggleShortcut
+            }
+            return mode
+        }
+        set { defaults.set(newValue.rawValue, forKey: pickerActivationModeKey) }
+    }
+
+    var pickerServiceKey: PickerServiceKey {
+        get {
+            guard let value = defaults.string(forKey: pickerServiceKeyKey),
+                  let key = PickerServiceKey(rawValue: value)
+            else {
+                return .off
+            }
+            return key
+        }
+        set { defaults.set(newValue.rawValue, forKey: pickerServiceKeyKey) }
+    }
+
+    var pickerServiceTapCount: PickerServiceTapCount {
+        get {
+            let value = defaults.integer(forKey: pickerServiceTapCountKey)
+            return PickerServiceTapCount(rawValue: value) ?? .two
+        }
+        set { defaults.set(newValue.rawValue, forKey: pickerServiceTapCountKey) }
     }
 
     /// Show running apps that have no open windows in the switcher (dimmed, after the divider).
