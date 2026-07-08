@@ -30,7 +30,7 @@ final class StatsManager {
 
     // MARK: - Recording
 
-    func record(_ source: OpenSource, at date: Date = Date()) {
+    func record(_ source: OpenSource, profileTargeted: Bool = false, at date: Date = Date()) {
         let key = DailyStats.dayKey(for: date)
         var entry: DailyStats
         if let idx = dailyStats.firstIndex(where: { $0.day == key }) {
@@ -52,6 +52,7 @@ final class StatsManager {
             entry.pickerClickCount += 1
         }
         entry.secondsSaved += Int(source.secondsSaved)
+        if profileTargeted { entry.secondsSaved += Int(TimeSavedConstants.profileRouteBonus) }
         dailyStats.append(entry)
 
         trimAndSave()
@@ -67,11 +68,12 @@ final class StatsManager {
         for entry in history {
             let key = DailyStats.dayKey(for: entry.openedAt)
             var day = byDay[key] ?? DailyStats(day: key)
+            let profileBonus = entry.profileName != nil ? Int(TimeSavedConstants.profileRouteBonus) : 0
             if entry.itemKind == .link,
                let sourceRuleID = entry.sourceRuleID
             {
                 day.autoRouteCount += 1
-                day.secondsSaved += Int(TimeSavedConstants.autoRoute)
+                day.secondsSaved += Int(TimeSavedConstants.autoRoute) + profileBonus
                 if day.rulesCounts.count < Self.maxRulesPerDay || day.rulesCounts[sourceRuleID] != nil {
                     day.rulesCounts[sourceRuleID, default: 0] += 1
                 }
@@ -80,7 +82,7 @@ final class StatsManager {
                let rule = urlRuleMatcher.findMatchingRule(for: url, rules: rules)
             {
                 day.autoRouteCount += 1
-                day.secondsSaved += Int(TimeSavedConstants.autoRoute)
+                day.secondsSaved += Int(TimeSavedConstants.autoRoute) + profileBonus
                 if day.rulesCounts.count < Self.maxRulesPerDay || day.rulesCounts[rule.id] != nil {
                     day.rulesCounts[rule.id, default: 0] += 1
                 }

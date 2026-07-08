@@ -23,6 +23,9 @@ enum OpenSource: Equatable {
     }
 }
 
+/// The manual-alternative baseline: roughly how long the same open would have
+/// cost without AppCat (land in the wrong browser, notice, copy the URL, open
+/// the right browser, paste). Deliberately conservative.
 enum TimeSavedConstants {
     /// Auto-route via a rule — picker fully skipped, no decision needed.
     static let autoRoute: TimeInterval = 7
@@ -30,4 +33,9 @@ enum TimeSavedConstants {
     static let pickerHotkey: TimeInterval = 3
     /// Picker shown, user clicked or pressed Return on focused item.
     static let pickerClick: TimeInterval = 2
+    /// Extra credit when the open targeted a specific browser *profile*, not just
+    /// an app. The manual alternative there is longer — you'd also have to open
+    /// the profile switcher and pick the right profile — so a profile-accurate
+    /// route saves more real steps than a plain app open.
+    static let profileRouteBonus: TimeInterval = 3
 }
