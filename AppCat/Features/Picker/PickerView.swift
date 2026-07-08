@@ -600,6 +600,7 @@ struct PickerView: View {
         let shortcuts = PickerShortcutPolicy.assignments(
             for: items,
             activationMode: appState.pickerActivationMode,
+            isManualPickerPresentation: appState.isManualPickerPresentation,
             selectWithNumberKeys: appState.selectWithNumberKeys
         )
         let showsIncognitoHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true

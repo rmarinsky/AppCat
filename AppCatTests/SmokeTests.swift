@@ -125,7 +125,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(item?.id, items[10].id)
     }
 
-    func testPickerShortcutPolicyShowsDirectKeysOnlyInToggleMode() throws {
+    func testRoutingPickerShortcutPolicyShowsDirectKeysInAnyActivationMode() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -138,20 +138,23 @@ final class SmokeTests: XCTestCase {
         let toggleAssignments = PickerShortcutPolicy.assignments(
             for: items,
             activationMode: .toggleShortcut,
+            isManualPickerPresentation: false,
             selectWithNumberKeys: true
         )
-        let standardAssignments = PickerShortcutPolicy.assignments(
+        let holdAssignments = PickerShortcutPolicy.assignments(
             for: items,
             activationMode: .holdOptionTab,
+            isManualPickerPresentation: false,
             selectWithNumberKeys: true
         )
 
         XCTAssertEqual(toggleAssignments[configured.id]?.source, .configured)
         XCTAssertEqual(toggleAssignments[positional.id]?.source, .positional)
-        XCTAssertTrue(standardAssignments.isEmpty)
+        XCTAssertEqual(holdAssignments[configured.id]?.source, .configured)
+        XCTAssertEqual(holdAssignments[positional.id]?.source, .positional)
     }
 
-    func testPickerShortcutPolicyDoesNotOpenItemsByKeyInStandardMode() throws {
+    func testManualPickerShortcutPolicyDoesNotOpenItemsByKeyInHoldMode() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -163,10 +166,30 @@ final class SmokeTests: XCTestCase {
             forKeyCode: configuredKeyCode,
             in: [configured],
             activationMode: .holdOptionTab,
+            isManualPickerPresentation: true,
             selectWithNumberKeys: true
         )
 
         XCTAssertNil(item)
+    }
+
+    func testRoutingPickerShortcutPolicyOpensItemsByKeyInHoldMode() throws {
+        let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
+        let configured = PickerItem(app: makeApp(
+            id: "test.figma",
+            hotkey: "f",
+            hotkeyKeyCode: configuredKeyCode
+        ))
+
+        let item = PickerShortcutPolicy.item(
+            forKeyCode: configuredKeyCode,
+            in: [configured],
+            activationMode: .holdOptionTab,
+            isManualPickerPresentation: false,
+            selectWithNumberKeys: true
+        )
+
+        XCTAssertEqual(item?.id, configured.id)
     }
 
     func testPickerPanelWidthUsesContentWidthForSmallItemCounts() {

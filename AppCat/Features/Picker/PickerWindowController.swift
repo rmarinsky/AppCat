@@ -256,6 +256,7 @@ final class PickerWindowController: NSObject {
                    forKeyCode: pressedKeyCode,
                    in: items,
                    activationMode: appState.pickerActivationMode,
+                   isManualPickerPresentation: appState.isManualPickerPresentation,
                    selectWithNumberKeys: appState.selectWithNumberKeys
                )
             {
@@ -274,7 +275,7 @@ final class PickerWindowController: NSObject {
     }
 
     private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
-        guard appState.pickerActivationMode == .toggleShortcut else { return false }
+        guard !appState.isManualPickerPresentation || appState.pickerActivationMode == .toggleShortcut else { return false }
         var blocked: NSEvent.ModifierFlags = [.command, .control]
         if appState.isManualPickerPresentation {
             blocked.insert([.shift, .option])
