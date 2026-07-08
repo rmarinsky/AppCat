@@ -112,9 +112,12 @@ enum PickerShortcutPolicy {
     static func assignments(
         for items: [PickerItem],
         activationMode: PickerActivationMode,
+        isManualPickerPresentation: Bool,
         selectWithNumberKeys: Bool
     ) -> [String: PickerShortcut] {
-        guard activationMode == .toggleShortcut else { return [:] }
+        guard allowsDirectSelection(activationMode: activationMode, isManualPickerPresentation: isManualPickerPresentation) else {
+            return [:]
+        }
         return PickerShortcutAssigner.assignments(for: items, positionalEnabled: selectWithNumberKeys)
     }
 
@@ -122,13 +125,23 @@ enum PickerShortcutPolicy {
         forKeyCode keyCode: UInt16,
         in items: [PickerItem],
         activationMode: PickerActivationMode,
+        isManualPickerPresentation: Bool,
         selectWithNumberKeys: Bool
     ) -> PickerItem? {
-        guard activationMode == .toggleShortcut else { return nil }
+        guard allowsDirectSelection(activationMode: activationMode, isManualPickerPresentation: isManualPickerPresentation) else {
+            return nil
+        }
         return PickerShortcutAssigner.item(
             forKeyCode: keyCode,
             in: items,
             positionalEnabled: selectWithNumberKeys
         )
+    }
+
+    private static func allowsDirectSelection(
+        activationMode: PickerActivationMode,
+        isManualPickerPresentation: Bool
+    ) -> Bool {
+        !isManualPickerPresentation || activationMode == .toggleShortcut
     }
 }

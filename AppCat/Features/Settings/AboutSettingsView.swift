@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AboutSettingsView: View {
     @Environment(\.updaterManager) private var updaterManager
-    @State private var latestVersionText = "Перевірити"
+    @State private var latestVersionText = String(localized: "Check")
 
     private let currentID: AboutProduct.IDValue = .appCat
 
@@ -34,7 +34,7 @@ struct AboutSettingsView: View {
             ProductMark(product: currentProduct, size: 76)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("Про апку")
+                Text(String(localized: "About the app"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(currentProduct.accentDeep)
                 Text(currentProduct.name)
@@ -63,20 +63,20 @@ struct AboutSettingsView: View {
 
     private var updateCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Оновлення доступне")
+            Text(String(localized: "Update available"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(currentProduct.accentDeep)
 
             VStack(spacing: 4) {
-                versionLine("Поточна", value: currentVersionText)
-                versionLine("Найновіша", value: latestVersionText)
-                versionLine("Перевірено", value: "сьогодні")
+                versionLine(String(localized: "Current"), value: currentVersionText)
+                versionLine(String(localized: "Latest"), value: latestVersionText)
+                versionLine(String(localized: "Checked"), value: String(localized: "today"))
             }
 
             Button {
                 updaterManager?.checkForUpdates()
             } label: {
-                Label("Оновити зараз", systemImage: "arrow.triangle.2.circlepath")
+                Label(String(localized: "Update now"), systemImage: "arrow.triangle.2.circlepath")
                     .labelStyle(.titleAndIcon)
             }
             .buttonStyle(.borderedProminent)
@@ -138,12 +138,12 @@ struct AboutSettingsView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Автор")
+                        Text(String(localized: "Author"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(currentProduct.accentDeep)
                         Text("Roman Marinskyi")
                             .font(.system(size: 15, weight: .semibold))
-                        Text("IT-підприємець і розробник macOS інструментів продуктивності. Розробляю Diduny, Papuga і AppCat - практичні утиліти для прискорення твоєї робочої рутини.")
+                        Text(String(localized: "I build practical macOS tools that remove small daily frictions from your work routine."))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -153,8 +153,8 @@ struct AboutSettingsView: View {
                         AuthorLinkRow(title: "Website", value: "rmarinsky.com.ua", icon: "globe", url: "https://rmarinsky.com.ua")
                         AuthorLinkRow(title: "GitHub", value: "@rmarinsky", icon: "chevron.left.forwardslash.chevron.right", url: "https://github.com/rmarinsky")
                         AuthorLinkRow(title: "LinkedIn", value: "in/rmarinsky", icon: "briefcase", url: "https://linkedin.com/in/rmarinsky")
-                        AuthorLinkRow(title: "YOY", value: "платформа для івентів", icon: "calendar", url: "https://yoy.fyi")
-                        AuthorLinkRow(title: "Monobase", value: "підтримати розробку", icon: "heart.fill", url: "https://base.monobank.ua/3yGFDUvCLJuNhm#subscriptions")
+                        AuthorLinkRow(title: "YOY", value: String(localized: "event platform"), icon: "calendar", url: "https://yoy.fyi")
+                        AuthorLinkRow(title: "Monobase", value: String(localized: "support development"), icon: "heart.fill", url: "https://base.monobank.ua/3yGFDUvCLJuNhm#subscriptions")
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
@@ -187,26 +187,26 @@ struct AboutSettingsView: View {
 
     private func loadLatestVersion() async {
         await MainActor.run {
-            latestVersionText = "Перевіряю"
+            latestVersionText = String(localized: "Checking")
         }
 
         guard let feed = Bundle.main.infoDictionary?["SUFeedURL"] as? String,
               let url = URL(string: feed)
         else {
-            await MainActor.run { latestVersionText = "Немає URL" }
+            await MainActor.run { latestVersionText = String(localized: "No URL") }
             return
         }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let xml = String(data: data, encoding: .utf8) ?? ""
-            let parsed = Self.extractLatestVersion(from: xml) ?? "Немає даних"
+            let parsed = Self.extractLatestVersion(from: xml) ?? String(localized: "No data")
             await MainActor.run {
                 latestVersionText = parsed
             }
         } catch {
             await MainActor.run {
-                latestVersionText = "Недоступно"
+                latestVersionText = String(localized: "Unavailable")
             }
         }
     }
@@ -258,7 +258,7 @@ private struct AppPromoCard: View {
                 }
                 Spacer(minLength: 0)
                 if isCurrent {
-                    Text("Ви тут")
+                    Text(String(localized: "Current app"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
@@ -279,7 +279,7 @@ private struct AppPromoCard: View {
 
             HStack(spacing: 8) {
                 if isCurrent {
-                    Text("Встановлено")
+                    Text(String(localized: "Installed"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -287,7 +287,7 @@ private struct AppPromoCard: View {
                         .background(Color("SurfaceInset"), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 } else {
                     Link(destination: product.downloadURL) {
-                        Text("Завантажити")
+                        Text(String(localized: "Download"))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(product.accentDeep)
@@ -403,8 +403,8 @@ private let products: [AboutProduct] = [
     AboutProduct(
         id: .diduny,
         name: "Diduny",
-        tagline: "Диктування і транскрипція для macOS",
-        description: "Натиснув клавішу, сказав думку, отримав чистий текст. Плюс записи зустрічей і Dynamic Notch feedback.",
+        tagline: String(localized: "Dictation and transcription for macOS"),
+        description: String(localized: "Press a key, say the thought, get clean text. Meeting recordings and Dynamic Notch feedback included."),
         systemImage: "mic.fill",
         tintSoft: Color(red: 252.0 / 255.0, green: 237.0 / 255.0, blue: 241.0 / 255.0),
         tintBorder: Color(red: 231.0 / 255.0, green: 59.0 / 255.0, blue: 94.0 / 255.0).opacity(0.18),
@@ -415,8 +415,8 @@ private let products: [AboutProduct] = [
     AboutProduct(
         id: .papuga,
         name: "Papuga",
-        tagline: "Рятує текст, набраний не тією розкладкою",
-        description: "Виділив текст, натиснув shortcut, отримав нормальну мову без ручного перенабору.",
+        tagline: String(localized: "Fixes text typed in the wrong keyboard layout"),
+        description: String(localized: "Select text, press a shortcut, get the right language without retyping."),
         systemImage: "bird.fill",
         tintSoft: Color(red: 234.0 / 255.0, green: 247.0 / 255.0, blue: 240.0 / 255.0),
         tintBorder: Color(red: 31.0 / 255.0, green: 175.0 / 255.0, blue: 92.0 / 255.0).opacity(0.18),
@@ -427,8 +427,8 @@ private let products: [AboutProduct] = [
     AboutProduct(
         id: .appCat,
         name: "AppCat",
-        tagline: "Контроль над тим, куди відкриваються посилання",
-        description: "Роутить URL, браузери, профілі й апки без копіпасту між Chrome, Safari, Slack і IDE.",
+        tagline: String(localized: "Control where links and files open"),
+        description: String(localized: "Routes URLs, browsers, profiles, and apps without copy-paste between Chrome, Safari, Slack, and IDEs."),
         systemImage: "cat.fill",
         tintSoft: Color("BrandTintSoft"),
         tintBorder: Color("BrandTintBorder"),

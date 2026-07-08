@@ -37,7 +37,7 @@ struct OverviewView: View {
     /// Shows the assumptions behind the "time saved" number, so it reads as an
     /// honest estimate rather than a magic figure.
     private var estimateFootnote: some View {
-        Text(String(localized: "Estimate: ~7s saved per rule-routed open, ~3s via hotkey, ~2s via click, +3s when routed straight to a profile."))
+        Text(String(localized: "Estimate: ~7s per rule route, ~3s per picker hotkey, ~2s per picker click, +3s for profile routing, ~1s per manual app switch."))
             .font(.system(size: 11))
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,6 +99,10 @@ struct OverviewView: View {
 
     private var subline: String {
         let count = statsManager?.totalOpenCount ?? 0
+        let switches = statsManager?.manualPickerSwitchCountTotal ?? 0
+        if switches > 0 {
+            return "≈ \(count.formatted()) \(String(localized: "opens handled by AppCat")) · \(switches.formatted()) \(String(localized: "app switches"))"
+        }
         return "≈ \(count.formatted()) \(String(localized: "opens handled by AppCat"))"
     }
 

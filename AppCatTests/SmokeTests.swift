@@ -125,7 +125,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(item?.id, items[10].id)
     }
 
-    func testPickerShortcutPolicyShowsDirectKeysOnlyInToggleMode() throws {
+    func testRoutingPickerShortcutPolicyShowsDirectKeysInAnyActivationMode() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -138,20 +138,23 @@ final class SmokeTests: XCTestCase {
         let toggleAssignments = PickerShortcutPolicy.assignments(
             for: items,
             activationMode: .toggleShortcut,
+            isManualPickerPresentation: false,
             selectWithNumberKeys: true
         )
-        let standardAssignments = PickerShortcutPolicy.assignments(
+        let holdAssignments = PickerShortcutPolicy.assignments(
             for: items,
             activationMode: .holdOptionTab,
+            isManualPickerPresentation: false,
             selectWithNumberKeys: true
         )
 
         XCTAssertEqual(toggleAssignments[configured.id]?.source, .configured)
         XCTAssertEqual(toggleAssignments[positional.id]?.source, .positional)
-        XCTAssertTrue(standardAssignments.isEmpty)
+        XCTAssertEqual(holdAssignments[configured.id]?.source, .configured)
+        XCTAssertEqual(holdAssignments[positional.id]?.source, .positional)
     }
 
-    func testPickerShortcutPolicyDoesNotOpenItemsByKeyInStandardMode() throws {
+    func testManualPickerShortcutPolicyDoesNotOpenItemsByKeyInHoldMode() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -163,10 +166,30 @@ final class SmokeTests: XCTestCase {
             forKeyCode: configuredKeyCode,
             in: [configured],
             activationMode: .holdOptionTab,
+            isManualPickerPresentation: true,
             selectWithNumberKeys: true
         )
 
         XCTAssertNil(item)
+    }
+
+    func testRoutingPickerShortcutPolicyOpensItemsByKeyInHoldMode() throws {
+        let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
+        let configured = PickerItem(app: makeApp(
+            id: "test.figma",
+            hotkey: "f",
+            hotkeyKeyCode: configuredKeyCode
+        ))
+
+        let item = PickerShortcutPolicy.item(
+            forKeyCode: configuredKeyCode,
+            in: [configured],
+            activationMode: .holdOptionTab,
+            isManualPickerPresentation: false,
+            selectWithNumberKeys: true
+        )
+
+        XCTAssertEqual(item?.id, configured.id)
     }
 
     func testPickerPanelWidthUsesContentWidthForSmallItemCounts() {
@@ -183,6 +206,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PickerMetrics.iconSize(scale: scale), 118.8, accuracy: 0.001)
         XCTAssertEqual(PickerMetrics.itemWidth(scale: scale), 126.9, accuracy: 0.001)
         XCTAssertEqual(PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, scale: scale), 461.7, accuracy: 0.001)
+    }
+
+    func testPrivateModeHintStaysInsideStandardPickerHeight() {
+        XCTAssertEqual(PickerMetrics.panelHeight(), PickerMetrics.scrollHeight(), accuracy: 0.001)
+        XCTAssertEqual(PickerMetrics.hintBottomInset(), 5, accuracy: 0.001)
     }
 
     func testPickerIconGapUsesCompactAppSwitcherSpacing() {
@@ -203,7 +231,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(width, 684, accuracy: 0.001)
     }
 
-    func testAppSwitcherPanelCentersInVisibleFrame() {
+    func testManualPickerPanelCentersInVisibleFrame() {
         let origin = PickerPanelPositioning.centeredOrigin(
             panelSize: NSSize(width: 352, height: 162),
             visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800)
@@ -211,6 +239,30 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertEqual(origin.x, 524, accuracy: 0.001)
         XCTAssertEqual(origin.y, 369, accuracy: 0.001)
+    }
+
+    func testRoutingPickerPanelPositionsNearCursor() {
+        let origin = PickerPanelPositioning.nearCursorOrigin(
+            mouseLocation: NSPoint(x: 700, y: 500),
+            panelSize: NSSize(width: 352, height: 162),
+            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800),
+            scale: 1
+        )
+
+        XCTAssertEqual(origin.x, 524, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 459, accuracy: 0.001)
+    }
+
+    func testRoutingPickerPanelPositionClampsToVisibleFrame() {
+        let origin = PickerPanelPositioning.nearCursorOrigin(
+            mouseLocation: NSPoint(x: 40, y: 30),
+            panelSize: NSSize(width: 352, height: 162),
+            visibleFrame: NSRect(x: 100, y: 50, width: 1200, height: 800),
+            scale: 1
+        )
+
+        XCTAssertEqual(origin.x, 108, accuracy: 0.001)
+        XCTAssertEqual(origin.y, 58, accuracy: 0.001)
     }
 
     func testTypeAheadFocusesAppByName() {
@@ -598,6 +650,27 @@ final class SmokeTests: XCTestCase {
         let item = PickerItem(browser: makeBrowser(profiles: [profile]), profile: profile)
 
         XCTAssertEqual(item.displayName, "Chrome - Work")
+    }
+
+    @MainActor
+    func testManualPickerShowsRunningBrowserAsAppTileInsteadOfProfileAction() {
+        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
+        var browser = makeBrowser(profiles: [profile], profileType: .chromium)
+        browser.isVisible = false
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [browser],
+            allBrowsers: [browser],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [browser.id],
+            windowsByAppID: [:],
+            regularBundleIDs: [browser.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), [browser.id])
+        XCTAssertNil(items[0].profile)
     }
 
     func testWebFilesPutBrowsersBeforeAppsInPickerOrder() throws {

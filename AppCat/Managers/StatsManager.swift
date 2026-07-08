@@ -12,11 +12,16 @@ final class StatsManager {
     private static let maxRulesPerDay = 50
 
     private let urlRuleMatcher = URLRuleMatcher()
+    private let storage: StatsStoring
 
     // MARK: - Lifecycle
 
+    init(storage: StatsStoring = StatsStorage.shared) {
+        self.storage = storage
+    }
+
     func load() {
-        let entries = StatsStorage.shared.load()
+        let entries = storage.load()
         dailyStats = entries
         firstUseDate = entries.compactMap(\.date).min()
         Log.settings.debug("StatsManager loaded \(entries.count) days")
@@ -25,7 +30,7 @@ final class StatsManager {
     func reset() {
         dailyStats = []
         firstUseDate = nil
-        StatsStorage.shared.save([])
+        storage.save([])
     }
 
     // MARK: - Recording
@@ -53,6 +58,24 @@ final class StatsManager {
         }
         entry.secondsSaved += Int(source.secondsSaved)
         if profileTargeted { entry.secondsSaved += Int(TimeSavedConstants.profileRouteBonus) }
+        dailyStats.append(entry)
+
+        trimAndSave()
+        if firstUseDate == nil { firstUseDate = entry.date }
+    }
+
+    func recordManualPickerSwitch(at date: Date = Date()) {
+        let key = DailyStats.dayKey(for: date)
+        var entry: DailyStats
+        if let idx = dailyStats.firstIndex(where: { $0.day == key }) {
+            entry = dailyStats[idx]
+            dailyStats.remove(at: idx)
+        } else {
+            entry = DailyStats(day: key)
+        }
+
+        entry.manualPickerSwitchCount += 1
+        entry.secondsSaved += Int(TimeSavedConstants.manualPickerSwitch)
         dailyStats.append(entry)
 
         trimAndSave()
@@ -108,7 +131,7 @@ final class StatsManager {
         if dailyStats.count > Self.maxDays {
             dailyStats = Array(dailyStats.suffix(Self.maxDays))
         }
-        StatsStorage.shared.save(dailyStats)
+        storage.save(dailyStats)
     }
 
     // MARK: - Derived metrics
@@ -132,6 +155,10 @@ final class StatsManager {
 
     var totalOpenCount: Int {
         dailyStats.reduce(0) { $0 + $1.autoRouteCount + $1.pickerHotkeyCount + $1.pickerClickCount }
+    }
+
+    var manualPickerSwitchCountTotal: Int {
+        dailyStats.reduce(0) { $0 + $1.manualPickerSwitchCount }
     }
 
     /// Percentage of all opens that were auto-routed by a rule (0–100).

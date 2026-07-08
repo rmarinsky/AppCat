@@ -49,7 +49,7 @@ struct MenuBarContentView: View {
             }
 
             if recentEntries.isEmpty {
-                Text("No recent items")
+                Text(String(localized: "No recent items"))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(recentEntries) { entry in
@@ -66,9 +66,9 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            Menu("History") {
+            Menu(String(localized: "History")) {
                 if todayEntries.isEmpty {
-                    Text("No items today")
+                    Text(String(localized: "No items today"))
                 } else {
                     ForEach(todayEntries) { entry in
                         Button {
@@ -88,13 +88,13 @@ struct MenuBarContentView: View {
                     appState.mainWindowSection = .history
                     MainWindowActivation.requestOpen()
                 } label: {
-                    Text("Open History...")
+                    Text(String(localized: "Open History..."))
                 }
             }
 
             Divider()
 
-            Button("Check for Updates...") {
+            Button(String(localized: "Check for Updates...")) {
                 onCheckForUpdates()
             }
 
@@ -102,13 +102,13 @@ struct MenuBarContentView: View {
                 appState.mainWindowSection = .settingsGeneral
                 MainWindowActivation.requestOpen()
             } label: {
-                Text("Settings...")
+                Text(String(localized: "Settings..."))
             }
             .keyboardShortcut(",", modifiers: .command)
 
             Divider()
 
-            Button("Quit AppCat") {
+            Button(String(localized: "Quit AppCat")) {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("Q", modifiers: .command)

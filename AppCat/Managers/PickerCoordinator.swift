@@ -71,8 +71,12 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
+            let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
-            browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            if shouldRecordManualSwitch, didActivate {
+                statsManager?.recordManualPickerSwitch()
+            }
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
@@ -104,8 +108,12 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
+            let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
-            browserLauncher.activate(app: app, windowTarget: windowTarget)
+            let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            if shouldRecordManualSwitch, didActivate {
+                statsManager?.recordManualPickerSwitch()
+            }
             deferPostSelectionWork {
                 state.recordAppUsage(app.id)
             }

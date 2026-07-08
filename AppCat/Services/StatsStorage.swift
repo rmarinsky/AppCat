@@ -1,6 +1,11 @@
 import Foundation
 
-final class StatsStorage {
+protocol StatsStoring {
+    func save(_ entries: [DailyStats])
+    func load() -> [DailyStats]
+}
+
+final class StatsStorage: StatsStoring {
     static let shared = StatsStorage()
 
     private let fileManager = FileManager.default

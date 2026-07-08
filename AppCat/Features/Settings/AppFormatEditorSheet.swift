@@ -51,7 +51,7 @@ struct AppFormatEditorSheet: View {
                 Text("\(app.displayName) — \(String(localized: "File formats"))")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.primary)
-                Text("Choose which files AppCat opens in \(app.displayName).")
+                Text(String(format: String(localized: "Choose which files AppCat opens in %@"), app.displayName))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -81,7 +81,7 @@ struct AppFormatEditorSheet: View {
 
     private var formatsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("OPENS THESE FORMATS")
+            Text(String(localized: "OPENS THESE FORMATS"))
                 .font(.system(size: 11, weight: .semibold))
                 .tracking(0.44)
                 .foregroundStyle(.tertiary)
@@ -93,7 +93,7 @@ struct AppFormatEditorSheet: View {
                 addControl
             }
 
-            Text("Formats are read from the app. Add or remove any to override what \(app.displayName) opens.")
+            Text(String(format: String(localized: "Formats are read from the app. Add or remove any to override what %@ opens."), app.displayName))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -162,7 +162,7 @@ struct AppFormatEditorSheet: View {
                 HStack(spacing: 4) {
                     Image(systemName: "plus")
                         .font(.system(size: 10, weight: .semibold))
-                    Text("Add format")
+                    Text(String(localized: "Add format"))
                         .font(.system(size: 13, weight: .medium))
                 }
                 .foregroundStyle(Color("BrandAccentDeep"))
@@ -199,10 +199,10 @@ struct AppFormatEditorSheet: View {
     private var unknownTypesRow: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Open unknown file types here")
+                Text(String(localized: "Open unknown file types here"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
-                Text("When macOS can't match a file's type, AppCat sends it to \(app.displayName).")
+                Text(String(format: String(localized: "When macOS can't match a file's type, AppCat sends it to %@."), app.displayName))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -224,7 +224,7 @@ struct AppFormatEditorSheet: View {
         HStack(spacing: 10) {
             Spacer()
             Button(action: onCancel) {
-                Text("Cancel")
+                Text(String(localized: "Cancel"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 14)
@@ -238,7 +238,7 @@ struct AppFormatEditorSheet: View {
             .keyboardShortcut(.cancelAction)
 
             Button(action: save) {
-                Text("Save")
+                Text(String(localized: "Save"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
