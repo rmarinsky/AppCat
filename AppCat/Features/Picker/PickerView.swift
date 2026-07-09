@@ -558,11 +558,25 @@ enum PickerTypeAheadMatcher {
     }
 }
 
+enum PickerTapAction: Equatable {
+    case ignore
+    case open
+}
+
+enum PickerTapPolicy {
+    static func action(
+        for item: PickerItem,
+        isPickerVisible: Bool,
+        isManualPickerPresentation: Bool
+    ) -> PickerTapAction {
+        guard isPickerVisible else { return .ignore }
+        return .open
+    }
+}
+
 struct PickerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.pickerCoordinator) private var pickerCoordinator
-
-    @State private var profilePopoverBrowserID: String?
 
     private var presentationStyle: PickerPresentationStyle {
         appState.isManualPickerPresentation ? .appSwitcher : .routing
@@ -676,23 +690,6 @@ struct PickerView: View {
         .onTapGesture {
             handleItemTap(item)
         }
-        .popover(isPresented: Binding(
-            get: {
-                item.browser != nil
-                    && item.profile == nil
-                    && item.windowTarget == nil
-                    && hasVisibleProfiles
-                    && profilePopoverBrowserID == item.browser?.id
-            },
-            set: { if !$0 { profilePopoverBrowserID = nil } }
-        )) {
-            if let browser = item.browser {
-                ProfilePopover(browser: browser) { profile in
-                    profilePopoverBrowserID = nil
-                    pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
-                }
-            }
-        }
         .onHover { isHovered in
             guard isHovered, appState.isPickerVisible else { return }
             appState.focusedBrowserIndex = index
@@ -756,6 +753,19 @@ struct PickerView: View {
     }
 
     private func handleItemTap(_ item: PickerItem) {
+        switch PickerTapPolicy.action(
+            for: item,
+            isPickerVisible: appState.isPickerVisible,
+            isManualPickerPresentation: appState.isManualPickerPresentation
+        ) {
+        case .ignore:
+            break
+        case .open:
+            open(item)
+        }
+    }
+
+    private func open(_ item: PickerItem) {
         if let app = item.app {
             pickerCoordinator?.openURL(with: app, windowTarget: item.windowTarget, state: appState)
         } else if let profile = item.profile, let browser = item.browser {
@@ -767,8 +777,6 @@ struct PickerView: View {
                 windowTarget: item.windowTarget,
                 state: appState
             )
-        } else if let browser = item.browser, browser.profiles.contains(where: \.isVisible) {
-            profilePopoverBrowserID = browser.id
         } else if let browser = item.browser {
             pickerCoordinator?.openURL(with: browser, mode: .normal, state: appState)
         }
@@ -924,7 +932,7 @@ struct PickerCell: View {
                 profile: item.profile,
                 shortcut: shortcut,
                 showsHotkey: false,
-                showsProfileMenuIndicator: item.windowTarget == nil,
+                showsProfileMenuIndicator: false,
                 compact: compact,
                 style: style,
                 scale: scale
