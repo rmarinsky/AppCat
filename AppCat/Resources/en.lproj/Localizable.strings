@@ -295,6 +295,11 @@
 "APPEARANCE" = "APPEARANCE";
 "Picker size" = "Picker size";
 "Scales the picker panel, icons, labels, and key hints." = "Scales the picker panel, icons, labels, and key hints.";
+"Picker background" = "Picker background";
+"Applies to link routing and app switching pickers." = "Applies to link routing and app switching pickers.";
+"Liquid Glass" = "Liquid Glass";
+"Frosted" = "Frosted";
+"Dimmed" = "Dimmed";
 "APP SWITCHER" = "APP SWITCHER";
 "Choose which running apps show up when you switch apps and windows." = "Choose which running apps show up when you switch apps and windows.";
 "Show running apps without windows" = "Show running apps without windows";

@@ -295,6 +295,11 @@
 "APPEARANCE" = "ВИГЛЯД";
 "Picker size" = "Розмір пікера";
 "Scales the picker panel, icons, labels, and key hints." = "Масштабує панель пікера, іконки, підписи й підказки клавіш.";
+"Picker background" = "Фон пікера";
+"Applies to link routing and app switching pickers." = "Застосовується до пікера посилань і перемикача застосунків.";
+"Liquid Glass" = "Liquid Glass";
+"Frosted" = "Матове скло";
+"Dimmed" = "Затемнений";
 "APP SWITCHER" = "ПЕРЕМИКАЧ ЗАСТОСУНКІВ";
 "Choose which running apps show up when you switch apps and windows." = "Оберіть, які запущені застосунки показувати під час перемикання застосунків і вікон.";
 "Show running apps without windows" = "Показувати запущені застосунки без вікон";

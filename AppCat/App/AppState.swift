@@ -37,6 +37,7 @@ final class AppState {
     var showBackgroundApps: Bool = false
     var pickerLayout: PickerLayout = .horizontal
     var pickerScale: Double = PickerScale.defaultValue
+    var pickerBackgroundStyle: PickerBackgroundStyle = .defaultValue
     var selectWithNumberKeys: Bool = true
     var pickerActivationMode: PickerActivationMode = .toggleShortcut
     var pickerServiceKey: PickerServiceKey = .off
@@ -165,6 +166,7 @@ final class AppState {
         recentLinksCount = SettingsStorage.shared.recentLinksCount
         pickerLayout = .horizontal
         pickerScale = SettingsStorage.shared.pickerScale
+        pickerBackgroundStyle = SettingsStorage.shared.pickerBackgroundStyle
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         pickerActivationMode = SettingsStorage.shared.pickerActivationMode
         pickerServiceKey = SettingsStorage.shared.pickerServiceKey
@@ -216,6 +218,11 @@ final class AppState {
         let clampedValue = PickerScale.clamped(value)
         pickerScale = clampedValue
         SettingsStorage.shared.pickerScale = clampedValue
+    }
+
+    func setPickerBackgroundStyle(_ style: PickerBackgroundStyle) {
+        pickerBackgroundStyle = style
+        SettingsStorage.shared.pickerBackgroundStyle = style
     }
 
     func setSelectWithNumberKeys(_ value: Bool) {

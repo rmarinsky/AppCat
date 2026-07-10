@@ -61,6 +61,8 @@ struct PickerSettingsView: View {
                 SettingsSectionCaption("APPEARANCE")
                 SettingsCard {
                     pickerScaleRow
+                    divider
+                    pickerBackgroundRow
                 }
 
                 SettingsSectionCaption("APP SWITCHER")
@@ -152,6 +154,25 @@ struct PickerSettingsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+    }
+
+    private var pickerBackgroundRow: some View {
+        row(
+            title: String(localized: "Picker background"),
+            subtitle: String(localized: "Applies to link routing and app switching pickers.")
+        ) {
+            Picker("", selection: Binding(
+                get: { appState.pickerBackgroundStyle },
+                set: { appState.setPickerBackgroundStyle($0) }
+            )) {
+                ForEach(PickerBackgroundStyle.allCases) { style in
+                    Text(style.localizedDisplayName).tag(style)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 140)
+        }
     }
 
     private var hiddenAppsEditor: some View {

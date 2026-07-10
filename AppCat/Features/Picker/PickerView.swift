@@ -679,17 +679,20 @@ struct PickerView: View {
         let hasVisibleProfiles = item.browser?.profiles.contains(where: \.isVisible) == true
         let isFocused = appState.focusedBrowserIndex == index
 
-        PickerCell(
-            item: item,
-            isFocused: isFocused,
-            shortcut: shortcut,
-            compact: true,
-            style: style,
-            scale: scale
-        )
-        .onTapGesture {
+        Button {
             handleItemTap(item)
+        } label: {
+            PickerCell(
+                item: item,
+                isFocused: isFocused,
+                shortcut: shortcut,
+                compact: true,
+                style: style,
+                scale: scale
+            )
         }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .onHover { isHovered in
             guard isHovered, appState.isPickerVisible else { return }
             appState.focusedBrowserIndex = index

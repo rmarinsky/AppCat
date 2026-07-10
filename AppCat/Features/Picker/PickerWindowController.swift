@@ -666,7 +666,7 @@ final class PickerWindowController: NSObject {
             if let glassView = glassEffectView(in: surfaceView) {
                 glassView.style = .regular
                 glassView.cornerRadius = radius
-                glassView.tintColor = nil
+                glassView.tintColor = appState.pickerBackgroundStyle.glassTintColor
             }
             return
         }
@@ -682,15 +682,15 @@ final class PickerWindowController: NSObject {
     }
 
     private func applyVisualEffectFallbackAppearance(to visualEffect: NSVisualEffectView) {
-        visualEffect.material = .hudWindow
-        visualEffect.blendingMode = .behindWindow
+        visualEffect.material = appState.pickerBackgroundStyle.visualEffectMaterial
+        visualEffect.blendingMode = appState.pickerBackgroundStyle.visualEffectBlendingMode
         visualEffect.state = .active
         visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(scale: pickerScale)
         visualEffect.layer?.cornerCurve = .continuous
         visualEffect.layer?.masksToBounds = true
         visualEffect.layer?.borderWidth = 0
         visualEffect.layer?.borderColor = nil
-        visualEffect.layer?.backgroundColor = NSColor.clear.cgColor
+        visualEffect.layer?.backgroundColor = appState.pickerBackgroundStyle.fallbackFillColor.cgColor
     }
 
     private func refreshPanelAppearance() {
@@ -866,6 +866,48 @@ extension PickerWindowController: NSWindowDelegate {
                 return
             }
             self.close()
+        }
+    }
+}
+
+private extension PickerBackgroundStyle {
+    var glassTintColor: NSColor? {
+        switch self {
+        case .liquidGlass:
+            nil
+        case .frosted:
+            NSColor.windowBackgroundColor.withAlphaComponent(0.16)
+        case .dimmed:
+            NSColor.black.withAlphaComponent(0.16)
+        }
+    }
+
+    var visualEffectMaterial: NSVisualEffectView.Material {
+        switch self {
+        case .liquidGlass:
+            .hudWindow
+        case .frosted:
+            .popover
+        case .dimmed:
+            .underWindowBackground
+        }
+    }
+
+    var visualEffectBlendingMode: NSVisualEffectView.BlendingMode {
+        switch self {
+        case .liquidGlass, .frosted:
+            .behindWindow
+        case .dimmed:
+            .withinWindow
+        }
+    }
+
+    var fallbackFillColor: NSColor {
+        switch self {
+        case .liquidGlass, .frosted:
+            .clear
+        case .dimmed:
+            NSColor.black.withAlphaComponent(0.22)
         }
     }
 }
