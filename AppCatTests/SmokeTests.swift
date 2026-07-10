@@ -173,6 +173,57 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(item)
     }
 
+    func testManualPickerTapOpensBrowserWithProfilesInsteadOfShowingProfileMenu() {
+        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
+        let item = PickerItem(browser: makeBrowser(profiles: [profile]))
+
+        let action = PickerTapPolicy.action(
+            for: item,
+            isPickerVisible: true,
+            isManualPickerPresentation: true
+        )
+
+        XCTAssertEqual(action, .open)
+    }
+
+    func testRoutingPickerTapOpensBrowserWithProfilesInsteadOfShowingProfileMenu() {
+        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
+        let item = PickerItem(browser: makeBrowser(profiles: [profile]))
+
+        let action = PickerTapPolicy.action(
+            for: item,
+            isPickerVisible: true,
+            isManualPickerPresentation: false
+        )
+
+        XCTAssertEqual(action, .open)
+    }
+
+    func testRoutingPickerTapOpensSpecificProfileItem() {
+        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
+        let item = PickerItem(browser: makeBrowser(profiles: [profile]), profile: profile)
+
+        let action = PickerTapPolicy.action(
+            for: item,
+            isPickerVisible: true,
+            isManualPickerPresentation: false
+        )
+
+        XCTAssertEqual(action, .open)
+    }
+
+    func testPickerTapPolicyIgnoresLateTapAfterPickerDismissed() {
+        let item = PickerItem(app: makeApp(id: "test.figma"))
+
+        let action = PickerTapPolicy.action(
+            for: item,
+            isPickerVisible: false,
+            isManualPickerPresentation: true
+        )
+
+        XCTAssertEqual(action, .ignore)
+    }
+
     func testRoutingPickerShortcutPolicyOpensItemsByKeyInHoldMode() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(

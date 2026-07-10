@@ -52,6 +52,119 @@ final class PickerSessionTests: XCTestCase {
         XCTAssertEqual(PickerWindowController.remappedFocusIndex(oldItems: items, newItems: items, oldIndex: 9), 0)
     }
 
+    // MARK: - Click-away dismissal
+
+    @MainActor
+    func testGlobalMouseDownInsidePickerFrameDoesNotDismiss() {
+        let panelFrame = NSRect(x: 100, y: 200, width: 320, height: 160)
+
+        XCTAssertFalse(PickerWindowController.shouldDismissForGlobalMouseDown(
+            at: NSPoint(x: 220, y: 260),
+            panelFrame: panelFrame
+        ))
+        XCTAssertTrue(PickerWindowController.shouldDismissForGlobalMouseDown(
+            at: NSPoint(x: 80, y: 260),
+            panelFrame: panelFrame
+        ))
+        XCTAssertTrue(PickerWindowController.shouldDismissForGlobalMouseDown(
+            at: NSPoint(x: 220, y: 260),
+            panelFrame: nil
+        ))
+    }
+
+    @MainActor
+    func testManualPickerClickHitTestReturnsClickedItemIndex() {
+        let panelFrame = NSRect(
+            x: 100,
+            y: 200,
+            width: PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200),
+            height: PickerMetrics.panelHeight()
+        )
+        let firstItemPoint = NSPoint(
+            x: panelFrame.minX + PickerMetrics.horizontalPadding() + PickerMetrics.itemWidth() / 2,
+            y: panelFrame.minY + PickerMetrics.verticalPadding() + PickerMetrics.itemHeight() / 2
+        )
+        let secondItemPoint = NSPoint(
+            x: firstItemPoint.x + PickerMetrics.itemWidth() + PickerMetrics.itemSpacing(),
+            y: firstItemPoint.y
+        )
+
+        XCTAssertEqual(PickerWindowController.itemIndexForManualPickerClick(
+            at: firstItemPoint,
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: 0,
+            scale: 1
+        ), 0)
+        XCTAssertEqual(PickerWindowController.itemIndexForManualPickerClick(
+            at: secondItemPoint,
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: 0,
+            scale: 1
+        ), 1)
+    }
+
+    @MainActor
+    func testManualPickerClickHitTestIgnoresPaddingGapAndOutsidePanel() {
+        let panelFrame = NSRect(
+            x: 100,
+            y: 200,
+            width: PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200),
+            height: PickerMetrics.panelHeight()
+        )
+        let itemTop = panelFrame.minY + PickerMetrics.verticalPadding() + PickerMetrics.itemHeight()
+        let gapX = panelFrame.minX
+            + PickerMetrics.horizontalPadding()
+            + PickerMetrics.itemWidth()
+            + PickerMetrics.itemSpacing() / 2
+
+        XCTAssertNil(PickerWindowController.itemIndexForManualPickerClick(
+            at: NSPoint(x: panelFrame.minX + PickerMetrics.horizontalPadding() / 2, y: itemTop - 10),
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: 0,
+            scale: 1
+        ))
+        XCTAssertNil(PickerWindowController.itemIndexForManualPickerClick(
+            at: NSPoint(x: gapX, y: itemTop - 10),
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: 0,
+            scale: 1
+        ))
+        XCTAssertNil(PickerWindowController.itemIndexForManualPickerClick(
+            at: NSPoint(x: panelFrame.midX, y: panelFrame.maxY + 1),
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: 0,
+            scale: 1
+        ))
+    }
+
+    @MainActor
+    func testManualPickerClickHitTestAccountsForHorizontalScrollOffset() {
+        let panelFrame = NSRect(
+            x: 100,
+            y: 200,
+            width: PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200),
+            height: PickerMetrics.panelHeight()
+        )
+        let visibleFirstTileCenter = NSPoint(
+            x: panelFrame.minX + PickerMetrics.horizontalPadding() + PickerMetrics.itemWidth() / 2,
+            y: panelFrame.minY + PickerMetrics.verticalPadding() + PickerMetrics.itemHeight() / 2
+        )
+        let oneItemOffset = PickerMetrics.itemWidth() + PickerMetrics.itemSpacing()
+
+        XCTAssertEqual(PickerWindowController.itemIndexForManualPickerClick(
+            at: visibleFirstTileCenter,
+            panelFrame: panelFrame,
+            itemCount: 3,
+            scrollOffsetX: oneItemOffset,
+            scale: 1
+        ), 1)
+    }
+
     // MARK: - Icon downsampling
 
     func testDownsampledIconHasSingleTileSizedRep() {

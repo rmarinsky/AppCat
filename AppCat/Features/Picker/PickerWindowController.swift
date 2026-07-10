@@ -168,10 +168,17 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard !self.isInDismissGracePeriod else { return }
+                if self.openItemForManualGlobalMouseDown(at: NSEvent.mouseLocation, eventType: event.type) {
+                    return
+                }
+                guard Self.shouldDismissForGlobalMouseDown(
+                    at: NSEvent.mouseLocation,
+                    panelFrame: self.panel?.frame
+                ) else { return }
                 self.close()
             }
         }
@@ -464,6 +471,32 @@ final class PickerWindowController: NSObject {
         open(items[appState.focusedBrowserIndex], source: .pickerHotkey)
     }
 
+    private func openItemForManualGlobalMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
+        guard eventType == .leftMouseDown,
+              appState.isPickerVisible,
+              appState.isManualPickerPresentation,
+              appState.pickerActivationMode == .holdOptionTab,
+              let panel
+        else {
+            return false
+        }
+
+        let items = pickerItemsForCurrentSession()
+        guard let index = Self.itemIndexForManualPickerClick(
+            at: screenLocation,
+            panelFrame: panel.frame,
+            itemCount: items.count,
+            scrollOffsetX: pickerScrollOffsetX(in: panel),
+            scale: pickerScale
+        ) else {
+            return false
+        }
+
+        appState.focusedBrowserIndex = index
+        open(items[index], source: .pickerClick)
+        return true
+    }
+
     /// Where focus should land after the item list is replaced: follow the focused item's id,
     /// fall back to the same position clamped into bounds.
     static func remappedFocusIndex(oldItems: [PickerItem], newItems: [PickerItem], oldIndex: Int) -> Int {
@@ -471,6 +504,47 @@ final class PickerWindowController: NSObject {
         guard oldItems.indices.contains(oldIndex) else { return 0 }
         let focusedID = oldItems[oldIndex].id
         return newItems.firstIndex { $0.id == focusedID } ?? min(oldIndex, newItems.count - 1)
+    }
+
+    static func shouldDismissForGlobalMouseDown(at screenLocation: NSPoint, panelFrame: NSRect?) -> Bool {
+        guard let panelFrame else { return true }
+        return !panelFrame.contains(screenLocation)
+    }
+
+    static func itemIndexForManualPickerClick(
+        at screenLocation: NSPoint,
+        panelFrame: NSRect?,
+        itemCount: Int,
+        scrollOffsetX: CGFloat,
+        scale: CGFloat
+    ) -> Int? {
+        guard itemCount > 0,
+              let panelFrame,
+              panelFrame.contains(screenLocation)
+        else {
+            return nil
+        }
+
+        let scale = PickerMetrics.clampedScale(scale)
+        let localX = screenLocation.x - panelFrame.minX
+        let localY = screenLocation.y - panelFrame.minY
+        let verticalPadding = PickerMetrics.verticalPadding(scale: scale)
+        guard localY >= verticalPadding,
+              localY <= verticalPadding + PickerMetrics.itemHeight(scale: scale)
+        else {
+            return nil
+        }
+
+        let itemWidth = PickerMetrics.itemWidth(scale: scale)
+        let stride = itemWidth + PickerMetrics.itemSpacing(scale: scale)
+        let contentX = localX + scrollOffsetX - PickerMetrics.horizontalPadding(scale: scale)
+        guard contentX >= 0 else { return nil }
+
+        let rawIndex = Int(floor(contentX / stride))
+        guard rawIndex >= 0, rawIndex < itemCount else { return nil }
+        let xWithinSlot = contentX - CGFloat(rawIndex) * stride
+        guard xWithinSlot <= itemWidth else { return nil }
+        return rawIndex
     }
 
     private func seedPickerSnapshotIfPossible() {
@@ -592,7 +666,7 @@ final class PickerWindowController: NSObject {
             if let glassView = glassEffectView(in: surfaceView) {
                 glassView.style = .regular
                 glassView.cornerRadius = radius
-                glassView.tintColor = nil
+                glassView.tintColor = appState.pickerBackgroundStyle.glassTintColor
             }
             return
         }
@@ -608,15 +682,15 @@ final class PickerWindowController: NSObject {
     }
 
     private func applyVisualEffectFallbackAppearance(to visualEffect: NSVisualEffectView) {
-        visualEffect.material = .hudWindow
-        visualEffect.blendingMode = .behindWindow
+        visualEffect.material = appState.pickerBackgroundStyle.visualEffectMaterial
+        visualEffect.blendingMode = appState.pickerBackgroundStyle.visualEffectBlendingMode
         visualEffect.state = .active
         visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(scale: pickerScale)
         visualEffect.layer?.cornerCurve = .continuous
         visualEffect.layer?.masksToBounds = true
         visualEffect.layer?.borderWidth = 0
         visualEffect.layer?.borderColor = nil
-        visualEffect.layer?.backgroundColor = NSColor.clear.cgColor
+        visualEffect.layer?.backgroundColor = appState.pickerBackgroundStyle.fallbackFillColor.cgColor
     }
 
     private func refreshPanelAppearance() {
@@ -639,6 +713,16 @@ final class PickerWindowController: NSObject {
 
     private func hostingView(in panel: NSPanel) -> NSView? {
         panel.contentView.flatMap { firstDescendant(in: $0, matching: { $0.identifier == PickerPanelViewID.hosting }) }
+    }
+
+    private func pickerScrollOffsetX(in panel: NSPanel) -> CGFloat {
+        guard let contentView = panel.contentView,
+              let scrollView = firstDescendant(of: NSScrollView.self, in: contentView)
+        else {
+            return 0
+        }
+
+        return scrollView.contentView.bounds.minX
     }
 
     private func pickerContentContainer(in panel: NSPanel) -> NSView? {
@@ -782,6 +866,48 @@ extension PickerWindowController: NSWindowDelegate {
                 return
             }
             self.close()
+        }
+    }
+}
+
+private extension PickerBackgroundStyle {
+    var glassTintColor: NSColor? {
+        switch self {
+        case .liquidGlass:
+            nil
+        case .frosted:
+            NSColor.windowBackgroundColor.withAlphaComponent(0.16)
+        case .dimmed:
+            NSColor.black.withAlphaComponent(0.16)
+        }
+    }
+
+    var visualEffectMaterial: NSVisualEffectView.Material {
+        switch self {
+        case .liquidGlass:
+            .hudWindow
+        case .frosted:
+            .popover
+        case .dimmed:
+            .underWindowBackground
+        }
+    }
+
+    var visualEffectBlendingMode: NSVisualEffectView.BlendingMode {
+        switch self {
+        case .liquidGlass, .frosted:
+            .behindWindow
+        case .dimmed:
+            .withinWindow
+        }
+    }
+
+    var fallbackFillColor: NSColor {
+        switch self {
+        case .liquidGlass, .frosted:
+            .clear
+        case .dimmed:
+            NSColor.black.withAlphaComponent(0.22)
         }
     }
 }
