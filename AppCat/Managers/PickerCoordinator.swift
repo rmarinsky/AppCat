@@ -58,7 +58,7 @@ final class PickerCoordinator {
         // idempotent for the controller-backed path.
         state.isPickerVisible = false
         state.clearPendingOpen()
-        state.isManualPickerPresentation = false
+        state.pickerInvocationSource = .linkRouting
         state.pickerItemsSnapshot = []
     }
 
@@ -132,7 +132,7 @@ final class PickerCoordinator {
 
     func reopenURL(_ urlString: String, state: AppState) {
         guard let url = URL(string: urlString) else { return }
-        state.isManualPickerPresentation = false
+        state.pickerInvocationSource = .linkRouting
         state.setPendingOpen(displayURLs: [url], launchURLs: [url])
         showPicker(state: state)
     }

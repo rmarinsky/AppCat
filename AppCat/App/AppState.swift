@@ -37,7 +37,6 @@ final class AppState {
     var showBackgroundApps: Bool = false
     var pickerLayout: PickerLayout = .horizontal
     var pickerScale: Double = PickerScale.defaultValue
-    var pickerBackgroundStyle: PickerBackgroundStyle = .defaultValue
     var selectWithNumberKeys: Bool = true
     var pickerActivationMode: PickerActivationMode = .toggleShortcut
     var pickerServiceKey: PickerServiceKey = .off
@@ -45,8 +44,12 @@ final class AppState {
     var pickerServiceTapInterval: TimeInterval = PickerActivationSettings.defaultValue.serviceTapInterval
     var hiddenPickerAppIDs: Set<String> = []
     var pickerItemsSnapshot: [PickerItem] = []
-    var isManualPickerPresentation: Bool = false
+    var pickerInvocationSource: PickerInvocationSource = .linkRouting
     var runningAppBundleIDs: Set<String> = []
+    /// Lightweight, live representations of currently running apps. These make a newly launched
+    /// app available to the switcher immediately (before the slower installed-app rescan lands)
+    /// and carry the app's current runtime icon.
+    var runningAppsByBundleID: [String: InstalledApp] = [:]
     /// Bundle IDs of running apps with `.regular` activation policy (Dock apps). Menu-bar
     /// (`.accessory`) and background (`.prohibited`) apps are excluded — the switcher filters by this.
     var regularAppBundleIDs: Set<String> = []
@@ -63,6 +66,14 @@ final class AppState {
 
     var cachedWindowsByAppID: [String: [AppWindowTarget]]? {
         appWindowActivityUpdatedAt == nil ? nil : runningWindowsByAppID
+    }
+
+    var isManualPickerPresentation: Bool {
+        pickerInvocationSource.isManualPresentation
+    }
+
+    var showsPickerIncognitoHint: Bool {
+        pickerInvocationSource == .linkRouting && pendingURL != nil && pendingURL?.isFileURL != true
     }
 
     var visibleBrowsers: [InstalledBrowser] {
@@ -166,7 +177,6 @@ final class AppState {
         recentLinksCount = SettingsStorage.shared.recentLinksCount
         pickerLayout = .horizontal
         pickerScale = SettingsStorage.shared.pickerScale
-        pickerBackgroundStyle = SettingsStorage.shared.pickerBackgroundStyle
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         pickerActivationMode = SettingsStorage.shared.pickerActivationMode
         pickerServiceKey = SettingsStorage.shared.pickerServiceKey
@@ -218,11 +228,6 @@ final class AppState {
         let clampedValue = PickerScale.clamped(value)
         pickerScale = clampedValue
         SettingsStorage.shared.pickerScale = clampedValue
-    }
-
-    func setPickerBackgroundStyle(_ style: PickerBackgroundStyle) {
-        pickerBackgroundStyle = style
-        SettingsStorage.shared.pickerBackgroundStyle = style
     }
 
     func setSelectWithNumberKeys(_ value: Bool) {

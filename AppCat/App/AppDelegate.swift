@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Scheduled "open the main window" work. Stored so an incoming URL or a manual picker can
     /// cancel it outright instead of racing the fire-time guard.
     private var pendingMainWindowOpen: DispatchWorkItem?
+    /// Toggle/service pickers wait for a fresh off-main AX window pass. The token prevents a late
+    /// completion from presenting after a second trigger cancelled the session or a URL arrived.
+    private var pendingManualPickerPresentationID: UUID?
     /// URLs can arrive before `applicationDidFinishLaunching` loads browsers/rules/apps (the
     /// launch kAEGetURL event is delivered right after `applicationWillFinishLaunching`). Buffer
     /// them until launch configuration is ready, then flush.
@@ -89,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
             guard let self, self.appState.pickerActivationMode == .toggleShortcut else { return }
-            self.openPickerManually()
+            self.openPickerManually(source: .toggleShortcut)
         }
         KeyboardShortcuts.onKeyUp(for: .reopenLastPicker) { [weak self] in
             guard let self, let last = self.appState.lastOpenedURL else { return }
@@ -206,55 +209,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.openFocusedManualPickerItem()
         }
         pickerActivationListener.onServiceKeyTrigger = { [weak self] in
-            self?.openPickerManually()
+            self?.openPickerManually(source: .serviceKey)
         }
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
     }
 
     /// Show the manual app/window switcher.
-    private func openPickerManually() {
+    private func openPickerManually(source: PickerInvocationSource) {
         if appState.isPickerVisible {
             pickerCoordinator.dismissPicker(state: appState)
             return
         }
+        if pendingManualPickerPresentationID != nil {
+            pendingManualPickerPresentationID = nil
+            appState.pickerInvocationSource = .linkRouting
+            return
+        }
 
-        presentManualPicker()
+        presentManualPicker(source: source)
     }
 
     private func cycleManualPicker(delta: Int) {
         guard appState.pendingURL == nil else { return }
         if !appState.isPickerVisible {
-            presentManualPicker()
+            presentManualPicker(source: .holdOptionTab)
         }
-        guard appState.isManualPickerPresentation else { return }
+        guard appState.pickerInvocationSource == .holdOptionTab else { return }
         pickerCoordinator.moveFocus(delta: delta, state: appState)
     }
 
     private func openFocusedManualPickerItem() {
-        guard appState.isPickerVisible, appState.isManualPickerPresentation else { return }
+        guard appState.pickerInvocationSource.opensFocusedItemOnOptionRelease(
+            isPickerVisible: appState.isPickerVisible
+        ) else { return }
         pickerCoordinator.openFocusedItem(state: appState)
     }
 
-    private func presentManualPicker() {
+    private func presentManualPicker(source: PickerInvocationSource) {
         cancelScheduledMainWindowOpen()
+        pendingManualPickerPresentationID = nil
         appActivityMonitor.refreshRunningApplications()
-        if appState.cachedWindowsByAppID == nil {
-            // Cold cache (no background pass has landed yet) — enumerate once synchronously so
-            // the very first switcher isn't empty.
-            appActivityMonitor.refreshWindowSnapshotForPicker()
-        }
         appState.clearPendingOpen()
-        appState.isManualPickerPresentation = true
-        pickerCoordinator.showPicker(state: appState)
-        guard appState.pickerActivationMode != .holdOptionTab else {
-            // Match the native app switcher: keep the visible list stable until Option is released.
+        appState.pickerInvocationSource = source
+
+        if source.requiresFreshSnapshotBeforePresentation {
+            let presentationID = UUID()
+            pendingManualPickerPresentationID = presentationID
+            appActivityMonitor.refreshWindowsForPickerPresentation { [weak self] in
+                guard let self,
+                      self.pendingManualPickerPresentationID == presentationID,
+                      self.appState.pickerInvocationSource == source
+                else { return }
+                self.pendingManualPickerPresentationID = nil
+                self.pickerCoordinator.showPicker(state: self.appState)
+            }
             return
         }
-        // Open instantly from the cached snapshot, then correct the list in place once a live
-        // enumeration pass (off the main thread) lands.
-        appActivityMonitor.refreshWindowsForVisiblePicker { [weak self] in
-            self?.pickerCoordinator.refreshManualPickerSession()
+
+        if appState.cachedWindowsByAppID == nil {
+            // Hold-⌥Tab must appear immediately after the chord. Pay this synchronous cold-start
+            // cost only before the background cache has ever landed; subsequent holds stay cached.
+            appActivityMonitor.refreshWindowSnapshotForPicker()
         }
+        pickerCoordinator.showPicker(state: appState)
     }
 
     // MARK: - URL Handling
@@ -278,6 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A routing request supersedes any scheduled main-window open — cancel it outright so a
         // late-firing timer can never pop the main window over the picker.
         cancelScheduledMainWindowOpen()
+        pendingManualPickerPresentationID = nil
 
         guard isLaunchConfigured else {
             // Launch config (browsers/rules/apps) isn't loaded yet — routing now would misfire.
@@ -291,7 +309,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let launchURLs = incomingURLs.map(\.launchURL)
         guard let url = displayURLs.first else { return }
 
-        appState.isManualPickerPresentation = false
+        appState.pickerInvocationSource = .linkRouting
         appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
         fetchTitle(for: url)
 

@@ -5,6 +5,8 @@ final class AppActivityMonitor {
     private weak var appState: AppState?
     private var observers: [NSObjectProtocol] = []
     private var windowRefreshTask: Task<Void, Never>?
+    private var windowEnumerationTask: Task<Void, Never>?
+    private var windowSnapshotRequestID = 0
     private var windowPollingTask: Task<Void, Never>?
     private var appListRefreshTask: Task<Void, Never>?
     private let workspaceNotificationCenter = NSWorkspace.shared.notificationCenter
@@ -37,6 +39,8 @@ final class AppActivityMonitor {
         observers.removeAll()
         windowRefreshTask?.cancel()
         windowRefreshTask = nil
+        windowEnumerationTask?.cancel()
+        windowEnumerationTask = nil
         windowPollingTask?.cancel()
         windowPollingTask = nil
         appListRefreshTask?.cancel()
@@ -48,6 +52,33 @@ final class AppActivityMonitor {
 
         let runningApplications = NSWorkspace.shared.runningApplications
         appState.runningAppBundleIDs = Set(runningApplications.compactMap(\.bundleIdentifier))
+        let mainBundleID = Bundle.main.bundleIdentifier
+        appState.runningAppsByBundleID = Dictionary(
+            runningApplications.compactMap { application -> (String, InstalledApp)? in
+                guard let bundleID = application.bundleIdentifier,
+                      bundleID != mainBundleID,
+                      let appURL = application.bundleURL
+                else { return nil }
+
+                let fallbackName = appURL.deletingPathExtension().lastPathComponent
+                let icon = application.icon ?? NSWorkspace.shared.icon(forFile: appURL.path)
+                return (
+                    bundleID,
+                    InstalledApp(
+                        id: bundleID,
+                        displayName: application.localizedName ?? fallbackName,
+                        appURL: appURL,
+                        urlSchemes: [],
+                        hostPatterns: [],
+                        isVisible: true,
+                        sortOrder: 0,
+                        isSystemApp: bundleID.hasPrefix("com.apple.") || appURL.path.hasPrefix("/System/"),
+                        icon: icon
+                    )
+                )
+            },
+            uniquingKeysWith: { current, _ in current }
+        )
         // `.regular` apps own a Dock tile + menu bar; `.accessory`/`.prohibited` are menu-bar and
         // background utilities the switcher hides unless the user opts in.
         appState.regularAppBundleIDs = Set(
@@ -62,24 +93,19 @@ final class AppActivityMonitor {
     func refreshWindowSnapshotForPicker() {
         guard let appState else { return }
 
+        windowSnapshotRequestID += 1
+        windowEnumerationTask?.cancel()
+        windowEnumerationTask = nil
         appState.runningWindowsByAppID = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
         appState.appWindowActivityUpdatedAt = Date()
     }
 
-    /// One-shot detached enumeration for a picker that is already on screen. Deliberately
-    /// bypasses `scheduleWindowRefresh`'s isPickerVisible guard: the switcher opens instantly
-    /// from the cached snapshot and requests this live pass to correct the list in place.
-    /// `completion` runs on the main actor after the fresh windows are published.
-    func refreshWindowsForVisiblePicker(completion: @escaping @MainActor () -> Void) {
-        Task.detached(priority: .userInitiated) { [weak self] in
-            let windows = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
-            await MainActor.run { [weak self] in
-                guard let self, let appState = self.appState else { return }
-                appState.runningWindowsByAppID = windows
-                appState.appWindowActivityUpdatedAt = Date()
-                completion()
-            }
-        }
+    /// Fetch the authoritative window list off the main actor before showing a toggle/service
+    /// picker. This avoids painting an old cache first and adding newly opened windows later.
+    func refreshWindowsForPickerPresentation(completion: @escaping @MainActor () -> Void) {
+        windowRefreshTask?.cancel()
+        windowRefreshTask = nil
+        requestWindowSnapshot(priority: .userInitiated, completion: completion)
     }
 
     private func observeWorkspaceChanges() {
@@ -167,16 +193,33 @@ final class AppActivityMonitor {
     }
 
     private func refreshWindowSnapshot() {
+        requestWindowSnapshot(priority: .utility)
+    }
+
+    private func requestWindowSnapshot(
+        priority: TaskPriority,
+        completion: (@MainActor () -> Void)? = nil
+    ) {
         guard appState != nil else { return }
 
+        windowSnapshotRequestID += 1
+        let requestID = windowSnapshotRequestID
+        windowEnumerationTask?.cancel()
+
         // AX enumeration is pure cross-process IPC; run it off the main actor so an unresponsive
-        // target app cannot stall the main thread (and the picker). Hop back only to publish.
-        Task.detached(priority: .utility) { [weak self] in
+        // target app cannot stall the main thread. The request id also prevents an older detached
+        // pass from overwriting a newer picker snapshot if cancellation arrives too late.
+        windowEnumerationTask = Task.detached(priority: priority) { [weak self] in
             let windows = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
             await MainActor.run { [weak self] in
-                guard let self, let appState = self.appState else { return }
+                guard let self,
+                      self.windowSnapshotRequestID == requestID,
+                      let appState = self.appState
+                else { return }
                 appState.runningWindowsByAppID = windows
                 appState.appWindowActivityUpdatedAt = Date()
+                self.windowEnumerationTask = nil
+                completion?()
             }
         }
     }

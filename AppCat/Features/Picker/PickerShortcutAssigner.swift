@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 struct PickerShortcut: Equatable {
@@ -111,11 +112,10 @@ enum PickerShortcutAssigner {
 enum PickerShortcutPolicy {
     static func assignments(
         for items: [PickerItem],
-        activationMode: PickerActivationMode,
-        isManualPickerPresentation: Bool,
+        invocationSource: PickerInvocationSource,
         selectWithNumberKeys: Bool
     ) -> [String: PickerShortcut] {
-        guard allowsDirectSelection(activationMode: activationMode, isManualPickerPresentation: isManualPickerPresentation) else {
+        guard invocationSource.allowsDirectSelection else {
             return [:]
         }
         return PickerShortcutAssigner.assignments(for: items, positionalEnabled: selectWithNumberKeys)
@@ -124,11 +124,10 @@ enum PickerShortcutPolicy {
     static func item(
         forKeyCode keyCode: UInt16,
         in items: [PickerItem],
-        activationMode: PickerActivationMode,
-        isManualPickerPresentation: Bool,
+        invocationSource: PickerInvocationSource,
         selectWithNumberKeys: Bool
     ) -> PickerItem? {
-        guard allowsDirectSelection(activationMode: activationMode, isManualPickerPresentation: isManualPickerPresentation) else {
+        guard invocationSource.allowsDirectSelection else {
             return nil
         }
         return PickerShortcutAssigner.item(
@@ -137,11 +136,14 @@ enum PickerShortcutPolicy {
             positionalEnabled: selectWithNumberKeys
         )
     }
+}
 
-    private static func allowsDirectSelection(
-        activationMode: PickerActivationMode,
-        isManualPickerPresentation: Bool
-    ) -> Bool {
-        !isManualPickerPresentation || activationMode == .toggleShortcut
+enum PickerShortcutOpenPolicy {
+    static func mode(
+        for modifiers: NSEvent.ModifierFlags,
+        invocationSource: PickerInvocationSource
+    ) -> BrowserLauncher.OpenMode {
+        let requestsPrivateMode = modifiers.contains(.option) || modifiers.contains(.shift)
+        return invocationSource == .linkRouting && requestsPrivateMode ? .privateMode : .normal
     }
 }

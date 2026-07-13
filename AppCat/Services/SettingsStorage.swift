@@ -134,27 +134,6 @@ enum PickerScale {
     }
 }
 
-enum PickerBackgroundStyle: String, CaseIterable, Identifiable {
-    case liquidGlass
-    case frosted
-    case dimmed
-
-    static let defaultValue: PickerBackgroundStyle = .liquidGlass
-
-    var id: String { rawValue }
-
-    var localizedDisplayName: String {
-        switch self {
-        case .liquidGlass:
-            String(localized: "Liquid Glass")
-        case .frosted:
-            String(localized: "Frosted")
-        case .dimmed:
-            String(localized: "Dimmed")
-        }
-    }
-}
-
 final class SettingsStorage {
     static let shared = SettingsStorage()
 
@@ -165,7 +144,6 @@ final class SettingsStorage {
     private let pickerServiceKeyKey = "pickerServiceKey"
     private let pickerServiceTapCountKey = "pickerServiceTapCount"
     private let pickerScaleKey = "pickerScale"
-    private let pickerBackgroundStyleKey = "pickerBackgroundStyle"
     private let hiddenPickerAppIDsKey = "hiddenPickerAppIDs"
     let pickerServiceTapInterval: TimeInterval = 0.45
 
@@ -202,18 +180,6 @@ final class SettingsStorage {
             return PickerScale.clamped(value)
         }
         set { defaults.set(PickerScale.clamped(newValue), forKey: pickerScaleKey) }
-    }
-
-    var pickerBackgroundStyle: PickerBackgroundStyle {
-        get {
-            guard let value = defaults.string(forKey: pickerBackgroundStyleKey),
-                  let style = PickerBackgroundStyle(rawValue: value)
-            else {
-                return .defaultValue
-            }
-            return style
-        }
-        set { defaults.set(newValue.rawValue, forKey: pickerBackgroundStyleKey) }
     }
 
     var pickerActivationMode: PickerActivationMode {
