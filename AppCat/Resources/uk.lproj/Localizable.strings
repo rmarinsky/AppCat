@@ -220,7 +220,7 @@
 "AppCat handles all web links" = "AppCat обробляє всі web-посилання";
 "Set as the default browser in macOS" = "Зробити типовим браузером у macOS";
 "Includes .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Включає .env, YAML, shell-скрипти, Dockerfile, Makefile і systemd units.";
-"Optional. Finder double-clicks can route files through AppCat, but macOS will ask for each file group." = "Опційно. Double-click у Finder може маршрутизувати файли через AppCat, але macOS питатиме про кожну групу файлів.";
+"Known web and developer file groups are optional. AppCat automatically registers a wildcard handler that may compete with implicit file associations." = "Відомі групи web- і developer-файлів налаштовуються опційно. AppCat автоматично реєструє wildcard-обробник, який може конкурувати з неявними асоціаціями файлів.";
 "On" = "Увімкнено";
 "Setting…" = "Налаштовуємо…";
 "Set" = "Задати";

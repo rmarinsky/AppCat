@@ -44,7 +44,7 @@ Window awareness uses the Accessibility API (with a Window-menu fallback for Ele
 `⌥⌘⇧B` re-opens the last picker.
 
 ### 📄 File open-with picker
-AppCat registers as a handler for HTML, SVG, PDF and ~150 developer/config file types. Open one and it shows a **ranked picker of apps that can actually edit it** — view-only browsers are hidden for code/text files (you want to edit, not preview), and apps that can't meaningfully open anything are left out. You can override each app's file formats on the **Apps** screen.
+AppCat registers as a handler for HTML, SVG, PDF and ~150 developer/config file types. It also registers as the default wildcard handler for unrecognized extensions such as `.mdddddd`; this intentionally competes with other implicit file associations, while explicit user-selected defaults keep priority. Open a file and AppCat shows a **ranked picker of apps that can actually edit it** — view-only browsers are hidden for code/text files (you want to edit, not preview), and apps that can't meaningfully open anything are left out. You can override each app's file formats on the **Apps** screen.
 
 ### 🧭 URL rules & native-app routing
 Auto-route links by pattern. Four match types:

@@ -220,7 +220,7 @@
 "AppCat handles all web links" = "AppCat handles all web links";
 "Set as the default browser in macOS" = "Set as the default browser in macOS";
 "Includes .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units." = "Includes .env, YAML, shell scripts, Dockerfile, Makefile, and systemd units.";
-"Optional. Finder double-clicks can route files through AppCat, but macOS will ask for each file group." = "Optional. Finder double-clicks can route files through AppCat, but macOS will ask for each file group.";
+"Known web and developer file groups are optional. AppCat automatically registers a wildcard handler that may compete with implicit file associations." = "Known web and developer file groups are optional. AppCat automatically registers a wildcard handler that may compete with implicit file associations.";
 "On" = "On";
 "Setting…" = "Setting…";
 "Set" = "Set";

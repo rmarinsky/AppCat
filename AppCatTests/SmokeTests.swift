@@ -8,6 +8,20 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(true)
     }
 
+    func testBundleDeclaresDefaultWildcardFileHandler() throws {
+        let documentTypes = try XCTUnwrap(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]]
+        )
+        let wildcardType = try XCTUnwrap(documentTypes.first { documentType in
+            let extensions = documentType["CFBundleTypeExtensions"] as? [String]
+            return extensions == ["*"]
+        })
+
+        XCTAssertEqual(wildcardType["CFBundleTypeRole"] as? String, "Viewer")
+        XCTAssertEqual(wildcardType["LSHandlerRank"] as? String, "Default")
+        XCTAssertNil(wildcardType["LSItemContentTypes"])
+    }
+
     func testCustomFileFormatsArePickerAppMatches() throws {
         let app = makeApp(id: "test.editor.yaml", customFormats: ["yaml"])
         let url = try makeTempFile(named: "config.yaml")
@@ -172,6 +186,33 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.styleMask(for: .holdOptionTab).contains(.nonactivatingPanel)
         )
         XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: .holdOptionTab))
+    }
+
+    func testPickerPanelCanJoinEverySpaceAndFullscreenApplication() {
+        let behavior = PickerPanelInteractionPolicy.collectionBehavior
+        let sources: [PickerInvocationSource] = [
+            .linkRouting,
+            .toggleShortcut,
+            .serviceKey,
+            .holdOptionTab,
+        ]
+
+        for source in sources {
+            XCTAssertTrue(behavior.contains(.canJoinAllSpaces), "\(source) must join all Spaces")
+            XCTAssertTrue(behavior.contains(.ignoresCycle), "\(source) must stay out of window cycling")
+            if #available(macOS 26.0, *) {
+                XCTAssertTrue(
+                    behavior.contains(.canJoinAllApplications),
+                    "\(source) must join fullscreen apps"
+                )
+                XCTAssertFalse(behavior.contains(.fullScreenAuxiliary))
+            } else {
+                XCTAssertTrue(
+                    behavior.contains(.fullScreenAuxiliary),
+                    "\(source) must join fullscreen Spaces"
+                )
+            }
+        }
     }
 
     func testServiceAndTogglePickersRequireFreshWindowsBeforePresentation() {

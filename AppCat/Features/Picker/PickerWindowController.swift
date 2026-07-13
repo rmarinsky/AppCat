@@ -25,6 +25,16 @@ private class KeyablePanel: NSPanel {
 }
 
 enum PickerPanelInteractionPolicy {
+    static var collectionBehavior: NSWindow.CollectionBehavior {
+        var behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+        if #available(macOS 26.0, *) {
+            behavior.insert(.canJoinAllApplications)
+        } else {
+            behavior.insert(.fullScreenAuxiliary)
+        }
+        return behavior
+    }
+
     static func styleMask(for source: PickerInvocationSource) -> NSWindow.StyleMask {
         var mask: NSWindow.StyleMask = [.fullSizeContentView, .borderless]
         if !source.activatesPanel {
@@ -651,6 +661,7 @@ final class PickerWindowController: NSObject {
         panel.animationBehavior = .none
         panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
+        panel.collectionBehavior = PickerPanelInteractionPolicy.collectionBehavior
 
         let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size)))
         panel.contentView = surfaceView
