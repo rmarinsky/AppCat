@@ -30,7 +30,7 @@ Used when the user invokes the picker manually with no pending URL or file.
 
 Content rules:
 
-- One centered horizontal row of app/window items using the same floating surface styling as the routing picker.
+- One centered horizontal row of app/window items using the same transient surface styling as the routing picker.
 - Visible app windows are first-class items in the row.
 - Running apps without windows are optional and appear dimmed when enabled.
 - Background and menu-bar apps are optional and hidden by default.
@@ -45,9 +45,17 @@ Browser/app identity is already visible through the icon, so app-switcher cells 
 
 ## Appearance
 
-The picker is a borderless `KeyablePanel` at `.floating` level. Link-routing, toggle-shortcut, and
-service-key sessions use an activating `.fullSizeContentView`/`.borderless` panel so the first click
-and keyboard event are delivered normally. Hold-to-switch alone adds `.nonactivatingPanel`.
+The picker is a borderless `KeyablePanel` created once with `.fullSizeContentView`, `.borderless`,
+and `.nonactivatingPanel`. Every presentation reapplies `.screenSaver` level,
+`isFloatingPanel = true`, `hidesOnDeactivate = false`, and the cross-application fullscreen policy:
+`.canJoinAllSpaces`, `.canJoinAllApplications`, `.fullScreenAuxiliary`, `.stationary`, and
+`.ignoresCycle`.
+
+AppCat switches to `.accessory` and presents with `orderFrontRegardless()` without calling
+`NSApp.activate(...)`. Link/file, toggle, and service-key sessions then make the panel key and focus
+an accepting SwiftUI hosting responder. Hold-to-switch stays non-key because its event tap owns input.
+If LaunchServices activated AppCat first, presentation waits for deactivation to settle so a late
+`windowDidResignKey` cannot flash and dismiss the picker.
 
 On macOS 26 and newer, the panel surface uses `NSGlassEffectContainerView` with a child `NSGlassEffectView`:
 
@@ -80,8 +88,8 @@ Common picker keys:
 Toggle activation mode:
 
 - Uses the configurable global shortcut, `Option+Tab` by default.
-- Shows configured hotkeys and positional direct-selection keys when direct selection is enabled.
-- Direct-selection keys use `1...0`, then `Q...M`.
+- Shows numeric positional direct-selection keys when direct selection is enabled.
+- Direct-selection keys use `1...0`; letters are reserved for type-ahead by app/window name.
 
 Hold-to-switch activation mode:
 
@@ -94,12 +102,15 @@ Service-key activation:
 - Supports `Caps Lock` or `Escape`.
 - Supports 1, 2, or 3 taps.
 - Requires Input Monitoring.
-- Shows and accepts configured and positional direct-selection keys, even when hold-to-switch is the configured global activation mode.
+- Shows and accepts numeric positional direct-selection keys, even when hold-to-switch is the configured global activation mode.
+- Reserves letters for type-ahead so entering a name such as `chatgpt` cannot activate a positional item mid-query.
 
 Invocation-source policy:
 
-- Link routing, toggle-shortcut, and service-key sessions activate the panel and support direct selection.
-- Hold-`Option`+`Tab` alone stays non-activating, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
+- Every source uses the same nonactivating fullscreen-safe panel.
+- Link routing, toggle-shortcut, and service-key sessions require keyboard focus.
+- Hold-`Option`+`Tab` stays non-key, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
 - Every picker item is clickable. A global hit-test fallback handles the first mouse-down only when
   AppKit did not deliver it locally to the SwiftUI button.
-- Configured item shortcuts take precedence; remaining items receive positional keys in `1...0`, then `QWERTY...` order.
+- Routing configured shortcuts take precedence; remaining routing items receive positional keys in `1...0`, then `QWERTY...` order.
+- Manual toggle/service sessions expose only positional `1...0`; alphabetic input is type-ahead.

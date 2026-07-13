@@ -15,10 +15,12 @@ enum MainWindowActivation {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Whether the main window is currently on screen. The picker uses this to avoid demoting
-    /// the app to `.accessory` (hiding the Dock icon) while the main window is visible.
-    static var isMainWindowVisible: Bool {
-        NSApp.windows.contains { $0.identifier == windowIdentifier && $0.isVisible }
+    /// Restoring `.regular` while Settings belongs to another Space makes macOS jump back to
+    /// that Space. Only restore it immediately when Settings is actually visible where the user
+    /// is; `applicationDidBecomeActive` restores it after the user returns to Settings later.
+    static var isMainWindowVisibleOnActiveSpace: Bool {
+        guard let window = mainWindow, window.isVisible else { return false }
+        return window.occlusionState.contains(.visible)
     }
 
     static func configure(_ window: NSWindow) {

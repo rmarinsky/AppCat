@@ -35,6 +35,7 @@ final class AppDetector: Sendable {
                 isVisible: true,
                 sortOrder: index,
                 isSystemApp: Self.isSystemApp(bundleID: definition.bundleID, appURL: appURL),
+                handlesAllFiles: definition.handlesAllFiles,
                 icon: icon,
                 version: version,
                 detectedFormats: readFileFormats(from: appURL, definition: definition)
@@ -88,6 +89,7 @@ final class AppDetector: Sendable {
                     isVisible: true,
                     sortOrder: apps.count,
                     isSystemApp: Self.isSystemApp(bundleID: id, appURL: url),
+                    handlesAllFiles: definition?.handlesAllFiles == true,
                     icon: icon,
                     version: version,
                     detectedFormats: readFileFormats(from: url, definition: definition)

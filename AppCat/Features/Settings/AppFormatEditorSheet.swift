@@ -2,30 +2,30 @@ import SwiftUI
 
 /// Per-app format editor — the AppCat take on Papuga's edit-rule modal. Shows the file
 /// extensions an app opens as removable chips (read from the app's Info.plist, overridable),
-/// lets you add your own, and exposes the "send unknown file types here" routing toggle.
+/// lets you add your own, and exposes the universal-editor capability.
 struct AppFormatEditorSheet: View {
     let app: InstalledApp
     /// `customFormats` is `nil` when the edited list still equals what the app itself declares
     /// (no override needed); non-nil when the user has trimmed or extended it.
-    let onSave: (_ customFormats: [String]?, _ opensUnknownTypes: Bool) -> Void
+    let onSave: (_ customFormats: [String]?, _ handlesAllFiles: Bool) -> Void
     let onCancel: () -> Void
 
     @State private var formats: [String]
-    @State private var opensUnknownTypes: Bool
+    @State private var handlesAllFiles: Bool
     @State private var isAddingFormat = false
     @State private var newFormat = ""
     @FocusState private var addFieldFocused: Bool
 
     init(
         app: InstalledApp,
-        onSave: @escaping (_ customFormats: [String]?, _ opensUnknownTypes: Bool) -> Void,
+        onSave: @escaping (_ customFormats: [String]?, _ handlesAllFiles: Bool) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.app = app
         self.onSave = onSave
         self.onCancel = onCancel
         _formats = State(initialValue: app.fileFormats)
-        _opensUnknownTypes = State(initialValue: app.opensUnknownTypes)
+        _handlesAllFiles = State(initialValue: app.handlesAllFiles)
     }
 
     var body: some View {
@@ -34,7 +34,7 @@ struct AppFormatEditorSheet: View {
             divider
             formatsSection
             divider
-            unknownTypesRow
+            handlesAllFilesRow
             divider
             footer
         }
@@ -194,21 +194,21 @@ struct AppFormatEditorSheet: View {
         }
     }
 
-    // MARK: - Unknown types
+    // MARK: - Universal editor
 
-    private var unknownTypesRow: some View {
+    private var handlesAllFilesRow: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "Open unknown file types here"))
+                Text(String(localized: "Can open any file type"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.primary)
-                Text(String(format: String(localized: "When macOS can't match a file's type, AppCat sends it to %@."), app.displayName))
+                Text(String(localized: "Enable only for editors and IDEs that can open files even when the format is not declared."))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: $opensUnknownTypes)
+            Toggle("", isOn: $handlesAllFiles)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
@@ -258,7 +258,7 @@ struct AppFormatEditorSheet: View {
         // Commit any extension still sitting in the add field.
         commitNewFormat(keepAdding: false)
         let override: [String]? = (formats == app.detectedFormats) ? nil : formats
-        onSave(override, opensUnknownTypes)
+        onSave(override, handlesAllFiles)
     }
 
     private var divider: some View {

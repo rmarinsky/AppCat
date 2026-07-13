@@ -21,8 +21,9 @@ struct InstalledApp: Identifiable, Equatable {
     /// User-edited list of file extensions this app should open. `nil` means "use whatever the
     /// app declares" (`detectedFormats`); a non-nil value overrides it (add/remove in the editor).
     var customFormats: [String]?
-    /// When on, AppCat routes files whose type macOS can't match to this app.
-    var opensUnknownTypes: Bool = false
+    /// User-controlled capability for editors and IDEs that can accept any concrete file URL,
+    /// even when neither their bundle nor AppCat declares the file's exact format.
+    var handlesAllFiles: Bool = false
 
     // Non-codable, loaded at runtime
     var icon: NSImage?
@@ -41,7 +42,7 @@ struct InstalledApp: Identifiable, Equatable {
     /// "handles all files" editor. Apps that declare nothing useful sink to the bottom of the
     /// Apps screen; there's no point ranking a file-less app above ones you actually open files in.
     var declaresFileSupport: Bool {
-        !fileFormats.isEmpty || AppDefinition.registryByID[id]?.handlesAllFiles == true
+        !fileFormats.isEmpty || handlesAllFiles
     }
 
     /// Whether AppCat can route *anything* to this app — a file (declared formats or a registry
@@ -65,7 +66,7 @@ struct InstalledApp: Identifiable, Equatable {
             && lhs.hotkeyKeyCode == rhs.hotkeyKeyCode
             && lhs.isSystemApp == rhs.isSystemApp
             && lhs.customFormats == rhs.customFormats
-            && lhs.opensUnknownTypes == rhs.opensUnknownTypes
+            && lhs.handlesAllFiles == rhs.handlesAllFiles
             && lhs.detectedFormats == rhs.detectedFormats
     }
 
@@ -114,13 +115,10 @@ struct InstalledApp: Identifiable, Equatable {
                 .compactMap { Bundle(url: $0)?.bundleIdentifier }
                 .filter { !excludedIDs.contains($0) }
         )
-        // Hard-hide view-only web browsers from developer/text files. macOS lists Safari/Chrome/
-        // etc. as "capable" of a .json/.md/.env because they can render or download it, but a
-        // developer opening such a file wants to edit it, not preview it — so drop browsers that
-        // only qualify through the LaunchServices net (Rank 2). Browsers stay for web-markup and
-        // preview files (html, svg, pdf — not developer files), and a user can still pin one via
-        // custom formats (Rank 0/1).
-        let hiddenBrowserIDs: Set<String> = (includingLaunchServicesCandidates && BrowserFileType.isDeveloperFile(url))
+        // Browsers are ranked separately by `PickerItem.matchingBrowsers`, using the strict
+        // preview-format allowlist. Never let the generic app lane re-add one through
+        // LaunchServices or the universal-editor fallback.
+        let hiddenBrowserIDs: Set<String> = includingLaunchServicesCandidates
             ? webBrowserBundleIDs.subtracting(excludedIDs)
             : []
         let knownIDs = Set(apps.map(\.id))
@@ -142,19 +140,23 @@ struct InstalledApp: Identifiable, Equatable {
 
     /// Pure ranking/sorting core of `matchingFileApps`, split out so the LaunchServices and
     /// browser-detection lookups can be injected in tests. `capableIDs` are the bundle ids macOS
-    /// says can open `url`; `hiddenBrowserIDs` are view-only browsers to drop for developer files.
+    /// says can open `url`; `hiddenBrowserIDs` stay in the separate strict browser-preview lane.
     static func rankedFileApps(
         candidates: [InstalledApp],
         url: URL,
         capableIDs: Set<String>,
         hiddenBrowserIDs: Set<String>
     ) -> [InstalledApp] {
-        let isUnknownType = isUnknownFileType(url, capableIDs: capableIDs)
         return candidates
             .compactMap { app -> (app: InstalledApp, rank: Int)? in
                 let isLaunchServicesCandidate = capableIDs.contains(app.id)
                 guard app.isVisible || isLaunchServicesCandidate else { return nil }
-                if let rank = fileMatchRank(for: app, url: url, capableIDs: capableIDs, isUnknownType: isUnknownType, hiddenBrowserIDs: hiddenBrowserIDs) {
+                if let rank = fileMatchRank(
+                    for: app,
+                    url: url,
+                    capableIDs: capableIDs,
+                    hiddenBrowserIDs: hiddenBrowserIDs
+                ) {
                     return (app, rank)
                 }
                 return nil
@@ -210,7 +212,6 @@ struct InstalledApp: Identifiable, Equatable {
         for app: InstalledApp,
         url: URL,
         capableIDs: Set<String>,
-        isUnknownType: Bool,
         hiddenBrowserIDs: Set<String>
     ) -> Int? {
         if app.matchesFile(url) {
@@ -218,8 +219,8 @@ struct InstalledApp: Identifiable, Equatable {
         }
 
         // LaunchServices is still the compatibility net: this preserves the old behavior where
-        // the picker lists whatever macOS says can open this concrete file — except view-only
-        // browsers on developer/text files, which are hidden outright (see `hiddenBrowserIDs`).
+        // the picker lists whatever macOS says can open this concrete file. Browsers are excluded
+        // here and evaluated separately against the strict preview-format allowlist.
         if app.customFormats == nil, capableIDs.contains(app.id) {
             if hiddenBrowserIDs.contains(app.id) {
                 return nil
@@ -227,7 +228,7 @@ struct InstalledApp: Identifiable, Equatable {
             return 2
         }
 
-        if isUnknownType, app.opensUnknownTypes {
+        if app.handlesAllFiles, !hiddenBrowserIDs.contains(app.id) {
             return 3
         }
 
@@ -235,8 +236,8 @@ struct InstalledApp: Identifiable, Equatable {
     }
 
     /// Bundle IDs macOS lists as web browsers (apps that can open `https://`), detected the same
-    /// way `BrowserDetector` does. A browser can *render* a developer/text file but not edit it,
-    /// so these are hard-hidden from the file picker for developer files — see `matchingFileApps`.
+    /// way `BrowserDetector` does. Browsers are handled by their strict file-preview allowlist,
+    /// so these are hard-hidden from the generic app ranking — see `matchingFileApps`.
     /// Cached for the session: the LaunchServices query + per-app Bundle reads are too expensive
     /// to repeat on every file-URL picker computation, and the installed-browser set is stable.
     private static let webBrowserBundleIDs: Set<String> = {
@@ -246,19 +247,6 @@ struct InstalledApp: Identifiable, Equatable {
                 .compactMap { Bundle(url: $0)?.bundleIdentifier }
         )
     }()
-
-    private static func isUnknownFileType(_ url: URL, capableIDs: Set<String>) -> Bool {
-        if capableIDs.isEmpty {
-            return true
-        }
-
-        guard let type = contentType(for: url) else {
-            return true
-        }
-
-        return type.identifier.hasPrefix("dyn.")
-            || type.identifier == UTType.data.identifier
-    }
 
     private static func contentType(for url: URL) -> UTType? {
         if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
@@ -301,6 +289,18 @@ struct InstalledApp: Identifiable, Equatable {
 
 // MARK: - Codable support (without icon)
 
+enum AppFileCapabilityPolicy {
+    static func resolveHandlesAllFiles(
+        savedValue: Bool?,
+        registryDefault: Bool
+    ) -> Bool {
+        if let savedValue {
+            return savedValue
+        }
+        return registryDefault
+    }
+}
+
 struct AppConfig: Codable {
     let id: String
     var displayName: String
@@ -311,7 +311,19 @@ struct AppConfig: Codable {
     /// User override of the app's file formats. Optional so older `apps.json` (written before
     /// the format editor existed) still decodes — a missing key reads back as `nil`.
     var customFormats: [String]?
-    var opensUnknownTypes: Bool?
+    /// Persisted user choice for editors and IDEs that can accept any file URL.
+    var handlesAllFiles: Bool?
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName
+        case isVisible
+        case hotkey
+        case hotkeyKeyCode
+        case sortOrder
+        case customFormats
+        case handlesAllFiles
+        case opensUnknownTypes
+    }
 
     init(from app: InstalledApp) {
         id = app.id
@@ -321,6 +333,32 @@ struct AppConfig: Codable {
         hotkeyKeyCode = app.hotkeyKeyCode
         sortOrder = app.sortOrder
         customFormats = app.customFormats
-        opensUnknownTypes = app.opensUnknownTypes
+        handlesAllFiles = app.handlesAllFiles
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        hotkey = try container.decodeIfPresent(String.self, forKey: .hotkey)
+        hotkeyKeyCode = try container.decodeIfPresent(UInt16.self, forKey: .hotkeyKeyCode)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        customFormats = try container.decodeIfPresent([String].self, forKey: .customFormats)
+        let legacyOpensUnknownTypes = try container.decodeIfPresent(Bool.self, forKey: .opensUnknownTypes)
+        handlesAllFiles = try container.decodeIfPresent(Bool.self, forKey: .handlesAllFiles)
+            ?? (legacyOpensUnknownTypes == true ? true : nil)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(isVisible, forKey: .isVisible)
+        try container.encodeIfPresent(hotkey, forKey: .hotkey)
+        try container.encodeIfPresent(hotkeyKeyCode, forKey: .hotkeyKeyCode)
+        try container.encode(sortOrder, forKey: .sortOrder)
+        try container.encodeIfPresent(customFormats, forKey: .customFormats)
+        try container.encodeIfPresent(handlesAllFiles, forKey: .handlesAllFiles)
     }
 }

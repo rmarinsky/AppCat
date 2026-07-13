@@ -1,11 +1,26 @@
 @testable import AppCat
 import AppKit
 import ApplicationServices
+import SwiftUI
 import XCTest
 
 final class SmokeTests: XCTestCase {
     func testTargetLoads() {
         XCTAssertTrue(true)
+    }
+
+    func testBundleDeclaresDefaultWildcardFileHandler() throws {
+        let documentTypes = try XCTUnwrap(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]]
+        )
+        let wildcardType = try XCTUnwrap(documentTypes.first { documentType in
+            let extensions = documentType["CFBundleTypeExtensions"] as? [String]
+            return extensions == ["*"]
+        })
+
+        XCTAssertEqual(wildcardType["CFBundleTypeRole"] as? String, "Viewer")
+        XCTAssertEqual(wildcardType["LSHandlerRank"] as? String, "Default")
+        XCTAssertNil(wildcardType["LSItemContentTypes"])
     }
 
     func testCustomFileFormatsArePickerAppMatches() throws {
@@ -30,13 +45,45 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(matches.contains(where: { $0.id == "test.editor.override" }))
     }
 
-    func testUnknownFileTypesCanRouteToConfiguredApp() throws {
-        let app = makeApp(id: "test.editor.unknown", opensUnknownTypes: true)
-        let url = try makeTempFile(named: "payload.romanunknownformat")
+    func testExactFormatsRankBeforeUniversalEditorsForKnownAndUnknownFiles() throws {
+        let exactEditor = makeApp(id: "test.editor.yaml", customFormats: ["yaml"])
+        let universalEditor = makeApp(id: "test.editor.universal", handlesAllFiles: true)
+        let yamlURL = try makeTempFile(named: "config.yaml")
+        let jsonURL = try makeTempFile(named: "payload.json")
+        let unknownURL = try makeTempFile(named: "payload.romanunknownformat")
 
-        let matches = PickerItem.matchingApps(for: url, in: [app])
+        XCTAssertEqual(
+            InstalledApp.rankedFileApps(
+                candidates: [universalEditor, exactEditor],
+                url: yamlURL,
+                capableIDs: [],
+                hiddenBrowserIDs: []
+            ).map(\.id),
+            ["test.editor.yaml", "test.editor.universal"]
+        )
+        XCTAssertEqual(PickerItem.matchingApps(for: jsonURL, in: [exactEditor, universalEditor]).map(\.id), [
+            "test.editor.universal",
+        ])
+        XCTAssertEqual(PickerItem.matchingApps(for: unknownURL, in: [exactEditor, universalEditor]).map(\.id), [
+            "test.editor.universal",
+        ])
+    }
 
-        XCTAssertEqual(matches.map(\.id), ["test.editor.unknown"])
+    func testFilePickerRanksCustomThenDeclaredThenLaunchServicesThenUniversal() throws {
+        let custom = makeApp(id: "test.editor.custom", sortOrder: 3, customFormats: ["yaml"])
+        let declared = makeApp(id: "test.editor.declared", sortOrder: 2, detectedFormats: ["yaml"])
+        let launchServices = makeApp(id: "test.editor.launch-services", sortOrder: 1)
+        let universal = makeApp(id: "test.editor.universal", sortOrder: 0, handlesAllFiles: true)
+        let url = try makeTempFile(named: "config.yaml")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [universal, launchServices, declared, custom],
+            url: url,
+            capableIDs: [launchServices.id],
+            hiddenBrowserIDs: []
+        )
+
+        XCTAssertEqual(ranked.map(\.id), [custom.id, declared.id, launchServices.id, universal.id])
     }
 
     func testFormatNormalizationPreservesServiceFileTokens() {
@@ -84,6 +131,22 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(Set(ranked.map(\.id)), ["test.editor", "com.apple.Safari"])
     }
 
+    func testBrowsersOnlyMatchWebAndPreviewFileFormats() throws {
+        let browser = makeBrowser()
+        let supportedNames = ["index.html", "image.svg", "document.pdf", "page.webarchive", "link.webloc", "mail.mhtml"]
+        let unsupportedNames = ["data.json", "feed.xml", "notes.txt", "payload.romanunknownformat"]
+
+        for name in supportedNames {
+            let url = try makeTempFile(named: name)
+            XCTAssertEqual(PickerItem.matchingBrowsers(for: url, in: [browser]).map(\.id), [browser.id], name)
+        }
+
+        for name in unsupportedNames {
+            let url = try makeTempFile(named: name)
+            XCTAssertTrue(PickerItem.matchingBrowsers(for: url, in: [browser]).isEmpty, name)
+        }
+    }
+
     func testPinnedBrowserStillMatchesDeveloperFileViaCustomFormats() throws {
         // The escape hatch: a user who added "json" to a browser's formats keeps it (Rank 0/1),
         // even though the same browser would otherwise be hidden for developer files.
@@ -98,6 +161,94 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(ranked.map(\.id), ["com.apple.Safari"])
+    }
+
+    func testBrowserCannotUseUniversalFileCapability() throws {
+        let url = try makeTempFile(named: "payload.romanunknownformat")
+        let browser = makeApp(
+            id: "com.apple.Safari",
+            displayName: "Safari",
+            handlesAllFiles: true
+        )
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [browser],
+            url: url,
+            capableIDs: [],
+            hiddenBrowserIDs: [browser.id]
+        )
+
+        XCTAssertTrue(ranked.isEmpty)
+    }
+
+    func testFilePickerEmptyStateOffersConfigurationOnlyForUnmatchedRoutedFiles() throws {
+        let fileURL = try makeTempFile(named: "payload.romanunknownformat")
+        let webURL = try XCTUnwrap(URL(string: "https://example.com"))
+
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 0,
+                invocationSource: .linkRouting
+            ),
+            .configureApps
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 1,
+                invocationSource: .linkRouting
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 0,
+                invocationSource: .toggleShortcut
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: webURL,
+                itemCount: 0,
+                invocationSource: .linkRouting
+            ),
+            .none
+        )
+    }
+
+    func testReturnKeyConfiguresUnmatchedRoutedFilesAndOtherwiseKeepsNormalSelection() throws {
+        let fileURL = try makeTempFile(named: "payload.romanunknownformat")
+
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 0,
+                focusedIndex: 0,
+                url: fileURL,
+                invocationSource: .linkRouting
+            ),
+            .configureApps
+        )
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 3,
+                focusedIndex: 1,
+                url: fileURL,
+                invocationSource: .linkRouting
+            ),
+            .openItem(1)
+        )
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 0,
+                focusedIndex: 0,
+                url: nil,
+                invocationSource: .toggleShortcut
+            ),
+            .consume
+        )
     }
 
     func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
@@ -134,11 +285,11 @@ final class SmokeTests: XCTestCase {
             (.holdOptionTab, true, true, false, false, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, allowsDirectSelection, activatesPanel, refreshesSnapshot) in expectations {
+        for (source, isManual, isHoldToSwitch, allowsDirectSelection, requiresKeyboardFocus, refreshesSnapshot) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
             XCTAssertEqual(source.allowsDirectSelection, allowsDirectSelection)
-            XCTAssertEqual(source.activatesPanel, activatesPanel)
+            XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
             XCTAssertEqual(
                 PickerShortcutPolicy.assignments(
@@ -155,23 +306,156 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
     }
 
-    func testActivatingPickersUseActivatingPanelsAndAllPickersAcceptFallbackClicks() {
+    func testEveryPickerUsesANonactivatingPanelAndAcceptsFallbackClicks() {
         for source in [
             PickerInvocationSource.linkRouting,
             .toggleShortcut,
             .serviceKey,
+            .holdOptionTab,
         ] {
-            XCTAssertFalse(
-                PickerPanelInteractionPolicy.styleMask(for: source).contains(.nonactivatingPanel),
-                "\(source) must receive the first click"
+            XCTAssertTrue(
+                PickerPanelInteractionPolicy.styleMask.contains(.nonactivatingPanel),
+                "\(source) must not activate AppCat or switch Spaces"
             )
             XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: source))
         }
+    }
 
-        XCTAssertTrue(
-            PickerPanelInteractionPolicy.styleMask(for: .holdOptionTab).contains(.nonactivatingPanel)
+    @MainActor
+    func testPickerHostingViewAcceptsFirstResponder() {
+        let hostingView = PickerHostingView(rootView: EmptyView())
+
+        XCTAssertTrue(hostingView.acceptsFirstResponder)
+    }
+
+    func testPickerPanelUsesTheCrossApplicationFullscreenOverlayPolicy() {
+        let behavior = PickerPanelInteractionPolicy.collectionBehavior
+        let sources: [PickerInvocationSource] = [
+            .linkRouting,
+            .toggleShortcut,
+            .serviceKey,
+            .holdOptionTab,
+        ]
+
+        for source in sources {
+            XCTAssertTrue(behavior.contains(.canJoinAllSpaces), "\(source) must join all Spaces")
+            XCTAssertTrue(
+                behavior.contains(.canJoinAllApplications),
+                "\(source) must join other apps' fullscreen Spaces"
+            )
+            XCTAssertTrue(
+                behavior.contains(.fullScreenAuxiliary),
+                "\(source) must display beside a fullscreen window"
+            )
+            XCTAssertTrue(behavior.contains(.stationary), "\(source) must not move with Mission Control")
+            XCTAssertTrue(behavior.contains(.ignoresCycle), "\(source) must stay out of window cycling")
+            XCTAssertEqual(PickerPanelInteractionPolicy.windowLevel, .screenSaver)
+        }
+    }
+
+    @MainActor
+    func testPickerFullscreenPolicyCanBeReappliedToAReusedPanel() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 180),
+            styleMask: PickerPanelInteractionPolicy.styleMask,
+            backing: .buffered,
+            defer: false
         )
-        XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: .holdOptionTab))
+        panel.level = .normal
+        panel.collectionBehavior = []
+        panel.isFloatingPanel = false
+        panel.hidesOnDeactivate = true
+
+        PickerPanelInteractionPolicy.apply(to: panel)
+
+        XCTAssertEqual(panel.level, .screenSaver)
+        XCTAssertEqual(panel.collectionBehavior, PickerPanelInteractionPolicy.collectionBehavior)
+        XCTAssertTrue(panel.isFloatingPanel)
+        XCTAssertFalse(panel.hidesOnDeactivate)
+    }
+
+    func testPickerActivationPolicyIsAccessoryOnlyWhileThePickerIsPresented() {
+        XCTAssertEqual(PickerPanelInteractionPolicy.presentationActivationPolicy, .accessory)
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: true),
+            .regular
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: false),
+            .accessory
+        )
+    }
+
+    func testRegularPolicyIsRestoredWhenSettingsBecomesActiveAgain() {
+        XCTAssertTrue(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: false,
+                isMainWindowVisibleOnActiveSpace: true
+            )
+        )
+        XCTAssertFalse(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: true,
+                isMainWindowVisibleOnActiveSpace: true
+            )
+        )
+        XCTAssertFalse(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: false,
+                isMainWindowVisibleOnActiveSpace: false
+            )
+        )
+    }
+
+    func testActiveApplicationOrInterruptedSettlingWaitsForDeactivationBeforePresentingPicker() {
+        XCTAssertTrue(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: true,
+            wasWaitingForDeactivation: false
+        ))
+        XCTAssertTrue(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: false,
+            wasWaitingForDeactivation: true
+        ))
+        XCTAssertFalse(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: false,
+            wasWaitingForDeactivation: false
+        ))
+        XCTAssertGreaterThan(
+            PickerPanelInteractionPolicy.deactivationSettlingDelay,
+            0,
+            "A LaunchServices activation must settle before a nonactivating panel becomes key"
+        )
+    }
+
+    func testHoldOptionTabRemainsVisibleWithoutRefocusingWhenAReusedPanelResignsKey() {
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .holdOptionTab,
+                isInDismissGracePeriod: true
+            ),
+            .remainVisible
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .holdOptionTab,
+                isInDismissGracePeriod: false
+            ),
+            .remainVisible
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .linkRouting,
+                isInDismissGracePeriod: true
+            ),
+            .refocus
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .linkRouting,
+                isInDismissGracePeriod: false
+            ),
+            .dismiss
+        )
     }
 
     func testServiceAndTogglePickersRequireFreshWindowsBeforePresentation() {
@@ -317,13 +601,14 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testServiceKeyPickerShowsAndAcceptsDirectKeysWhenHoldModeIsConfigured() throws {
+    func testServiceKeyPickerReservesLettersForTypeAheadWhenHoldModeIsConfigured() throws {
         let state = AppState()
         state.pickerActivationMode = .holdOptionTab
         state.pickerInvocationSource = .serviceKey
         let items = (0 ..< 11).map { index in
             PickerItem(app: makeApp(id: "test.service.\(index)"))
         }
+        let zeroKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "0"))
         let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
 
         let assignments = PickerShortcutPolicy.assignments(
@@ -338,10 +623,36 @@ final class SmokeTests: XCTestCase {
             selectWithNumberKeys: true
         )
 
-        XCTAssertTrue(state.pickerInvocationSource.activatesPanel)
+        XCTAssertTrue(state.pickerInvocationSource.requiresKeyboardFocus)
         XCTAssertTrue(state.pickerInvocationSource.refreshesLiveSnapshot)
         XCTAssertEqual(assignments[items[0].id]?.key, "1")
-        XCTAssertEqual(assignments[items[10].id]?.key, "q")
+        XCTAssertEqual(assignments[items[9].id]?.key, "0")
+        XCTAssertNil(assignments[items[10].id])
+        XCTAssertEqual(
+            PickerShortcutPolicy.item(
+                forKeyCode: zeroKeyCode,
+                in: items,
+                invocationSource: state.pickerInvocationSource,
+                selectWithNumberKeys: true
+            )?.id,
+            items[9].id
+        )
+        XCTAssertNil(selectedItem)
+    }
+
+    func testRoutingPickerKeepsPositionalLetterDirectSelection() throws {
+        let items = (0 ..< 11).map { index in
+            PickerItem(app: makeApp(id: "test.routing.\(index)"))
+        }
+        let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+
+        let selectedItem = PickerShortcutPolicy.item(
+            forKeyCode: qKeyCode,
+            in: items,
+            invocationSource: .linkRouting,
+            selectWithNumberKeys: true
+        )
+
         XCTAssertEqual(selectedItem?.id, items[10].id)
     }
 
@@ -1491,7 +1802,7 @@ final class SmokeTests: XCTestCase {
         hotkey: Character? = nil,
         hotkeyKeyCode: UInt16? = nil,
         customFormats: [String]? = nil,
-        opensUnknownTypes: Bool = false,
+        handlesAllFiles: Bool = false,
         detectedFormats: [String] = []
     ) -> InstalledApp {
         InstalledApp(
@@ -1505,7 +1816,7 @@ final class SmokeTests: XCTestCase {
             hotkey: hotkey,
             hotkeyKeyCode: hotkeyKeyCode,
             customFormats: customFormats,
-            opensUnknownTypes: opensUnknownTypes,
+            handlesAllFiles: handlesAllFiles,
             detectedFormats: detectedFormats
         )
     }

@@ -28,6 +28,61 @@ final class PickerSessionTests: XCTestCase {
         XCTAssertTrue(state.pickerItemsSnapshot.isEmpty)
     }
 
+    @MainActor
+    func testEscapeKeyDismissesVisiblePickerSession() throws {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        let controller = PickerWindowController(appState: state, coordinator: coordinator)
+        let url = try XCTUnwrap(URL(string: "https://example.com/page"))
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\u{1b}",
+            charactersIgnoringModifiers: "\u{1b}",
+            isARepeat: false,
+            keyCode: 53
+        ))
+
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        state.isPickerVisible = true
+
+        XCTAssertTrue(controller.handleKeyEvent(event))
+        XCTAssertFalse(state.isPickerVisible)
+        XCTAssertNil(state.pendingURL)
+    }
+
+    @MainActor
+    func testConfigureAppsForUnmatchedFileDismissesPickerAndOpensAppsSettings() throws {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("payload.romanunknownformat")
+        let openExpectation = expectation(description: "main window open requested")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .openMainWindow,
+            object: nil,
+            queue: nil
+        ) { _ in
+            openExpectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .linkRouting
+
+        coordinator.configureAppsForUnmatchedFile(state: state)
+
+        XCTAssertNil(state.pendingURL)
+        XCTAssertFalse(state.isPickerVisible)
+        XCTAssertEqual(state.mainWindowSection, .settingsApps)
+        wait(for: [openExpectation], timeout: 0.1)
+    }
+
     // MARK: - Focus remap on in-place snapshot refresh
 
     @MainActor

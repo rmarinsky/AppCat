@@ -169,10 +169,17 @@ final class BrowserLauncherTests: XCTestCase {
 
     @MainActor
     func testCandidateURLsForFilesOnlyTryTheOriginalFileURL() {
-        let file = URL(fileURLWithPath: "/tmp/example.md")
+        let file = URL(fileURLWithPath: "/tmp/example.romanunknownformat")
         let app = makeApp(id: "com.microsoft.VSCode", urlSchemes: ["vscode"])
+        let world = FakeBrowserLauncherWorld()
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+
+        launcher.open(url: file, with: app)
 
         XCTAssertEqual(BrowserLauncher.candidateURLs(for: file, app: app), [file])
+        XCTAssertEqual(world.openedURLs.count, 1)
+        XCTAssertEqual(world.openedURLs[0].urls, [file])
+        XCTAssertEqual(world.openedURLs[0].appURL, app.appURL)
     }
 
     private func makeBrowser(profileType: ProfileType? = nil) -> InstalledBrowser {

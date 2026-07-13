@@ -84,11 +84,11 @@ struct AppsScreenView: View {
         .sheet(item: $editingApp) { app in
             AppFormatEditorSheet(
                 app: app,
-                onSave: { customFormats, opensUnknownTypes in
+                onSave: { customFormats, handlesAllFiles in
                     appState.updateAppFormats(
                         appID: app.id,
                         customFormats: customFormats,
-                        opensUnknownTypes: opensUnknownTypes
+                        handlesAllFiles: handlesAllFiles
                     )
                     editingApp = nil
                 },
@@ -372,9 +372,12 @@ struct AppsScreenView: View {
     @ViewBuilder
     private func formatSummary(_ app: InstalledApp) -> some View {
         let formats = app.fileFormats
-        if formats.isEmpty {
-            let handlesAll = AppDefinition.registryByID[app.id]?.handlesAllFiles == true
-            Text(handlesAll ? String(localized: "Any file type") : String(localized: "No declared formats"))
+        if app.handlesAllFiles {
+            Text(String(localized: "Any file type"))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        } else if formats.isEmpty {
+            Text(String(localized: "No declared formats"))
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
         } else {

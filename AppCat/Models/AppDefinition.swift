@@ -37,12 +37,10 @@ struct AppDefinition {
 
     func matchesFile(_ url: URL) -> Bool {
         guard url.isFileURL, filePickerPriority != nil else { return false }
-        if handlesAllFiles { return true }
 
         let patterns = Set(filePatterns)
         guard !patterns.isEmpty else { return false }
         return !BrowserFileType.fileMatchTokens(for: url).isDisjoint(with: patterns)
-            || BrowserFileType.isDeveloperFile(url)
     }
 
     private static func normalizeFilePattern(_ pattern: String) -> String {

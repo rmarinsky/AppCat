@@ -1,13 +1,13 @@
 import UniformTypeIdentifiers
 
 enum BrowserFileType {
-    static let browserReadableContentTypeIdentifiers = [
+    /// Local formats that browsers are useful picker targets for. Text-like formats such as
+    /// JSON, XML, and TXT remain AppCat-supported file types, but browsers are intentionally not
+    /// offered for them because the file picker is choosing an editor, not a read-only preview.
+    static let browserPreviewContentTypeIdentifiers = [
         "public.html",
         "public.xhtml",
         "public.svg-image",
-        "public.xml",
-        "public.json",
-        "public.plain-text",
         "com.adobe.pdf",
         "com.apple.webarchive",
         "com.apple.web-internet-location",
@@ -15,6 +15,14 @@ enum BrowserFileType {
         "com.microsoft.internet-shortcut",
         "org.ietf.mhtml",
     ]
+
+    static let appCatSupportedBaseContentTypeIdentifiers = orderedUnique(
+        browserPreviewContentTypeIdentifiers + [
+            "public.xml",
+            "public.json",
+            "public.plain-text",
+        ]
+    )
 
     static let developerContentTypeIdentifiers = [
         "ua.com.rmarinsky.appcat.env-config",
@@ -154,7 +162,7 @@ enum BrowserFileType {
     ]
 
     static let supportedContentTypeIdentifiers = orderedUnique(
-        browserReadableContentTypeIdentifiers + developerContentTypeIdentifiers + genericFileContentTypeIdentifiers
+        appCatSupportedBaseContentTypeIdentifiers + developerContentTypeIdentifiers + genericFileContentTypeIdentifiers
     )
 
     static let defaultHandlerContentTypeIdentifiers = orderedUnique(
@@ -203,12 +211,12 @@ enum BrowserFileType {
     static func isBrowserReadableFile(_ url: URL) -> Bool {
         guard url.isFileURL else { return false }
 
-        let identifiers = Set(browserReadableContentTypeIdentifiers)
+        let identifiers = Set(browserPreviewContentTypeIdentifiers)
         if let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
             if identifiers.contains(contentType.identifier) {
                 return true
             }
-            if browserReadableContentTypeIdentifiers
+            if browserPreviewContentTypeIdentifiers
                 .compactMap(UTType.init)
                 .contains(where: { contentType.conforms(to: $0) })
             {
@@ -217,8 +225,8 @@ enum BrowserFileType {
         }
 
         return !fileMatchTokens(for: url).isDisjoint(with: [
-            "html", "htm", "xhtml", "xht", "svg", "xml", "json", "txt",
-            "text", "pdf", "webarchive", "webloc", "url", "mhtml", "mht",
+            "html", "htm", "xhtml", "xht", "svg", "pdf", "webarchive", "webloc", "url",
+            "mhtml", "mht",
         ])
     }
 

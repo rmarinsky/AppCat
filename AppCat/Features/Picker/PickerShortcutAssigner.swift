@@ -118,7 +118,17 @@ enum PickerShortcutPolicy {
         guard invocationSource.allowsDirectSelection else {
             return [:]
         }
-        return PickerShortcutAssigner.assignments(for: items, positionalEnabled: selectWithNumberKeys)
+        let assignments = PickerShortcutAssigner.assignments(
+            for: items,
+            positionalEnabled: selectWithNumberKeys
+        )
+        guard invocationSource.isManualPresentation else { return assignments }
+
+        // Manual app switching supports type-ahead by app/window name. Reserve letters for that
+        // search path so a query such as "chatgpt" cannot open the positional item assigned to T.
+        // Number keys remain immediate direct-selection shortcuts; URL/file routing retains its
+        // configured and positional letter shortcuts.
+        return assignments.filter { !isAlphabetic($0.value.key) }
     }
 
     static func item(
@@ -130,11 +140,16 @@ enum PickerShortcutPolicy {
         guard invocationSource.allowsDirectSelection else {
             return nil
         }
-        return PickerShortcutAssigner.item(
-            forKeyCode: keyCode,
-            in: items,
-            positionalEnabled: selectWithNumberKeys
+        let assigned = assignments(
+            for: items,
+            invocationSource: invocationSource,
+            selectWithNumberKeys: selectWithNumberKeys
         )
+        return items.first { assigned[$0.id]?.keyCode == keyCode }
+    }
+
+    private static func isAlphabetic(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy(CharacterSet.letters.contains)
     }
 }
 

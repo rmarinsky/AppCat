@@ -115,7 +115,7 @@ struct GeneralSettingsView: View {
             title: appState.isDefaultWebFileHandler
                 ? String(localized: "AppCat handles web and dev files")
                 : String(localized: "AppCat does not handle web and dev files"),
-            subtitle: String(localized: "Optional. Finder double-clicks can route files through AppCat, but macOS will ask for each file group.")
+            subtitle: String(localized: "Known web and developer file groups are optional. AppCat automatically registers a wildcard handler that may compete with implicit file associations.")
         ) {
             if appState.isDefaultWebFileHandler {
                 StatusPill(title: String(localized: "On"), isOn: true)

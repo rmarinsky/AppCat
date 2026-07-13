@@ -133,6 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_: Notification) {
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
+        if PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+            isPickerVisible: appState.isPickerVisible,
+            isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
+        ) {
+            NSApp.setActivationPolicy(.regular)
+        }
     }
 
     func applicationWillTerminate(_: Notification) {
