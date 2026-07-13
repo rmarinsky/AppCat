@@ -151,6 +151,10 @@ final class SmokeTests: XCTestCase {
         }
     }
 
+    func testPickerCellsDoNotUseNativeButtonFocusRing() {
+        XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
+    }
+
     func testPrivateModeModifiersApplyOnlyToLinkRoutingShortcuts() {
         assertOpenMode(.privateMode, modifiers: [.option], source: .linkRouting)
         assertOpenMode(.privateMode, modifiers: [.shift], source: .linkRouting)

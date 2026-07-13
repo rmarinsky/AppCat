@@ -389,6 +389,11 @@ enum PickerPresentationStyle {
     case appSwitcher
 }
 
+enum PickerCellFocusPolicy {
+    // The panel owns keyboard selection. Native Button focus would draw a second rectangular ring.
+    static let allowsNativeFocus = false
+}
+
 enum PickerMetrics {
     static let screenMargin: CGFloat = 8
 
@@ -709,6 +714,7 @@ struct PickerView: View {
             )
         }
         .buttonStyle(.plain)
+        .focusable(PickerCellFocusPolicy.allowsNativeFocus)
         .contentShape(Rectangle())
         .onHover { isHovered in
             guard isHovered, appState.isPickerVisible else { return }
