@@ -1,6 +1,7 @@
 @testable import AppCat
 import AppKit
 import ApplicationServices
+import SwiftUI
 import XCTest
 
 final class SmokeTests: XCTestCase {
@@ -284,11 +285,11 @@ final class SmokeTests: XCTestCase {
             (.holdOptionTab, true, true, false, false, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, allowsDirectSelection, activatesPanel, refreshesSnapshot) in expectations {
+        for (source, isManual, isHoldToSwitch, allowsDirectSelection, requiresKeyboardFocus, refreshesSnapshot) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
             XCTAssertEqual(source.allowsDirectSelection, allowsDirectSelection)
-            XCTAssertEqual(source.activatesPanel, activatesPanel)
+            XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
             XCTAssertEqual(
                 PickerShortcutPolicy.assignments(
@@ -305,26 +306,29 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
     }
 
-    func testActivatingPickersUseActivatingPanelsAndAllPickersAcceptFallbackClicks() {
+    func testEveryPickerUsesANonactivatingPanelAndAcceptsFallbackClicks() {
         for source in [
             PickerInvocationSource.linkRouting,
             .toggleShortcut,
             .serviceKey,
+            .holdOptionTab,
         ] {
-            XCTAssertFalse(
-                PickerPanelInteractionPolicy.styleMask(for: source).contains(.nonactivatingPanel),
-                "\(source) must receive the first click"
+            XCTAssertTrue(
+                PickerPanelInteractionPolicy.styleMask.contains(.nonactivatingPanel),
+                "\(source) must not activate AppCat or switch Spaces"
             )
             XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: source))
         }
-
-        XCTAssertTrue(
-            PickerPanelInteractionPolicy.styleMask(for: .holdOptionTab).contains(.nonactivatingPanel)
-        )
-        XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: .holdOptionTab))
     }
 
-    func testPickerPanelCanJoinEverySpaceAndFullscreenApplication() {
+    @MainActor
+    func testPickerHostingViewAcceptsFirstResponder() {
+        let hostingView = PickerHostingView(rootView: EmptyView())
+
+        XCTAssertTrue(hostingView.acceptsFirstResponder)
+    }
+
+    func testPickerPanelUsesTheCrossApplicationFullscreenOverlayPolicy() {
         let behavior = PickerPanelInteractionPolicy.collectionBehavior
         let sources: [PickerInvocationSource] = [
             .linkRouting,
@@ -335,20 +339,123 @@ final class SmokeTests: XCTestCase {
 
         for source in sources {
             XCTAssertTrue(behavior.contains(.canJoinAllSpaces), "\(source) must join all Spaces")
+            XCTAssertTrue(
+                behavior.contains(.canJoinAllApplications),
+                "\(source) must join other apps' fullscreen Spaces"
+            )
+            XCTAssertTrue(
+                behavior.contains(.fullScreenAuxiliary),
+                "\(source) must display beside a fullscreen window"
+            )
+            XCTAssertTrue(behavior.contains(.stationary), "\(source) must not move with Mission Control")
             XCTAssertTrue(behavior.contains(.ignoresCycle), "\(source) must stay out of window cycling")
-            if #available(macOS 26.0, *) {
-                XCTAssertTrue(
-                    behavior.contains(.canJoinAllApplications),
-                    "\(source) must join fullscreen apps"
-                )
-                XCTAssertFalse(behavior.contains(.fullScreenAuxiliary))
-            } else {
-                XCTAssertTrue(
-                    behavior.contains(.fullScreenAuxiliary),
-                    "\(source) must join fullscreen Spaces"
-                )
-            }
+            XCTAssertEqual(PickerPanelInteractionPolicy.windowLevel, .screenSaver)
         }
+    }
+
+    @MainActor
+    func testPickerFullscreenPolicyCanBeReappliedToAReusedPanel() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 180),
+            styleMask: PickerPanelInteractionPolicy.styleMask,
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .normal
+        panel.collectionBehavior = []
+        panel.isFloatingPanel = false
+        panel.hidesOnDeactivate = true
+
+        PickerPanelInteractionPolicy.apply(to: panel)
+
+        XCTAssertEqual(panel.level, .screenSaver)
+        XCTAssertEqual(panel.collectionBehavior, PickerPanelInteractionPolicy.collectionBehavior)
+        XCTAssertTrue(panel.isFloatingPanel)
+        XCTAssertFalse(panel.hidesOnDeactivate)
+    }
+
+    func testPickerActivationPolicyIsAccessoryOnlyWhileThePickerIsPresented() {
+        XCTAssertEqual(PickerPanelInteractionPolicy.presentationActivationPolicy, .accessory)
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: true),
+            .regular
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: false),
+            .accessory
+        )
+    }
+
+    func testRegularPolicyIsRestoredWhenSettingsBecomesActiveAgain() {
+        XCTAssertTrue(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: false,
+                isMainWindowVisibleOnActiveSpace: true
+            )
+        )
+        XCTAssertFalse(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: true,
+                isMainWindowVisibleOnActiveSpace: true
+            )
+        )
+        XCTAssertFalse(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: false,
+                isMainWindowVisibleOnActiveSpace: false
+            )
+        )
+    }
+
+    func testActiveApplicationOrInterruptedSettlingWaitsForDeactivationBeforePresentingPicker() {
+        XCTAssertTrue(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: true,
+            wasWaitingForDeactivation: false
+        ))
+        XCTAssertTrue(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: false,
+            wasWaitingForDeactivation: true
+        ))
+        XCTAssertFalse(PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: false,
+            wasWaitingForDeactivation: false
+        ))
+        XCTAssertGreaterThan(
+            PickerPanelInteractionPolicy.deactivationSettlingDelay,
+            0,
+            "A LaunchServices activation must settle before a nonactivating panel becomes key"
+        )
+    }
+
+    func testHoldOptionTabRemainsVisibleWithoutRefocusingWhenAReusedPanelResignsKey() {
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .holdOptionTab,
+                isInDismissGracePeriod: true
+            ),
+            .remainVisible
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .holdOptionTab,
+                isInDismissGracePeriod: false
+            ),
+            .remainVisible
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .linkRouting,
+                isInDismissGracePeriod: true
+            ),
+            .refocus
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                for: .linkRouting,
+                isInDismissGracePeriod: false
+            ),
+            .dismiss
+        )
     }
 
     func testServiceAndTogglePickersRequireFreshWindowsBeforePresentation() {
@@ -494,13 +601,14 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testServiceKeyPickerShowsAndAcceptsDirectKeysWhenHoldModeIsConfigured() throws {
+    func testServiceKeyPickerReservesLettersForTypeAheadWhenHoldModeIsConfigured() throws {
         let state = AppState()
         state.pickerActivationMode = .holdOptionTab
         state.pickerInvocationSource = .serviceKey
         let items = (0 ..< 11).map { index in
             PickerItem(app: makeApp(id: "test.service.\(index)"))
         }
+        let zeroKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "0"))
         let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
 
         let assignments = PickerShortcutPolicy.assignments(
@@ -515,10 +623,36 @@ final class SmokeTests: XCTestCase {
             selectWithNumberKeys: true
         )
 
-        XCTAssertTrue(state.pickerInvocationSource.activatesPanel)
+        XCTAssertTrue(state.pickerInvocationSource.requiresKeyboardFocus)
         XCTAssertTrue(state.pickerInvocationSource.refreshesLiveSnapshot)
         XCTAssertEqual(assignments[items[0].id]?.key, "1")
-        XCTAssertEqual(assignments[items[10].id]?.key, "q")
+        XCTAssertEqual(assignments[items[9].id]?.key, "0")
+        XCTAssertNil(assignments[items[10].id])
+        XCTAssertEqual(
+            PickerShortcutPolicy.item(
+                forKeyCode: zeroKeyCode,
+                in: items,
+                invocationSource: state.pickerInvocationSource,
+                selectWithNumberKeys: true
+            )?.id,
+            items[9].id
+        )
+        XCTAssertNil(selectedItem)
+    }
+
+    func testRoutingPickerKeepsPositionalLetterDirectSelection() throws {
+        let items = (0 ..< 11).map { index in
+            PickerItem(app: makeApp(id: "test.routing.\(index)"))
+        }
+        let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+
+        let selectedItem = PickerShortcutPolicy.item(
+            forKeyCode: qKeyCode,
+            in: items,
+            invocationSource: .linkRouting,
+            selectWithNumberKeys: true
+        )
+
         XCTAssertEqual(selectedItem?.id, items[10].id)
     }
 

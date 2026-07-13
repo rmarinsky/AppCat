@@ -16,7 +16,7 @@ enum PickerInvocationSource: Equatable {
         !isHoldToSwitch
     }
 
-    var activatesPanel: Bool {
+    var requiresKeyboardFocus: Bool {
         !isHoldToSwitch
     }
 

@@ -24,23 +24,68 @@ private class KeyablePanel: NSPanel {
     }
 }
 
+final class PickerHostingView<Content: View>: NSHostingView<Content> {
+    override var acceptsFirstResponder: Bool {
+        true
+    }
+}
+
+enum PickerPanelKeyResignAction: Equatable {
+    case refocus
+    case remainVisible
+    case dismiss
+}
+
 enum PickerPanelInteractionPolicy {
-    static var collectionBehavior: NSWindow.CollectionBehavior {
-        var behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
-        if #available(macOS 26.0, *) {
-            behavior.insert(.canJoinAllApplications)
-        } else {
-            behavior.insert(.fullScreenAuxiliary)
-        }
-        return behavior
+    static let collectionBehavior: NSWindow.CollectionBehavior = [
+        .canJoinAllSpaces,
+        .canJoinAllApplications,
+        .fullScreenAuxiliary,
+        .stationary,
+        .ignoresCycle,
+    ]
+    static let windowLevel = NSWindow.Level.screenSaver
+    static let presentationActivationPolicy = NSApplication.ActivationPolicy.accessory
+    static let deactivationSettlingDelay: TimeInterval = 0.15
+    static let styleMask: NSWindow.StyleMask = [
+        .fullSizeContentView,
+        .borderless,
+        .nonactivatingPanel,
+    ]
+
+    static func dismissalActivationPolicy(
+        isMainWindowVisibleOnActiveSpace: Bool
+    ) -> NSApplication.ActivationPolicy {
+        isMainWindowVisibleOnActiveSpace ? .regular : .accessory
     }
 
-    static func styleMask(for source: PickerInvocationSource) -> NSWindow.StyleMask {
-        var mask: NSWindow.StyleMask = [.fullSizeContentView, .borderless]
-        if !source.activatesPanel {
-            mask.insert(.nonactivatingPanel)
-        }
-        return mask
+    static func shouldRestoreRegularPolicy(
+        isPickerVisible: Bool,
+        isMainWindowVisibleOnActiveSpace: Bool
+    ) -> Bool {
+        !isPickerVisible && isMainWindowVisibleOnActiveSpace
+    }
+
+    static func shouldWaitForApplicationDeactivation(
+        isApplicationActive: Bool,
+        wasWaitingForDeactivation: Bool
+    ) -> Bool {
+        isApplicationActive || wasWaitingForDeactivation
+    }
+
+    static func keyResignAction(
+        for source: PickerInvocationSource,
+        isInDismissGracePeriod: Bool
+    ) -> PickerPanelKeyResignAction {
+        guard source.requiresKeyboardFocus else { return .remainVisible }
+        return isInDismissGracePeriod ? .refocus : .dismiss
+    }
+
+    static func apply(to panel: NSPanel) {
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.level = windowLevel
+        panel.collectionBehavior = collectionBehavior
     }
 
     /// A global mouse-down is only observed when AppKit did not deliver the click to AppCat.
@@ -86,6 +131,8 @@ final class PickerWindowController: NSObject {
     private var keyMonitor: Any?
     private var ignoreDismissUntil: Date = .distantPast
     private var isClosing = false
+    private var presentationDeactivationObserver: NSObjectProtocol?
+    private var presentationWorkItem: DispatchWorkItem?
     private let dismissGraceInterval: TimeInterval = 0.12
     private var typeAheadBuffer = ""
     private var typeAheadResetTask: Task<Void, Never>?
@@ -111,7 +158,7 @@ final class PickerWindowController: NSObject {
         let newPanel = makePanel(size: size)
         panel = newPanel
 
-        let hostingView = NSHostingView(
+        let hostingView = PickerHostingView(
             rootView: PickerView()
                 .environment(appState)
                 .environment(\.pickerCoordinator, coordinator)
@@ -129,6 +176,9 @@ final class PickerWindowController: NSObject {
 
     func show() {
         isClosing = false
+        let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
+        cancelPendingPresentation()
+        removePresentationDeactivationObserver()
         // Every show() starts a fresh session: a second link can arrive while the picker is
         // already open (no close in between), and reusing the previous session's snapshot would
         // render stale items in a panel sized and positioned for the wrong list.
@@ -143,7 +193,7 @@ final class PickerWindowController: NSObject {
         buildPanelIfNeeded(size: targetSize)
 
         guard let panel else { return }
-        panel.styleMask = PickerPanelInteractionPolicy.styleMask(for: appState.pickerInvocationSource)
+        PickerPanelInteractionPolicy.apply(to: panel)
         resizePanelIfNeeded(panel, to: targetSize)
         // A pre-warmed or reused panel may carry stale layer state, so re-apply on every show.
         if let surfaceView = surfaceView(in: panel) {
@@ -154,21 +204,40 @@ final class PickerWindowController: NSObject {
         }
 
         positionPanel(panel, on: screen)
-        ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
 
-        // Activate the app so macOS delivers key/mouse events to the panel. Demote to
-        // .accessory (no Dock icon) only when the main window isn't on screen — otherwise a
-        // link click while Settings is open would strip the app's Dock presence.
-        if !MainWindowActivation.isMainWindowVisible {
-            NSApp.setActivationPolicy(.accessory)
-        }
-
-        if shouldActivateAppForCurrentPresentation {
-            NSApp.activate(ignoringOtherApps: true)
-            panel.makeKeyAndOrderFront(nil)
-            panel.makeFirstResponder(hostingView(in: panel))
+        // A nonactivating accessory panel can join another app's fullscreen Space without
+        // switching Spaces. If LaunchServices activated AppCat first, wait until deactivation is
+        // complete before making the panel key; otherwise the delayed resign would immediately
+        // dismiss the picker or leave it visible without keyboard input.
+        let shouldWaitForDeactivation = PickerPanelInteractionPolicy.shouldWaitForApplicationDeactivation(
+            isApplicationActive: NSApp.isActive,
+            wasWaitingForDeactivation: wasWaitingForDeactivation
+        )
+        NSApp.setActivationPolicy(PickerPanelInteractionPolicy.presentationActivationPolicy)
+        if shouldWaitForDeactivation {
+            waitForApplicationDeactivationBeforePresenting()
         } else {
-            panel.orderFrontRegardless()
+            presentPanelAfterDeactivation()
+        }
+    }
+
+    private func presentPanelAfterDeactivation() {
+        guard !isClosing, appState.isPickerVisible, let panel else { return }
+        guard !NSApp.isActive else {
+            // LaunchServices can briefly reactivate AppCat during the settling interval. Re-arm
+            // the deactivation wait instead of abandoning a visible picker session with no panel.
+            waitForApplicationDeactivationBeforePresenting()
+            return
+        }
+        removePresentationDeactivationObserver()
+
+        ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
+        panel.orderFrontRegardless()
+        if shouldTakeKeyboardFocusForCurrentPresentation {
+            focusPanel(panel)
+        } else if panel.isKeyWindow {
+            // A reused link/toggle panel may still be key when the invocation changes to hold.
+            panel.resignKey()
         }
 
         installMonitors()
@@ -176,8 +245,60 @@ final class PickerWindowController: NSObject {
         Log.picker.debug("Picker shown")
     }
 
+    private func waitForApplicationDeactivationBeforePresenting() {
+        guard !isClosing, appState.isPickerVisible else { return }
+        installPresentationDeactivationObserver()
+        NSApp.deactivate()
+        if !NSApp.isActive {
+            schedulePresentationAfterDeactivation()
+        }
+    }
+
+    private func installPresentationDeactivationObserver() {
+        guard presentationDeactivationObserver == nil else { return }
+        presentationDeactivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: NSApp,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.schedulePresentationAfterDeactivation()
+            }
+        }
+    }
+
+    private func schedulePresentationAfterDeactivation() {
+        guard presentationWorkItem == nil else { return }
+        removePresentationDeactivationObserver()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.presentationWorkItem = nil
+            self.presentPanelAfterDeactivation()
+        }
+        presentationWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + PickerPanelInteractionPolicy.deactivationSettlingDelay,
+            execute: workItem
+        )
+    }
+
+    private func cancelPendingPresentation() {
+        presentationWorkItem?.cancel()
+        presentationWorkItem = nil
+    }
+
+    private func removePresentationDeactivationObserver() {
+        if let presentationDeactivationObserver {
+            NotificationCenter.default.removeObserver(presentationDeactivationObserver)
+            self.presentationDeactivationObserver = nil
+        }
+    }
+
     func close() {
         isClosing = true
+        cancelPendingPresentation()
+        removePresentationDeactivationObserver()
         ignoreDismissUntil = .distantPast
         clearTypeAheadBuffer()
         appState.isPickerVisible = false
@@ -186,17 +307,22 @@ final class PickerWindowController: NSObject {
         appState.pickerItemsSnapshot = []
         removeMonitors()
         panel?.orderOut(nil)
-        if !MainWindowActivation.isMainWindowVisible {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        NSApp.setActivationPolicy(PickerPanelInteractionPolicy.dismissalActivationPolicy(
+            isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
+        ))
         DispatchQueue.main.async { [weak self] in
             self?.isClosing = false
         }
         Log.picker.debug("Picker dismissed")
     }
 
-    private var shouldActivateAppForCurrentPresentation: Bool {
-        appState.pickerInvocationSource.activatesPanel
+    private var shouldTakeKeyboardFocusForCurrentPresentation: Bool {
+        appState.pickerInvocationSource.requiresKeyboardFocus
+    }
+
+    private func focusPanel(_ panel: NSPanel) {
+        panel.makeKey()
+        panel.makeFirstResponder(hostingView(in: panel))
     }
 
     // MARK: - Monitors
@@ -245,7 +371,7 @@ final class PickerWindowController: NSObject {
 
     // MARK: - Key Handling
 
-    private func handleKeyEvent(_ event: NSEvent) -> Bool {
+    func handleKeyEvent(_ event: NSEvent) -> Bool {
         guard !isClosing, appState.isPickerVisible else { return false }
 
         switch Int(event.keyCode) {
@@ -666,19 +792,16 @@ final class PickerWindowController: NSObject {
     private func makePanel(size: NSSize) -> NSPanel {
         let panel = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: PickerPanelInteractionPolicy.styleMask(for: appState.pickerInvocationSource),
+            styleMask: PickerPanelInteractionPolicy.styleMask,
             backing: .buffered,
             defer: false
         )
-        panel.isFloatingPanel = true
-        panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.animationBehavior = .none
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = PickerPanelInteractionPolicy.collectionBehavior
+        PickerPanelInteractionPolicy.apply(to: panel)
 
         let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size)))
         panel.contentView = surfaceView
@@ -927,11 +1050,21 @@ extension PickerWindowController: NSWindowDelegate {
                   self.appState.isPickerVisible,
                   self.panel?.isVisible == true
             else { return }
-            guard !self.isInDismissGracePeriod else {
-                self.panel?.makeKeyAndOrderFront(nil)
-                return
+
+            switch PickerPanelInteractionPolicy.keyResignAction(
+                for: self.appState.pickerInvocationSource,
+                isInDismissGracePeriod: self.isInDismissGracePeriod
+            ) {
+            case .refocus:
+                if let panel = self.panel {
+                    panel.orderFrontRegardless()
+                    self.focusPanel(panel)
+                }
+            case .remainVisible:
+                self.panel?.orderFrontRegardless()
+            case .dismiss:
+                self.close()
             }
-            self.close()
         }
     }
 }
