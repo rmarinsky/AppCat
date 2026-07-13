@@ -41,7 +41,10 @@ final class AppManager {
                 app.sortOrder = config.sortOrder
                 app.displayName = config.displayName
                 app.customFormats = config.customFormats
-                app.opensUnknownTypes = config.opensUnknownTypes ?? false
+                app.handlesAllFiles = AppFileCapabilityPolicy.resolveHandlesAllFiles(
+                    savedValue: config.handlesAllFiles,
+                    registryDefault: AppDefinition.registryByID[app.id]?.handlesAllFiles == true
+                )
             }
         } else {
             state.apps = detected

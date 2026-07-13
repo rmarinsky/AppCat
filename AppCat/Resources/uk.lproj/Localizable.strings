@@ -339,7 +339,7 @@
 "Remove" = "Видалити";
 "ext" = "розширення";
 "Add format" = "Додати формат";
-"Open unknown file types here" = "Відкривати тут невідомі типи файлів";
+"Can open any file type" = "Може відкривати будь-який тип файлу";
 "Choose which files AppCat opens in %@" = "Виберіть, які файли AppCat відкриває в %@";
 
 "Drag to reorder · number keys pick a browser · toggle profiles to show them in the picker" = "Перетягніть для зміни порядку · цифрові клавіші вибирають браузер · увімкніть профілі, щоб показати їх у пікері";
@@ -356,7 +356,7 @@
 "Any file type" = "Будь-який тип файлу";
 "No declared formats" = "Немає заявлених форматів";
 "Formats are read from the app. Add or remove any to override what %@ opens." = "Формати зчитані із застосунку. Додайте або приберіть формати, щоб змінити, що відкриває %@.";
-"When macOS can't match a file's type, AppCat sends it to %@." = "Коли macOS не може визначити тип файлу, AppCat відправляє його в %@.";
+"Enable only for editors and IDEs that can open files even when the format is not declared." = "Вмикайте лише для редакторів та IDE, які можуть відкривати файли, навіть якщо формат не заявлено.";
 "profiles" = "профілів";
 "Key" = "Клавіша";
 
@@ -383,3 +383,6 @@
 "Select text, press a shortcut, get the right language without retyping." = "Виділив текст, натиснув shortcut, отримав правильну мову без ручного перенабору.";
 "Control where links and files open" = "Контроль над тим, куди відкриваються посилання і файли";
 "Routes URLs, browsers, profiles, and apps without copy-paste between Chrome, Safari, Slack, and IDEs." = "Роутить URL, браузери, профілі й застосунки без копіпасту між Chrome, Safari, Slack і IDE.";
+"No app can open this file type" = "Немає програми для цього типу файлу";
+"Choose which editors can open any file type, then reopen the file." = "Вкажіть редактори, які можуть відкривати будь-які типи файлів, а потім відкрийте файл ще раз.";
+"Configure apps" = "Налаштувати програми";

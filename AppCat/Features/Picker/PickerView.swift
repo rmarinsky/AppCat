@@ -236,16 +236,10 @@ struct PickerItem: Identifiable {
             )
         }
 
-        // Keep dead-weight apps out of the open-with list: those that can't meaningfully open
-        // anything (no declared formats, no links) shouldn't be offered just because LaunchServices
-        // reports them as capable of a broad type. They stay in `state.apps` for the app-switcher;
-        // this only trims the open-with pickers. Excluding them also blocks the LaunchServices net
-        // from re-adding them as Rank 2 candidates.
-        let inertAppIDs = Set(apps.filter { !$0.canOpenTarget }.map(\.id))
         let matchingApps = matchingApps(
             for: url,
             in: pickerApps,
-            excludingBundleIDs: browserIDs.union(inertAppIDs).union(hiddenAppIDs),
+            excludingBundleIDs: browserIDs.union(hiddenAppIDs),
             includingLaunchServicesCandidates: true
         )
         let orderedApps: [InstalledApp]
@@ -435,6 +429,53 @@ enum PickerCellFocusPolicy {
     static let allowsNativeFocus = false
 }
 
+enum PickerEmptyStateAction: Equatable {
+    case none
+    case configureApps
+}
+
+enum PickerEmptyStatePolicy {
+    static func action(
+        for url: URL?,
+        itemCount: Int,
+        invocationSource: PickerInvocationSource
+    ) -> PickerEmptyStateAction {
+        guard itemCount == 0,
+              invocationSource == .linkRouting,
+              url?.isFileURL == true
+        else { return .none }
+
+        return .configureApps
+    }
+}
+
+enum PickerReturnKeyAction: Equatable {
+    case openItem(Int)
+    case configureApps
+    case consume
+}
+
+enum PickerReturnKeyPolicy {
+    static func action(
+        itemCount: Int,
+        focusedIndex: Int,
+        url: URL?,
+        invocationSource: PickerInvocationSource
+    ) -> PickerReturnKeyAction {
+        if focusedIndex >= 0, focusedIndex < itemCount {
+            return .openItem(focusedIndex)
+        }
+        if PickerEmptyStatePolicy.action(
+            for: url,
+            itemCount: itemCount,
+            invocationSource: invocationSource
+        ) == .configureApps {
+            return .configureApps
+        }
+        return .consume
+    }
+}
+
 enum PickerMetrics {
     static let screenMargin: CGFloat = 8
 
@@ -458,6 +499,7 @@ enum PickerMetrics {
     private static let tileFocusCornerRadius: CGFloat = 24
     private static let panelCornerRadiusBase: CGFloat = 48
     private static let hintHeightBase: CGFloat = 14
+    private static let emptyStateWidthBase: CGFloat = 380
 
     static func clampedScale(_ scale: CGFloat) -> CGFloat {
         min(max(scale, CGFloat(PickerScale.minimum)), CGFloat(PickerScale.maximum))
@@ -573,11 +615,15 @@ enum PickerMetrics {
     static func panelWidth(
         itemCount: Int,
         availableWidth: CGFloat,
+        showsFileEmptyState: Bool = false,
         scale: CGFloat = 1
     ) -> CGFloat {
         let minPanelWidth = horizontalPadding(scale: scale) * 2 + itemWidth(scale: scale)
         let maxWidth = max(minPanelWidth, availableWidth - screenMargin * 2)
-        return min(max(contentWidth(itemCount: itemCount, scale: scale), minPanelWidth), maxWidth)
+        let contentWidth = showsFileEmptyState
+            ? scaled(emptyStateWidthBase, by: scale)
+            : contentWidth(itemCount: itemCount, scale: scale)
+        return min(max(contentWidth, minPanelWidth), maxWidth)
     }
 }
 
@@ -679,43 +725,54 @@ struct PickerView: View {
         let showsIncognitoHint = appState.showsPickerIncognitoHint
         let panelHeight = PickerMetrics.panelHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
         let scrollHeight = PickerMetrics.scrollHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
+        let emptyStateAction = PickerEmptyStatePolicy.action(
+            for: appState.pendingURL,
+            itemCount: items.count,
+            invocationSource: appState.pickerInvocationSource
+        )
 
         return VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                GeometryReader { geometry in
-                    let contentOverflows = PickerMetrics.contentWidth(
-                        itemCount: items.count,
-                        scale: scale
-                    ) > geometry.size.width + 1
-
-                    // Lazy rendering matters here: file pickers can include many LaunchServices apps.
-                    ScrollView(.horizontal, showsIndicators: contentOverflows) {
-                        LazyHStack(spacing: PickerMetrics.itemSpacing(scale: scale)) {
-                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                                pickerCell(
-                                    item: item,
-                                    index: index,
-                                    shortcut: shortcuts[item.id],
-                                    style: style,
-                                    scale: scale
-                                )
-                                .id(item.id)
-                            }
-                        }
-                        .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
-                        .padding(.top, PickerMetrics.verticalPadding(scale: scale))
-                        .padding(
-                            .bottom,
-                            showsIncognitoHint ? 0 : PickerMetrics.verticalPadding(scale: scale)
-                        )
-                    }
-                    .scrollDisabled(!contentOverflows)
-                    .background(HorizontalWheelScrollBridge())
+            if emptyStateAction == .configureApps {
+                emptyFileState(scale: scale)
+                    .frame(maxWidth: .infinity)
                     .frame(height: scrollHeight)
-                }
-                .frame(height: scrollHeight)
-                .onChange(of: appState.focusedBrowserIndex) { _, _ in
-                    scrollFocusedItemIntoView(proxy: proxy, items: items)
+            } else {
+                ScrollViewReader { proxy in
+                    GeometryReader { geometry in
+                        let contentOverflows = PickerMetrics.contentWidth(
+                            itemCount: items.count,
+                            scale: scale
+                        ) > geometry.size.width + 1
+
+                        // Lazy rendering matters here: file pickers can include many LaunchServices apps.
+                        ScrollView(.horizontal, showsIndicators: contentOverflows) {
+                            LazyHStack(spacing: PickerMetrics.itemSpacing(scale: scale)) {
+                                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                    pickerCell(
+                                        item: item,
+                                        index: index,
+                                        shortcut: shortcuts[item.id],
+                                        style: style,
+                                        scale: scale
+                                    )
+                                    .id(item.id)
+                                }
+                            }
+                            .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
+                            .padding(.top, PickerMetrics.verticalPadding(scale: scale))
+                            .padding(
+                                .bottom,
+                                showsIncognitoHint ? 0 : PickerMetrics.verticalPadding(scale: scale)
+                            )
+                        }
+                        .scrollDisabled(!contentOverflows)
+                        .background(HorizontalWheelScrollBridge())
+                        .frame(height: scrollHeight)
+                    }
+                    .frame(height: scrollHeight)
+                    .onChange(of: appState.focusedBrowserIndex) { _, _ in
+                        scrollFocusedItemIntoView(proxy: proxy, items: items)
+                    }
                 }
             }
 
@@ -730,6 +787,24 @@ struct PickerView: View {
             prepareInitialFocus(with: items)
         }
         .frame(maxWidth: .infinity, minHeight: panelHeight, maxHeight: panelHeight, alignment: .top)
+    }
+
+    private func emptyFileState(scale: CGFloat) -> some View {
+        VStack(spacing: 7 * scale) {
+            Text(String(localized: "No app can open this file type"))
+                .font(.system(size: 14 * scale, weight: .semibold))
+            Text(String(localized: "Choose which editors can open any file type, then reopen the file."))
+                .font(.system(size: 11 * scale))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            Button(String(localized: "Configure apps")) {
+                pickerCoordinator?.configureAppsForUnmatchedFile(state: appState)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 24 * scale)
     }
 
     @ViewBuilder

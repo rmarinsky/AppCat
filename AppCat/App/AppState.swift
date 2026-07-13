@@ -131,11 +131,11 @@ final class AppState {
         return system.filter(\.declaresFileSupport) + system.filter { !$0.declaresFileSupport }
     }
 
-    /// Persist the format overrides + unknown-type routing chosen in the format editor.
-    func updateAppFormats(appID: String, customFormats: [String]?, opensUnknownTypes: Bool) {
+    /// Persist exact format overrides plus the user's universal-editor capability.
+    func updateAppFormats(appID: String, customFormats: [String]?, handlesAllFiles: Bool) {
         guard let idx = apps.firstIndex(where: { $0.id == appID }) else { return }
         apps[idx].customFormats = customFormats
-        apps[idx].opensUnknownTypes = opensUnknownTypes
+        apps[idx].handlesAllFiles = handlesAllFiles
         AppConfigStorage.shared.save(apps)
     }
 

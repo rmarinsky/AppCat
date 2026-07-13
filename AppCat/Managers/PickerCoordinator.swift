@@ -62,6 +62,18 @@ final class PickerCoordinator {
         state.pickerItemsSnapshot = []
     }
 
+    func configureAppsForUnmatchedFile(state: AppState) {
+        guard PickerEmptyStatePolicy.action(
+            for: state.pendingURL,
+            itemCount: 0,
+            invocationSource: state.pickerInvocationSource
+        ) == .configureApps else { return }
+
+        dismissPicker(state: state)
+        state.mainWindowSection = .settingsApps
+        MainWindowActivation.requestOpen()
+    }
+
     func openURL(
         with browser: InstalledBrowser,
         mode: BrowserLauncher.OpenMode = .normal,

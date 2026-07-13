@@ -44,7 +44,9 @@ Window awareness uses the Accessibility API (with a Window-menu fallback for Ele
 `⌥⌘⇧B` re-opens the last picker.
 
 ### 📄 File open-with picker
-AppCat registers as a handler for HTML, SVG, PDF and ~150 developer/config file types. It also registers as the default wildcard handler for unrecognized extensions such as `.mdddddd`; this intentionally competes with other implicit file associations, while explicit user-selected defaults keep priority. Open a file and AppCat shows a **ranked picker of apps that can actually edit it** — view-only browsers are hidden for code/text files (you want to edit, not preview), and apps that can't meaningfully open anything are left out. You can override each app's file formats on the **Apps** screen.
+AppCat registers as a handler for HTML, SVG, PDF and ~150 developer/config file types. It also registers as the default wildcard handler for unrecognized extensions such as `.mdddddd`; this intentionally competes with other implicit file associations, while explicit user-selected defaults keep priority.
+
+The picker ranks exact user-configured and app-declared format matches first, then concrete non-browser LaunchServices matches, then editors marked **Can open any file type**. Sublime Text, VS Code, Cursor, Zed, and JetBrains IDEs receive that universal capability by default, and you can override it per app under **Settings → Apps**. Browsers appear only for HTML/XHTML, SVG, PDF, webarchive, webloc/URL, and MHTML — not JSON, XML, TXT, or unknown extensions. If nothing matches, **Configure apps** opens Apps settings; reopen the file after saving the capability.
 
 ### 🧭 URL rules & native-app routing
 Auto-route links by pattern. Four match types:

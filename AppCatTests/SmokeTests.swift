@@ -44,13 +44,45 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(matches.contains(where: { $0.id == "test.editor.override" }))
     }
 
-    func testUnknownFileTypesCanRouteToConfiguredApp() throws {
-        let app = makeApp(id: "test.editor.unknown", opensUnknownTypes: true)
-        let url = try makeTempFile(named: "payload.romanunknownformat")
+    func testExactFormatsRankBeforeUniversalEditorsForKnownAndUnknownFiles() throws {
+        let exactEditor = makeApp(id: "test.editor.yaml", customFormats: ["yaml"])
+        let universalEditor = makeApp(id: "test.editor.universal", handlesAllFiles: true)
+        let yamlURL = try makeTempFile(named: "config.yaml")
+        let jsonURL = try makeTempFile(named: "payload.json")
+        let unknownURL = try makeTempFile(named: "payload.romanunknownformat")
 
-        let matches = PickerItem.matchingApps(for: url, in: [app])
+        XCTAssertEqual(
+            InstalledApp.rankedFileApps(
+                candidates: [universalEditor, exactEditor],
+                url: yamlURL,
+                capableIDs: [],
+                hiddenBrowserIDs: []
+            ).map(\.id),
+            ["test.editor.yaml", "test.editor.universal"]
+        )
+        XCTAssertEqual(PickerItem.matchingApps(for: jsonURL, in: [exactEditor, universalEditor]).map(\.id), [
+            "test.editor.universal",
+        ])
+        XCTAssertEqual(PickerItem.matchingApps(for: unknownURL, in: [exactEditor, universalEditor]).map(\.id), [
+            "test.editor.universal",
+        ])
+    }
 
-        XCTAssertEqual(matches.map(\.id), ["test.editor.unknown"])
+    func testFilePickerRanksCustomThenDeclaredThenLaunchServicesThenUniversal() throws {
+        let custom = makeApp(id: "test.editor.custom", sortOrder: 3, customFormats: ["yaml"])
+        let declared = makeApp(id: "test.editor.declared", sortOrder: 2, detectedFormats: ["yaml"])
+        let launchServices = makeApp(id: "test.editor.launch-services", sortOrder: 1)
+        let universal = makeApp(id: "test.editor.universal", sortOrder: 0, handlesAllFiles: true)
+        let url = try makeTempFile(named: "config.yaml")
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [universal, launchServices, declared, custom],
+            url: url,
+            capableIDs: [launchServices.id],
+            hiddenBrowserIDs: []
+        )
+
+        XCTAssertEqual(ranked.map(\.id), [custom.id, declared.id, launchServices.id, universal.id])
     }
 
     func testFormatNormalizationPreservesServiceFileTokens() {
@@ -98,6 +130,22 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(Set(ranked.map(\.id)), ["test.editor", "com.apple.Safari"])
     }
 
+    func testBrowsersOnlyMatchWebAndPreviewFileFormats() throws {
+        let browser = makeBrowser()
+        let supportedNames = ["index.html", "image.svg", "document.pdf", "page.webarchive", "link.webloc", "mail.mhtml"]
+        let unsupportedNames = ["data.json", "feed.xml", "notes.txt", "payload.romanunknownformat"]
+
+        for name in supportedNames {
+            let url = try makeTempFile(named: name)
+            XCTAssertEqual(PickerItem.matchingBrowsers(for: url, in: [browser]).map(\.id), [browser.id], name)
+        }
+
+        for name in unsupportedNames {
+            let url = try makeTempFile(named: name)
+            XCTAssertTrue(PickerItem.matchingBrowsers(for: url, in: [browser]).isEmpty, name)
+        }
+    }
+
     func testPinnedBrowserStillMatchesDeveloperFileViaCustomFormats() throws {
         // The escape hatch: a user who added "json" to a browser's formats keeps it (Rank 0/1),
         // even though the same browser would otherwise be hidden for developer files.
@@ -112,6 +160,94 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(ranked.map(\.id), ["com.apple.Safari"])
+    }
+
+    func testBrowserCannotUseUniversalFileCapability() throws {
+        let url = try makeTempFile(named: "payload.romanunknownformat")
+        let browser = makeApp(
+            id: "com.apple.Safari",
+            displayName: "Safari",
+            handlesAllFiles: true
+        )
+
+        let ranked = InstalledApp.rankedFileApps(
+            candidates: [browser],
+            url: url,
+            capableIDs: [],
+            hiddenBrowserIDs: [browser.id]
+        )
+
+        XCTAssertTrue(ranked.isEmpty)
+    }
+
+    func testFilePickerEmptyStateOffersConfigurationOnlyForUnmatchedRoutedFiles() throws {
+        let fileURL = try makeTempFile(named: "payload.romanunknownformat")
+        let webURL = try XCTUnwrap(URL(string: "https://example.com"))
+
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 0,
+                invocationSource: .linkRouting
+            ),
+            .configureApps
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 1,
+                invocationSource: .linkRouting
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: fileURL,
+                itemCount: 0,
+                invocationSource: .toggleShortcut
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            PickerEmptyStatePolicy.action(
+                for: webURL,
+                itemCount: 0,
+                invocationSource: .linkRouting
+            ),
+            .none
+        )
+    }
+
+    func testReturnKeyConfiguresUnmatchedRoutedFilesAndOtherwiseKeepsNormalSelection() throws {
+        let fileURL = try makeTempFile(named: "payload.romanunknownformat")
+
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 0,
+                focusedIndex: 0,
+                url: fileURL,
+                invocationSource: .linkRouting
+            ),
+            .configureApps
+        )
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 3,
+                focusedIndex: 1,
+                url: fileURL,
+                invocationSource: .linkRouting
+            ),
+            .openItem(1)
+        )
+        XCTAssertEqual(
+            PickerReturnKeyPolicy.action(
+                itemCount: 0,
+                focusedIndex: 0,
+                url: nil,
+                invocationSource: .toggleShortcut
+            ),
+            .consume
+        )
     }
 
     func testPickerShortcutAssignerUsesDigitsThenQwertyLetters() {
@@ -1532,7 +1668,7 @@ final class SmokeTests: XCTestCase {
         hotkey: Character? = nil,
         hotkeyKeyCode: UInt16? = nil,
         customFormats: [String]? = nil,
-        opensUnknownTypes: Bool = false,
+        handlesAllFiles: Bool = false,
         detectedFormats: [String] = []
     ) -> InstalledApp {
         InstalledApp(
@@ -1546,7 +1682,7 @@ final class SmokeTests: XCTestCase {
             hotkey: hotkey,
             hotkeyKeyCode: hotkeyKeyCode,
             customFormats: customFormats,
-            opensUnknownTypes: opensUnknownTypes,
+            handlesAllFiles: handlesAllFiles,
             detectedFormats: detectedFormats
         )
     }

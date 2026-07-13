@@ -339,7 +339,7 @@
 "Remove" = "Remove";
 "ext" = "ext";
 "Add format" = "Add format";
-"Open unknown file types here" = "Open unknown file types here";
+"Can open any file type" = "Can open any file type";
 "Choose which files AppCat opens in %@" = "Choose which files AppCat opens in %@";
 
 "Drag to reorder · number keys pick a browser · toggle profiles to show them in the picker" = "Drag to reorder · number keys pick a browser · toggle profiles to show them in the picker";
@@ -356,7 +356,7 @@
 "Any file type" = "Any file type";
 "No declared formats" = "No declared formats";
 "Formats are read from the app. Add or remove any to override what %@ opens." = "Formats are read from the app. Add or remove any to override what %@ opens.";
-"When macOS can't match a file's type, AppCat sends it to %@." = "When macOS can't match a file's type, AppCat sends it to %@.";
+"Enable only for editors and IDEs that can open files even when the format is not declared." = "Enable only for editors and IDEs that can open files even when the format is not declared.";
 "profiles" = "profiles";
 "Key" = "Key";
 
@@ -383,3 +383,6 @@
 "Select text, press a shortcut, get the right language without retyping." = "Select text, press a shortcut, get the right language without retyping.";
 "Control where links and files open" = "Control where links and files open";
 "Routes URLs, browsers, profiles, and apps without copy-paste between Chrome, Safari, Slack, and IDEs." = "Routes URLs, browsers, profiles, and apps without copy-paste between Chrome, Safari, Slack, and IDEs.";
+"No app can open this file type" = "No app can open this file type";
+"Choose which editors can open any file type, then reopen the file." = "Choose which editors can open any file type, then reopen the file.";
+"Configure apps" = "Configure apps";

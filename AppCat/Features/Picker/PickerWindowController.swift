@@ -255,8 +255,18 @@ final class PickerWindowController: NSObject {
             return true
         case 36: // Return
             let items = pickerItemsForCurrentSession()
-            if items.indices.contains(appState.focusedBrowserIndex) {
-                open(items[appState.focusedBrowserIndex])
+            switch PickerReturnKeyPolicy.action(
+                itemCount: items.count,
+                focusedIndex: appState.focusedBrowserIndex,
+                url: appState.pendingURL,
+                invocationSource: appState.pickerInvocationSource
+            ) {
+            case let .openItem(index):
+                open(items[index])
+            case .configureApps:
+                coordinator.configureAppsForUnmatchedFile(state: appState)
+            case .consume:
+                break
             }
             return true
         case 51: // Delete / Backspace
@@ -633,10 +643,17 @@ final class PickerWindowController: NSObject {
 
     private func panelSurfaceSize(for screen: NSScreen) -> NSSize {
         let scale = pickerScale
+        let itemCount = itemCountForPanelSizing()
+        let showsFileEmptyState = PickerEmptyStatePolicy.action(
+            for: appState.pendingURL,
+            itemCount: itemCount,
+            invocationSource: appState.pickerInvocationSource
+        ) == .configureApps
         return NSSize(
             width: PickerMetrics.panelWidth(
-                itemCount: itemCountForPanelSizing(),
+                itemCount: itemCount,
                 availableWidth: screen.visibleFrame.width,
+                showsFileEmptyState: showsFileEmptyState,
                 scale: scale
             ),
             height: PickerMetrics.panelHeight(
