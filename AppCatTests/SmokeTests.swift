@@ -125,7 +125,56 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(item?.id, items[10].id)
     }
 
-    func testRoutingPickerShortcutPolicyShowsDirectKeysInAnyActivationMode() throws {
+    func testPickerInvocationSourceDefinesSessionInteractionPolicy() {
+        let items = [PickerItem(app: makeApp(id: "test.matrix"))]
+        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool, Bool)] = [
+            (.linkRouting, false, false, true, true, false),
+            (.toggleShortcut, true, false, true, true, true),
+            (.serviceKey, true, false, true, true, true),
+            (.holdOptionTab, true, true, false, false, false),
+        ]
+
+        for (source, isManual, isHoldToSwitch, allowsDirectSelection, activatesPanel, refreshesSnapshot) in expectations {
+            XCTAssertEqual(source.isManualPresentation, isManual)
+            XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
+            XCTAssertEqual(source.allowsDirectSelection, allowsDirectSelection)
+            XCTAssertEqual(source.activatesPanel, activatesPanel)
+            XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
+            XCTAssertEqual(
+                PickerShortcutPolicy.assignments(
+                    for: items,
+                    invocationSource: source,
+                    selectWithNumberKeys: true
+                ).isEmpty,
+                !allowsDirectSelection
+            )
+        }
+    }
+
+    func testPrivateModeModifiersApplyOnlyToLinkRoutingShortcuts() {
+        assertOpenMode(.privateMode, modifiers: [.option], source: .linkRouting)
+        assertOpenMode(.privateMode, modifiers: [.shift], source: .linkRouting)
+        assertOpenMode(.normal, modifiers: [], source: .linkRouting)
+        assertOpenMode(.normal, modifiers: [.option], source: .serviceKey)
+    }
+
+    func testOnlyVisibleHoldPickerOpensFocusedItemOnOptionRelease() {
+        XCTAssertTrue(PickerInvocationSource.holdOptionTab.opensFocusedItemOnOptionRelease(isPickerVisible: true))
+        XCTAssertFalse(PickerInvocationSource.holdOptionTab.opensFocusedItemOnOptionRelease(isPickerVisible: false))
+        XCTAssertFalse(PickerInvocationSource.serviceKey.opensFocusedItemOnOptionRelease(isPickerVisible: true))
+    }
+
+    func testPickerSurfaceUsesSharedAdaptiveNeutralTint() throws {
+        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let lightAppearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        let darkTint = PickerSurfaceAppearance.adaptiveTint(for: darkAppearance)
+        let lightTint = PickerSurfaceAppearance.adaptiveTint(for: lightAppearance)
+
+        XCTAssertEqual(darkTint.alphaComponent, 0.08, accuracy: 0.001)
+        XCTAssertEqual(lightTint.alphaComponent, 0.04, accuracy: 0.001)
+    }
+
+    func testRoutingPickerShortcutPolicyShowsDirectKeys() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -135,23 +184,14 @@ final class SmokeTests: XCTestCase {
         let positional = PickerItem(app: makeApp(id: "test.cursor"))
         let items = [configured, positional]
 
-        let toggleAssignments = PickerShortcutPolicy.assignments(
+        let assignments = PickerShortcutPolicy.assignments(
             for: items,
-            activationMode: .toggleShortcut,
-            isManualPickerPresentation: false,
-            selectWithNumberKeys: true
-        )
-        let holdAssignments = PickerShortcutPolicy.assignments(
-            for: items,
-            activationMode: .holdOptionTab,
-            isManualPickerPresentation: false,
+            invocationSource: .linkRouting,
             selectWithNumberKeys: true
         )
 
-        XCTAssertEqual(toggleAssignments[configured.id]?.source, .configured)
-        XCTAssertEqual(toggleAssignments[positional.id]?.source, .positional)
-        XCTAssertEqual(holdAssignments[configured.id]?.source, .configured)
-        XCTAssertEqual(holdAssignments[positional.id]?.source, .positional)
+        XCTAssertEqual(assignments[configured.id]?.source, .configured)
+        XCTAssertEqual(assignments[positional.id]?.source, .positional)
     }
 
     func testManualPickerShortcutPolicyDoesNotOpenItemsByKeyInHoldMode() throws {
@@ -165,12 +205,40 @@ final class SmokeTests: XCTestCase {
         let item = PickerShortcutPolicy.item(
             forKeyCode: configuredKeyCode,
             in: [configured],
-            activationMode: .holdOptionTab,
-            isManualPickerPresentation: true,
+            invocationSource: .holdOptionTab,
             selectWithNumberKeys: true
         )
 
         XCTAssertNil(item)
+    }
+
+    @MainActor
+    func testServiceKeyPickerShowsAndAcceptsDirectKeysWhenHoldModeIsConfigured() throws {
+        let state = AppState()
+        state.pickerActivationMode = .holdOptionTab
+        state.pickerInvocationSource = .serviceKey
+        let items = (0 ..< 11).map { index in
+            PickerItem(app: makeApp(id: "test.service.\(index)"))
+        }
+        let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+
+        let assignments = PickerShortcutPolicy.assignments(
+            for: items,
+            invocationSource: state.pickerInvocationSource,
+            selectWithNumberKeys: true
+        )
+        let selectedItem = PickerShortcutPolicy.item(
+            forKeyCode: qKeyCode,
+            in: items,
+            invocationSource: state.pickerInvocationSource,
+            selectWithNumberKeys: true
+        )
+
+        XCTAssertTrue(state.pickerInvocationSource.activatesPanel)
+        XCTAssertTrue(state.pickerInvocationSource.refreshesLiveSnapshot)
+        XCTAssertEqual(assignments[items[0].id]?.key, "1")
+        XCTAssertEqual(assignments[items[10].id]?.key, "q")
+        XCTAssertEqual(selectedItem?.id, items[10].id)
     }
 
     func testManualPickerTapOpensBrowserWithProfilesInsteadOfShowingProfileMenu() {
@@ -224,7 +292,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(action, .ignore)
     }
 
-    func testRoutingPickerShortcutPolicyOpensItemsByKeyInHoldMode() throws {
+    func testRoutingPickerShortcutPolicyOpensItemsByKey() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -235,8 +303,7 @@ final class SmokeTests: XCTestCase {
         let item = PickerShortcutPolicy.item(
             forKeyCode: configuredKeyCode,
             in: [configured],
-            activationMode: .holdOptionTab,
-            isManualPickerPresentation: false,
+            invocationSource: .linkRouting,
             selectWithNumberKeys: true
         )
 
@@ -259,9 +326,22 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(PickerMetrics.panelWidth(itemCount: 3, availableWidth: 1200, scale: scale), 461.7, accuracy: 0.001)
     }
 
-    func testPrivateModeHintStaysInsideStandardPickerHeight() {
-        XCTAssertEqual(PickerMetrics.panelHeight(), PickerMetrics.scrollHeight(), accuracy: 0.001)
-        XCTAssertEqual(PickerMetrics.hintBottomInset(), 5, accuracy: 0.001)
+    func testRoutingFooterReservesEqualScaledShortcutGapsWithoutOverlap() {
+        for scale: CGFloat in [0.5, 1, 2] {
+            let gap = PickerMetrics.shortcutVerticalGap(scale: scale)
+            let footerGap = PickerMetrics.panelHeight(showsIncognitoHint: true, scale: scale)
+                - PickerMetrics.scrollHeight(showsIncognitoHint: true, scale: scale)
+                - PickerMetrics.hintHeight(scale: scale)
+                - PickerMetrics.hintBottomInset(scale: scale)
+
+            XCTAssertEqual(gap, 4 * scale, accuracy: 0.001)
+            XCTAssertEqual(footerGap, gap, accuracy: 0.001)
+            XCTAssertGreaterThan(
+                PickerMetrics.panelHeight(showsIncognitoHint: true, scale: scale),
+                PickerMetrics.scrollHeight(showsIncognitoHint: true, scale: scale)
+                    + PickerMetrics.hintHeight(scale: scale)
+            )
+        }
     }
 
     func testPickerIconGapUsesCompactAppSwitcherSpacing() {
@@ -1280,6 +1360,22 @@ final class SmokeTests: XCTestCase {
 
         XCTAssertEqual(profiles.map(\.directoryName), ["zmom57wf.Default (release)", "gwcmmal6.Default Profile"])
         XCTAssertEqual(profiles.map(\.displayName), ["Personal", "Work"])
+    }
+
+    private func assertOpenMode(
+        _ expected: BrowserLauncher.OpenMode,
+        modifiers: NSEvent.ModifierFlags,
+        source: PickerInvocationSource,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let actual = PickerShortcutOpenPolicy.mode(for: modifiers, invocationSource: source)
+        switch (expected, actual) {
+        case (.normal, .normal), (.background, .background), (.privateMode, .privateMode):
+            break
+        default:
+            XCTFail("Expected \(expected), got \(actual)", file: file, line: line)
+        }
     }
 
     private func makeApp(

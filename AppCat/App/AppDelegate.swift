@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
             guard let self, self.appState.pickerActivationMode == .toggleShortcut else { return }
-            self.openPickerManually()
+            self.openPickerManually(source: .toggleShortcut)
         }
         KeyboardShortcuts.onKeyUp(for: .reopenLastPicker) { [weak self] in
             guard let self, let last = self.appState.lastOpenedURL else { return }
@@ -206,36 +206,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.openFocusedManualPickerItem()
         }
         pickerActivationListener.onServiceKeyTrigger = { [weak self] in
-            self?.openPickerManually()
+            self?.openPickerManually(source: .serviceKey)
         }
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
     }
 
     /// Show the manual app/window switcher.
-    private func openPickerManually() {
+    private func openPickerManually(source: PickerInvocationSource) {
         if appState.isPickerVisible {
             pickerCoordinator.dismissPicker(state: appState)
             return
         }
 
-        presentManualPicker()
+        presentManualPicker(source: source)
     }
 
     private func cycleManualPicker(delta: Int) {
         guard appState.pendingURL == nil else { return }
         if !appState.isPickerVisible {
-            presentManualPicker()
+            presentManualPicker(source: .holdOptionTab)
         }
-        guard appState.isManualPickerPresentation else { return }
+        guard appState.pickerInvocationSource == .holdOptionTab else { return }
         pickerCoordinator.moveFocus(delta: delta, state: appState)
     }
 
     private func openFocusedManualPickerItem() {
-        guard appState.isPickerVisible, appState.isManualPickerPresentation else { return }
+        guard appState.pickerInvocationSource.opensFocusedItemOnOptionRelease(
+            isPickerVisible: appState.isPickerVisible
+        ) else { return }
         pickerCoordinator.openFocusedItem(state: appState)
     }
 
-    private func presentManualPicker() {
+    private func presentManualPicker(source: PickerInvocationSource) {
         cancelScheduledMainWindowOpen()
         appActivityMonitor.refreshRunningApplications()
         if appState.cachedWindowsByAppID == nil {
@@ -244,9 +246,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             appActivityMonitor.refreshWindowSnapshotForPicker()
         }
         appState.clearPendingOpen()
-        appState.isManualPickerPresentation = true
+        appState.pickerInvocationSource = source
         pickerCoordinator.showPicker(state: appState)
-        guard appState.pickerActivationMode != .holdOptionTab else {
+        guard source.refreshesLiveSnapshot else {
             // Match the native app switcher: keep the visible list stable until Option is released.
             return
         }
@@ -291,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let launchURLs = incomingURLs.map(\.launchURL)
         guard let url = displayURLs.first else { return }
 
-        appState.isManualPickerPresentation = false
+        appState.pickerInvocationSource = .linkRouting
         appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
         fetchTitle(for: url)
 

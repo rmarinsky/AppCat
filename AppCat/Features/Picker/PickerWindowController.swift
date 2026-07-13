@@ -7,6 +7,15 @@ private enum PickerPanelViewID {
     static let hosting = NSUserInterfaceItemIdentifier("PickerPanelHosting")
 }
 
+enum PickerSurfaceAppearance {
+    static func adaptiveTint(for appearance: NSAppearance) -> NSColor {
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor.white.withAlphaComponent(0.08)
+            : NSColor.black.withAlphaComponent(0.04)
+    }
+}
+
 /// Borderless NSPanel returns false for canBecomeKey by default,
 /// which prevents keyboard and mouse input. Override to allow it.
 private class KeyablePanel: NSPanel {
@@ -145,7 +154,7 @@ final class PickerWindowController: NSObject {
         clearTypeAheadBuffer()
         appState.isPickerVisible = false
         appState.clearPendingOpen()
-        appState.isManualPickerPresentation = false
+        appState.pickerInvocationSource = .linkRouting
         appState.pickerItemsSnapshot = []
         removeMonitors()
         panel?.orderOut(nil)
@@ -159,7 +168,7 @@ final class PickerWindowController: NSObject {
     }
 
     private var shouldActivateAppForCurrentPresentation: Bool {
-        !(appState.isManualPickerPresentation && appState.pickerActivationMode == .holdOptionTab)
+        appState.pickerInvocationSource.activatesPanel
     }
 
     // MARK: - Monitors
@@ -255,15 +264,16 @@ final class PickerWindowController: NSObject {
         default:
             let items = pickerItemsForCurrentSession()
             let pressedKeyCode = event.keyCode
-            let isPrivate = event.modifierFlags.contains(.option) || event.modifierFlags.contains(.shift)
-            let mode: BrowserLauncher.OpenMode = isPrivate ? .privateMode : .normal
+            let mode = PickerShortcutOpenPolicy.mode(
+                for: event.modifierFlags,
+                invocationSource: appState.pickerInvocationSource
+            )
 
             if canHandlePickerShortcut(event),
                let item = PickerShortcutPolicy.item(
                    forKeyCode: pressedKeyCode,
                    in: items,
-                   activationMode: appState.pickerActivationMode,
-                   isManualPickerPresentation: appState.isManualPickerPresentation,
+                   invocationSource: appState.pickerInvocationSource,
                    selectWithNumberKeys: appState.selectWithNumberKeys
                )
             {
@@ -282,7 +292,7 @@ final class PickerWindowController: NSObject {
     }
 
     private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
-        guard !appState.isManualPickerPresentation || appState.pickerActivationMode == .toggleShortcut else { return false }
+        guard appState.pickerInvocationSource.allowsDirectSelection else { return false }
         var blocked: NSEvent.ModifierFlags = [.command, .control]
         if appState.isManualPickerPresentation {
             blocked.insert([.shift, .option])
@@ -431,7 +441,10 @@ final class PickerWindowController: NSObject {
     /// is on screen. Skips churn when the visible list is unchanged; otherwise keeps the user's
     /// focused tile by remapping the focus index by item id, then re-fits the panel.
     func refreshSnapshotForVisibleSession() {
-        guard appState.isPickerVisible, appState.isManualPickerPresentation, !isClosing else { return }
+        guard appState.isPickerVisible,
+              appState.pickerInvocationSource.refreshesLiveSnapshot,
+              !isClosing
+        else { return }
 
         let oldItems = appState.pickerItemsSnapshot
         let oldIndex = appState.focusedBrowserIndex
@@ -474,8 +487,7 @@ final class PickerWindowController: NSObject {
     private func openItemForManualGlobalMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
         guard eventType == .leftMouseDown,
               appState.isPickerVisible,
-              appState.isManualPickerPresentation,
-              appState.pickerActivationMode == .holdOptionTab,
+              appState.pickerInvocationSource == .holdOptionTab,
               let panel
         else {
             return false
@@ -596,7 +608,10 @@ final class PickerWindowController: NSObject {
                 availableWidth: screen.visibleFrame.width,
                 scale: scale
             ),
-            height: PickerMetrics.panelHeight(scale: scale)
+            height: PickerMetrics.panelHeight(
+                showsIncognitoHint: appState.showsPickerIncognitoHint,
+                scale: scale
+            )
         )
     }
 
@@ -666,7 +681,7 @@ final class PickerWindowController: NSObject {
             if let glassView = glassEffectView(in: surfaceView) {
                 glassView.style = .regular
                 glassView.cornerRadius = radius
-                glassView.tintColor = appState.pickerBackgroundStyle.glassTintColor
+                glassView.tintColor = PickerSurfaceAppearance.adaptiveTint(for: glassView.effectiveAppearance)
             }
             return
         }
@@ -682,15 +697,17 @@ final class PickerWindowController: NSObject {
     }
 
     private func applyVisualEffectFallbackAppearance(to visualEffect: NSVisualEffectView) {
-        visualEffect.material = appState.pickerBackgroundStyle.visualEffectMaterial
-        visualEffect.blendingMode = appState.pickerBackgroundStyle.visualEffectBlendingMode
+        visualEffect.material = .hudWindow
+        visualEffect.blendingMode = .behindWindow
         visualEffect.state = .active
         visualEffect.layer?.cornerRadius = PickerMetrics.panelCornerRadius(scale: pickerScale)
         visualEffect.layer?.cornerCurve = .continuous
         visualEffect.layer?.masksToBounds = true
         visualEffect.layer?.borderWidth = 0
         visualEffect.layer?.borderColor = nil
-        visualEffect.layer?.backgroundColor = appState.pickerBackgroundStyle.fallbackFillColor.cgColor
+        visualEffect.layer?.backgroundColor = PickerSurfaceAppearance.adaptiveTint(
+            for: visualEffect.effectiveAppearance
+        ).cgColor
     }
 
     private func refreshPanelAppearance() {
@@ -866,48 +883,6 @@ extension PickerWindowController: NSWindowDelegate {
                 return
             }
             self.close()
-        }
-    }
-}
-
-private extension PickerBackgroundStyle {
-    var glassTintColor: NSColor? {
-        switch self {
-        case .liquidGlass:
-            nil
-        case .frosted:
-            NSColor.windowBackgroundColor.withAlphaComponent(0.16)
-        case .dimmed:
-            NSColor.black.withAlphaComponent(0.16)
-        }
-    }
-
-    var visualEffectMaterial: NSVisualEffectView.Material {
-        switch self {
-        case .liquidGlass:
-            .hudWindow
-        case .frosted:
-            .popover
-        case .dimmed:
-            .underWindowBackground
-        }
-    }
-
-    var visualEffectBlendingMode: NSVisualEffectView.BlendingMode {
-        switch self {
-        case .liquidGlass, .frosted:
-            .behindWindow
-        case .dimmed:
-            .withinWindow
-        }
-    }
-
-    var fallbackFillColor: NSColor {
-        switch self {
-        case .liquidGlass, .frosted:
-            .clear
-        case .dimmed:
-            NSColor.black.withAlphaComponent(0.22)
         }
     }
 }

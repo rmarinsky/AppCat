@@ -396,14 +396,18 @@ enum PickerMetrics {
     private static let tileIconChromeSize: CGFloat = 92
     private static let tileFallbackIconSize: CGFloat = 64
     private static let tileWidth: CGFloat = 94
-    private static let tileHeight: CGFloat = 148
+    private static let shortcutVerticalGapBase: CGFloat = 4
     private static let tileSpacing: CGFloat = 2
     private static let tileHorizontalPadding: CGFloat = 28
-    private static let tileVerticalPadding: CGFloat = 9
+    private static let tileVerticalPadding: CGFloat = 13
     private static let tileTitleFontSize: CGFloat = 14
     private static let tileTitleHeight: CGFloat = 22
     private static let tileSubtitleFontSize: CGFloat = 12
     private static let tileSubtitleHeight: CGFloat = 18
+    private static let tileHeight = tileIconChromeSize
+        + tileTitleHeight
+        + tileSubtitleHeight
+        + shortcutVerticalGapBase * 2
     private static let tileFocusStrokeWidth: CGFloat = 2
     private static let tileFocusCornerRadius: CGFloat = 24
     private static let panelCornerRadiusBase: CGFloat = 48
@@ -445,8 +449,9 @@ enum PickerMetrics {
         scaled(tileHorizontalPadding, by: scale)
     }
 
-    static func scrollHeight(scale: CGFloat = 1) -> CGFloat {
-        scaled(tileHeight + tileVerticalPadding * 2, by: scale)
+    static func scrollHeight(showsIncognitoHint: Bool = false, scale: CGFloat = 1) -> CGFloat {
+        let bottomPadding = showsIncognitoHint ? 0 : tileVerticalPadding
+        return scaled(tileHeight + tileVerticalPadding + bottomPadding, by: scale)
     }
 
     static func verticalPadding(scale: CGFloat = 1) -> CGFloat {
@@ -459,6 +464,10 @@ enum PickerMetrics {
 
     static func titleHeight(scale: CGFloat = 1) -> CGFloat {
         scaled(tileTitleHeight, by: scale)
+    }
+
+    static func shortcutVerticalGap(scale: CGFloat = 1) -> CGFloat {
+        scaled(shortcutVerticalGapBase, by: scale)
     }
 
     static func subtitleFontSize(scale: CGFloat = 1) -> CGFloat {
@@ -489,8 +498,12 @@ enum PickerMetrics {
         scaled(panelCornerRadiusBase, by: scale)
     }
 
-    static func panelHeight(scale: CGFloat = 1) -> CGFloat {
-        scaled(tileHeight + tileVerticalPadding * 2, by: scale)
+    static func panelHeight(showsIncognitoHint: Bool = false, scale: CGFloat = 1) -> CGFloat {
+        let footerHeight = showsIncognitoHint
+            ? shortcutVerticalGapBase + hintHeightBase + tileVerticalPadding
+            : 0
+        return scrollHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
+            + scaled(footerHeight, by: scale)
     }
 
     static func hintHeight(scale: CGFloat = 1) -> CGFloat {
@@ -498,7 +511,7 @@ enum PickerMetrics {
     }
 
     static func hintBottomInset(scale: CGFloat = 1) -> CGFloat {
-        scaled(5, by: scale)
+        scaled(tileVerticalPadding, by: scale)
     }
 
     static func contentWidth(
@@ -613,15 +626,14 @@ struct PickerView: View {
         let scale = CGFloat(appState.pickerScale)
         let shortcuts = PickerShortcutPolicy.assignments(
             for: items,
-            activationMode: appState.pickerActivationMode,
-            isManualPickerPresentation: appState.isManualPickerPresentation,
+            invocationSource: appState.pickerInvocationSource,
             selectWithNumberKeys: appState.selectWithNumberKeys
         )
-        let showsIncognitoHint = style == .routing && appState.pendingURL != nil && appState.pendingURL?.isFileURL != true
-        let panelHeight = PickerMetrics.panelHeight(scale: scale)
-        let scrollHeight = PickerMetrics.scrollHeight(scale: scale)
+        let showsIncognitoHint = appState.showsPickerIncognitoHint
+        let panelHeight = PickerMetrics.panelHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
+        let scrollHeight = PickerMetrics.scrollHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
 
-        return ZStack(alignment: .bottom) {
+        return VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 GeometryReader { geometry in
                     let contentOverflows = PickerMetrics.contentWidth(
@@ -644,7 +656,11 @@ struct PickerView: View {
                             }
                         }
                         .padding(.horizontal, PickerMetrics.horizontalPadding(scale: scale))
-                        .padding(.vertical, PickerMetrics.verticalPadding(scale: scale))
+                        .padding(.top, PickerMetrics.verticalPadding(scale: scale))
+                        .padding(
+                            .bottom,
+                            showsIncognitoHint ? 0 : PickerMetrics.verticalPadding(scale: scale)
+                        )
                     }
                     .scrollDisabled(!contentOverflows)
                     .background(HorizontalWheelScrollBridge())
@@ -658,6 +674,7 @@ struct PickerView: View {
 
             if showsIncognitoHint {
                 compactHintBar(scale: scale)
+                    .padding(.top, PickerMetrics.shortcutVerticalGap(scale: scale))
                     .padding(.bottom, PickerMetrics.hintBottomInset(scale: scale))
                     .allowsHitTesting(false)
             }
@@ -1004,7 +1021,7 @@ struct AppCell: View {
         let focusCornerRadius = PickerMetrics.focusCornerRadius(scale: scale)
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false
 
-        return VStack(spacing: 4 * scale) {
+        return VStack(spacing: PickerMetrics.shortcutVerticalGap(scale: scale)) {
             ZStack {
                 if let icon = app.icon {
                     Image(nsImage: icon)

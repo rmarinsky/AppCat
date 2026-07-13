@@ -22,7 +22,7 @@ Content rules:
 - Unknown files: capable LaunchServices apps and configured unknown-type apps are shown, except picker-hidden apps and apps that cannot meaningfully open links or files.
 - When a chosen browser is still running but has no open windows, AppCat re-activates it after the URL handoff so a browser closed with the red window button can surface again.
 
-The routing picker does not show window previews. Its private-mode hint appears only for link routing, not for app switching or file routing, and sits inside the lower picker padding so link routing keeps the same surface height as the app switcher.
+The routing picker does not show window previews. Its private-mode hint appears only for link routing, not for app switching or file routing. The hint has a reserved footer below the shortcut badges; the routing panel includes that footer in its height instead of overlaying it on the item row.
 
 ## App Switcher
 
@@ -46,11 +46,11 @@ The picker is a borderless `KeyablePanel` with `.nonactivatingPanel`, `.fullSize
 On macOS 26 and newer, the panel surface uses `NSGlassEffectContainerView` with a child `NSGlassEffectView`:
 
 - glass style: `.regular`
-- tint: `nil`
+- tint: adaptive neutral (`8%` white in Dark appearance, `4%` black in Light appearance)
 - shadow: disabled on the panel
 - corner radius: scaled from the 48 pt base radius
 
-Older macOS versions fall back to an `NSVisualEffectView` with `.hudWindow` material, no panel shadow, and no explicit border.
+Older macOS versions fall back to an `NSVisualEffectView` with `.hudWindow` material, the same adaptive tint overlay, no panel shadow, and no explicit border. This appearance is fixed and shared by routing and app-switcher sessions; there is no alternate background-style setting. Native glass still reacts to the content behind the panel.
 
 The Settings -> Picker size slider scales the panel, app icons, labels, focus ring, and shortcut hints from 50% to 200%. At 100%, the current app-switcher metrics are:
 
@@ -58,6 +58,7 @@ The Settings -> Picker size slider scales the panel, app icons, labels, focus ri
 - focus chrome: 92 pt
 - visual icon gap: 8 pt
 - focus-frame gap: 4 pt
+- title-to-shortcut and shortcut-to-routing-hint gaps: 4 pt
 - panel corner radius: 48 pt
 
 ## Keyboard Model
@@ -87,3 +88,10 @@ Service-key activation:
 - Supports `Caps Lock` or `Escape`.
 - Supports 1, 2, or 3 taps.
 - Requires Input Monitoring.
+- Shows and accepts configured and positional direct-selection keys, even when hold-to-switch is the configured global activation mode.
+
+Invocation-source policy:
+
+- Link routing, toggle-shortcut, and service-key sessions activate the panel and support direct selection.
+- Hold-`Option`+`Tab` alone stays non-activating, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
+- Configured item shortcuts take precedence; remaining items receive positional keys in `1...0`, then `QWERTY...` order.

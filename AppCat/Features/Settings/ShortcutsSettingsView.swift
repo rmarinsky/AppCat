@@ -7,6 +7,10 @@ import SwiftUI
 struct ShortcutsSettingsView: View {
     @Environment(AppState.self) private var appState
 
+    private var directSelectionAvailable: Bool {
+        appState.pickerActivationMode == .toggleShortcut || appState.pickerServiceKey != .off
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -122,7 +126,7 @@ struct ShortcutsSettingsView: View {
 
     private var pickerCard: some View {
         SettingsCard(cornerRadius: 8) {
-            if appState.pickerActivationMode == .toggleShortcut {
+            if directSelectionAvailable {
                 shortcutRow(String(localized: "Select picker item")) {
                     HStack(spacing: 4) {
                         Keycap("1")
@@ -139,7 +143,7 @@ struct ShortcutsSettingsView: View {
             shortcutRow(String(localized: "Confirm selection")) { Keycap("⏎") }
             divider
             shortcutRow(String(localized: "Cancel")) { Keycap("esc") }
-            if appState.pickerActivationMode == .toggleShortcut {
+            if directSelectionAvailable {
                 divider
                 shortcutRow(String(localized: "Select with shortcut keys")) {
                     Toggle("", isOn: Binding(

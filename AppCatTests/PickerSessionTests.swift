@@ -15,7 +15,7 @@ final class PickerSessionTests: XCTestCase {
 
         state.setPendingOpen(displayURLs: [url], launchURLs: [url])
         state.isPickerVisible = true
-        state.isManualPickerPresentation = true
+        state.pickerInvocationSource = .toggleShortcut
         state.pickerItemsSnapshot = [PickerItem(app: makeApp(id: "test.app"))]
 
         coordinator.dismissPicker(state: state)

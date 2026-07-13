@@ -70,7 +70,7 @@ struct BrowserCell: View {
         let hotkey = displayHotkey
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false || hotkey != nil
 
-        return VStack(spacing: 4 * scale) {
+        return VStack(spacing: PickerMetrics.shortcutVerticalGap(scale: scale)) {
             ZStack(alignment: .bottomLeading) {
                 if let icon = browser.icon {
                     Image(nsImage: icon)

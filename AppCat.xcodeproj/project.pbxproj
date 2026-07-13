@@ -93,6 +93,7 @@
 		BB3AE342F69053DBD7ACA96F /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C3C4FC7290B78119C1AF14 /* OverviewView.swift */; };
 		BCAD4ED3DCE889BF12BDB092 /* ManagerEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D9C93A63B51CAABE683953 /* ManagerEnvironment.swift */; };
 		BCB45CD6DCD48DE7F1D5C9A1 /* SuggestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B90A66825FF82DF9160510 /* SuggestionsView.swift */; };
+		BDDDB9E7F10E34051E5A0145 /* PickerInvocationSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4DC6DFF7272F0A3E05046E /* PickerInvocationSource.swift */; };
 		BDF92975A60AE444BCD64D62 /* HotkeyTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80073AE11437E1A427A93FE9 /* HotkeyTarget.swift */; };
 		BE3A78E0721183605A6C2F6E /* SuggestionDismissalStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C705D6D3AB9C5D13C88915 /* SuggestionDismissalStorage.swift */; };
 		BF17226ADE49C459B4EDA367 /* FaviconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29879E6C0A0D1CA56C9ECEFB /* FaviconManager.swift */; };
@@ -177,6 +178,7 @@
 		5AF1A400AE188476B49E64FE /* BrowsersSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsersSettingsView.swift; sourceTree = "<group>"; };
 		6A2406347B3E5A413C9D2F4D /* ConfigDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigDirectory.swift; sourceTree = "<group>"; };
 		6A43C930036BA9025EAFD0D1 /* StatsStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsStorage.swift; sourceTree = "<group>"; };
+		6E4DC6DFF7272F0A3E05046E /* PickerInvocationSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerInvocationSource.swift; sourceTree = "<group>"; };
 		71EBDF2F6A9375FB7BE0E16F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		72DF2319FDC09E759A1F7A4E /* uk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk; path = uk.lproj/Localizable.strings; sourceTree = "<group>"; };
 		7327F101385E633B8B4BCF1C /* PickerSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerSessionTests.swift; sourceTree = "<group>"; };
@@ -287,6 +289,7 @@
 			isa = PBXGroup;
 			children = (
 				B5F4044EDF9F6122F785A3AF /* BrowserCell.swift */,
+				6E4DC6DFF7272F0A3E05046E /* PickerInvocationSource.swift */,
 				B54EFE67B4ECDB1CD0007C3F /* PickerShortcutAssigner.swift */,
 				7F1D4AAC73146A4A04147713 /* PickerView.swift */,
 				20D94280F276C8981BE4DC5A /* PickerWindowController.swift */,
@@ -693,6 +696,7 @@
 				2B336E40B90437D7ED34725B /* PickerActivationListener.swift in Sources */,
 				4C6523DA4409E3421DD821F4 /* PickerActivationPermission.swift in Sources */,
 				18547CD5334A220DDB99437C /* PickerCoordinator.swift in Sources */,
+				BDDDB9E7F10E34051E5A0145 /* PickerInvocationSource.swift in Sources */,
 				C3E08AEB2FBB187E7B55F275 /* PickerSettingsView.swift in Sources */,
 				3A83468C9E685F0A46AA5994 /* PickerShortcutAssigner.swift in Sources */,
 				541A9AC46245EB1ABDB10F8A /* PickerView.swift in Sources */,
