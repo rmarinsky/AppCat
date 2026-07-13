@@ -24,6 +24,13 @@ enum PickerInvocationSource: Equatable {
         isManualPresentation && !isHoldToSwitch
     }
 
+    /// Toggle/service sessions must not paint an old per-window cache and visibly replace it
+    /// later. Hold-to-switch deliberately keeps the cached list so its first frame stays instant
+    /// and stable while Option remains down.
+    var requiresFreshSnapshotBeforePresentation: Bool {
+        self == .toggleShortcut || self == .serviceKey
+    }
+
     func opensFocusedItemOnOptionRelease(isPickerVisible: Bool) -> Bool {
         isPickerVisible && isHoldToSwitch
     }

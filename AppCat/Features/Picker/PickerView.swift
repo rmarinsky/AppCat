@@ -13,6 +13,9 @@ struct PickerItem: Identifiable {
     /// places the item in the leading group; `isBackgroundRunning` dims it in the trailing group.
     var hasOpenWindows: Bool = false
     var isBackgroundRunning: Bool = false
+    /// Current icon reported by the running process. It overrides the installed-app scan icon so
+    /// apps that change their icon at runtime are represented accurately in the switcher.
+    var runtimeIcon: NSImage? = nil
 
     var isBrowser: Bool {
         browser != nil
@@ -64,7 +67,7 @@ struct PickerItem: Identifiable {
     }
 
     var icon: NSImage? {
-        browser?.icon ?? app?.icon
+        runtimeIcon ?? browser?.icon ?? app?.icon
     }
 
     var hotkey: Character? {
@@ -205,6 +208,7 @@ struct PickerItem: Identifiable {
         windowsByAppID providedWindowsByAppID: [String: [AppWindowTarget]]? = nil,
         activations: [String: AppUsage] = [:],
         regularBundleIDs: Set<String>? = nil,
+        runningAppsByBundleID: [String: InstalledApp] = [:],
         showWindowlessApps: Bool = true,
         showBackgroundApps: Bool = false,
         hiddenAppIDs: Set<String> = []
@@ -226,6 +230,7 @@ struct PickerItem: Identifiable {
                 regularBundleIDs: regularBundleIDs,
                 windowsByAppID: windowsByAppID,
                 activations: activations,
+                runningAppsByBundleID: runningAppsByBundleID.filter { !hiddenAppIDs.contains($0.key) },
                 showWindowlessApps: showWindowlessApps,
                 showBackgroundApps: showBackgroundApps
             )
@@ -263,7 +268,7 @@ struct PickerItem: Identifiable {
             apps: orderedApps,
             prioritizedAppIDs: Set(orderedApps.map(\.id)),
             browsersFirst: shouldShowBrowsersFirst(for: url)
-        )
+        ).map { withRuntimeIcon($0, from: runningAppsByBundleID) }
     }
 
     /// The app-switcher (no pending URL) list: running browsers + apps, filtered by activation
@@ -278,6 +283,7 @@ struct PickerItem: Identifiable {
         regularBundleIDs: Set<String>?,
         windowsByAppID: [String: [AppWindowTarget]],
         activations: [String: AppUsage],
+        runningAppsByBundleID: [String: InstalledApp],
         showWindowlessApps: Bool,
         showBackgroundApps: Bool
     ) -> [PickerItem] {
@@ -301,7 +307,9 @@ struct PickerItem: Identifiable {
                 id: browser.id,
                 name: browser.displayName,
                 hasWindows: !windows.isEmpty,
-                items: browserSwitcherItems(for: browser, windows: windows)
+                items: browserSwitcherItems(for: browser, windows: windows).map {
+                    withRuntimeIcon($0, from: runningAppsByBundleID)
+                }
             ))
         }
 
@@ -313,7 +321,9 @@ struct PickerItem: Identifiable {
                 id: app.id,
                 name: app.displayName,
                 hasWindows: !windows.isEmpty,
-                items: appSwitcherItems(for: app, windows: windows)
+                items: appSwitcherItems(for: app, windows: windows).map {
+                    withRuntimeIcon($0, from: runningAppsByBundleID)
+                }
             ))
         }
 
@@ -334,7 +344,26 @@ struct PickerItem: Identifiable {
                 id: browser.id,
                 name: browser.displayName,
                 hasWindows: !windows.isEmpty,
-                items: items
+                items: items.map { withRuntimeIcon($0, from: runningAppsByBundleID) }
+            ))
+        }
+
+        // A just-launched or newly installed app can precede the slower full /Applications scan.
+        // Surface its live NSRunningApplication snapshot immediately instead of waiting for that
+        // rescan. Configured apps (including ones the user hid) remain authoritative.
+        let configuredAppIDs = Set(apps.map(\.id))
+        let representedIDs = configuredAppIDs.union(browserIDs)
+        for runtimeApp in runningAppsByBundleID.values
+            where runningBundleIDs.contains(runtimeApp.id)
+                && !representedIDs.contains(runtimeApp.id)
+                && passesPolicy(runtimeApp.id)
+        {
+            let windows = windowsByAppID[runtimeApp.id] ?? []
+            entries.append(Entry(
+                id: runtimeApp.id,
+                name: runtimeApp.displayName,
+                hasWindows: !windows.isEmpty,
+                items: appSwitcherItems(for: runtimeApp, windows: windows)
             ))
         }
 
@@ -368,6 +397,18 @@ struct PickerItem: Identifiable {
         var copy = item
         copy.hasOpenWindows = hasOpenWindows
         copy.isBackgroundRunning = isBackground
+        return copy
+    }
+
+    private static func withRuntimeIcon(
+        _ item: PickerItem,
+        from runningAppsByBundleID: [String: InstalledApp]
+    ) -> PickerItem {
+        guard let bundleID = item.app?.id ?? item.browser?.id,
+              let icon = runningAppsByBundleID[bundleID]?.icon
+        else { return item }
+        var copy = item
+        copy.runtimeIcon = icon
         return copy
     }
 
@@ -615,6 +656,7 @@ struct PickerView: View {
             windowsByAppID: appState.cachedWindowsByAppID,
             activations: appState.appActivations,
             regularBundleIDs: appState.regularAppBundleIDs,
+            runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
             showBackgroundApps: appState.showBackgroundApps,
             hiddenAppIDs: appState.hiddenPickerAppIDs

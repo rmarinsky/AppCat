@@ -24,6 +24,23 @@ private class KeyablePanel: NSPanel {
     }
 }
 
+enum PickerPanelInteractionPolicy {
+    static func styleMask(for source: PickerInvocationSource) -> NSWindow.StyleMask {
+        var mask: NSWindow.StyleMask = [.fullSizeContentView, .borderless]
+        if !source.activatesPanel {
+            mask.insert(.nonactivatingPanel)
+        }
+        return mask
+    }
+
+    /// A global mouse-down is only observed when AppKit did not deliver the click to AppCat.
+    /// Keeping this fallback for every picker makes the first click reliable across activation
+    /// policy changes without double-firing a SwiftUI Button that received its local event.
+    static func acceptsGlobalClickFallback(for _: PickerInvocationSource) -> Bool {
+        true
+    }
+}
+
 enum PickerPanelPositioning {
     static func centeredOrigin(panelSize: NSSize, visibleFrame: NSRect) -> NSPoint {
         NSPoint(
@@ -116,6 +133,7 @@ final class PickerWindowController: NSObject {
         buildPanelIfNeeded(size: targetSize)
 
         guard let panel else { return }
+        panel.styleMask = PickerPanelInteractionPolicy.styleMask(for: appState.pickerInvocationSource)
         resizePanelIfNeeded(panel, to: targetSize)
         // A pre-warmed or reused panel may carry stale layer state, so re-apply on every show.
         if let surfaceView = surfaceView(in: panel) {
@@ -181,7 +199,7 @@ final class PickerWindowController: NSObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard !self.isInDismissGracePeriod else { return }
-                if self.openItemForManualGlobalMouseDown(at: NSEvent.mouseLocation, eventType: event.type) {
+                if self.openItemForGlobalMouseDown(at: NSEvent.mouseLocation, eventType: event.type) {
                     return
                 }
                 guard Self.shouldDismissForGlobalMouseDown(
@@ -386,6 +404,7 @@ final class PickerWindowController: NSObject {
             windowsByAppID: appState.cachedWindowsByAppID,
             activations: appState.appActivations,
             regularBundleIDs: appState.regularAppBundleIDs,
+            runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
             showBackgroundApps: appState.showBackgroundApps,
             hiddenAppIDs: appState.hiddenPickerAppIDs
@@ -484,10 +503,12 @@ final class PickerWindowController: NSObject {
         open(items[appState.focusedBrowserIndex], source: .pickerHotkey)
     }
 
-    private func openItemForManualGlobalMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
+    private func openItemForGlobalMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
         guard eventType == .leftMouseDown,
               appState.isPickerVisible,
-              appState.pickerInvocationSource == .holdOptionTab,
+              PickerPanelInteractionPolicy.acceptsGlobalClickFallback(
+                  for: appState.pickerInvocationSource
+              ),
               let panel
         else {
             return false
@@ -618,7 +639,7 @@ final class PickerWindowController: NSObject {
     private func makePanel(size: NSSize) -> NSPanel {
         let panel = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
+            styleMask: PickerPanelInteractionPolicy.styleMask(for: appState.pickerInvocationSource),
             backing: .buffered,
             defer: false
         )

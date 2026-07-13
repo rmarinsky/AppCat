@@ -36,12 +36,18 @@ Content rules:
 - Background and menu-bar apps are optional and hidden by default.
 - Settings -> Picker exclusions apply to both routing and switching pickers.
 - Sorting prefers recent app activation, then activation count, then display name.
+- Toggle-shortcut and service-key sessions publish a fresh Accessibility window snapshot before
+  the panel appears, so newly opened windows do not arrive as a delayed in-place replacement.
+- A live `NSRunningApplication` snapshot makes newly launched apps available before the slower
+  installed-app rescan and supplies the current runtime icon in both picker jobs.
 
 Browser/app identity is already visible through the icon, so app-switcher cells suppress redundant secondary app-name labels.
 
 ## Appearance
 
-The picker is a borderless `KeyablePanel` with `.nonactivatingPanel`, `.fullSizeContentView`, `.borderless`, and `.floating` level.
+The picker is a borderless `KeyablePanel` at `.floating` level. Link-routing, toggle-shortcut, and
+service-key sessions use an activating `.fullSizeContentView`/`.borderless` panel so the first click
+and keyboard event are delivered normally. Hold-to-switch alone adds `.nonactivatingPanel`.
 
 On macOS 26 and newer, the panel surface uses `NSGlassEffectContainerView` with a child `NSGlassEffectView`:
 
@@ -94,4 +100,6 @@ Invocation-source policy:
 
 - Link routing, toggle-shortcut, and service-key sessions activate the panel and support direct selection.
 - Hold-`Option`+`Tab` alone stays non-activating, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
+- Every picker item is clickable. A global hit-test fallback handles the first mouse-down only when
+  AppKit did not deliver it locally to the SwiftUI button.
 - Configured item shortcuts take precedence; remaining items receive positional keys in `1...0`, then `QWERTY...` order.

@@ -46,6 +46,10 @@ final class AppState {
     var pickerItemsSnapshot: [PickerItem] = []
     var pickerInvocationSource: PickerInvocationSource = .linkRouting
     var runningAppBundleIDs: Set<String> = []
+    /// Lightweight, live representations of currently running apps. These make a newly launched
+    /// app available to the switcher immediately (before the slower installed-app rescan lands)
+    /// and carry the app's current runtime icon.
+    var runningAppsByBundleID: [String: InstalledApp] = [:]
     /// Bundle IDs of running apps with `.regular` activation policy (Dock apps). Menu-bar
     /// (`.accessory`) and background (`.prohibited`) apps are excluded — the switcher filters by this.
     var regularAppBundleIDs: Set<String> = []

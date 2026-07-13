@@ -155,6 +155,106 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
     }
 
+    func testActivatingPickersUseActivatingPanelsAndAllPickersAcceptFallbackClicks() {
+        for source in [
+            PickerInvocationSource.linkRouting,
+            .toggleShortcut,
+            .serviceKey,
+        ] {
+            XCTAssertFalse(
+                PickerPanelInteractionPolicy.styleMask(for: source).contains(.nonactivatingPanel),
+                "\(source) must receive the first click"
+            )
+            XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: source))
+        }
+
+        XCTAssertTrue(
+            PickerPanelInteractionPolicy.styleMask(for: .holdOptionTab).contains(.nonactivatingPanel)
+        )
+        XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: .holdOptionTab))
+    }
+
+    func testServiceAndTogglePickersRequireFreshWindowsBeforePresentation() {
+        XCTAssertTrue(PickerInvocationSource.serviceKey.requiresFreshSnapshotBeforePresentation)
+        XCTAssertTrue(PickerInvocationSource.toggleShortcut.requiresFreshSnapshotBeforePresentation)
+        XCTAssertFalse(PickerInvocationSource.holdOptionTab.requiresFreshSnapshotBeforePresentation)
+        XCTAssertFalse(PickerInvocationSource.linkRouting.requiresFreshSnapshotBeforePresentation)
+    }
+
+    @MainActor
+    func testSwitcherUsesFreshRuntimeAppAndIconBeforeInstalledAppRescan() throws {
+        let bundleID = "test.runtime.editor"
+        let runtimeIcon = NSImage(size: NSSize(width: 32, height: 32))
+        var runtimeApp = makeApp(id: bundleID, displayName: "Runtime Editor")
+        runtimeApp.icon = runtimeIcon
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [bundleID],
+            windowsByAppID: [:],
+            regularBundleIDs: [bundleID],
+            runningAppsByBundleID: [bundleID: runtimeApp]
+        )
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.app?.id, bundleID)
+        XCTAssertEqual(item.displayName, "Runtime Editor")
+        XCTAssertTrue(item.icon === runtimeIcon)
+    }
+
+    @MainActor
+    func testSwitcherPrefersCurrentRuntimeIconForConfiguredApp() throws {
+        let bundleID = "test.runtime.cursor"
+        let configuredIcon = NSImage(size: NSSize(width: 16, height: 16))
+        let runtimeIcon = NSImage(size: NSSize(width: 32, height: 32))
+        var configuredApp = makeApp(id: bundleID, displayName: "Cursor")
+        configuredApp.icon = configuredIcon
+        var runtimeApp = configuredApp
+        runtimeApp.icon = runtimeIcon
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [configuredApp],
+            appUsage: [:],
+            runningBundleIDs: [bundleID],
+            windowsByAppID: [:],
+            regularBundleIDs: [bundleID],
+            runningAppsByBundleID: [bundleID: runtimeApp]
+        )
+
+        XCTAssertTrue(try XCTUnwrap(items.first).icon === runtimeIcon)
+    }
+
+    @MainActor
+    func testRoutingPickerAlsoPrefersCurrentRuntimeIcon() throws {
+        let bundleID = "test.runtime.router"
+        let runtimeIcon = NSImage(size: NSSize(width: 32, height: 32))
+        let configuredApp = makeApp(
+            id: bundleID,
+            displayName: "Runtime Router",
+            hostPatterns: ["example.com"]
+        )
+        var runtimeApp = configuredApp
+        runtimeApp.icon = runtimeIcon
+
+        let items = PickerItem.items(
+            for: try XCTUnwrap(URL(string: "https://example.com/path")),
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [configuredApp],
+            appUsage: [:],
+            runningAppsByBundleID: [bundleID: runtimeApp]
+        )
+
+        XCTAssertTrue(try XCTUnwrap(items.first).icon === runtimeIcon)
+    }
+
     func testPrivateModeModifiersApplyOnlyToLinkRoutingShortcuts() {
         assertOpenMode(.privateMode, modifiers: [.option], source: .linkRouting)
         assertOpenMode(.privateMode, modifiers: [.shift], source: .linkRouting)
