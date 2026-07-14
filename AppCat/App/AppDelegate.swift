@@ -46,6 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
+        #if DEBUG
+            if configureUITestSessionIfRequested() {
+                return
+            }
+        #endif
+
         openMainWindowObserver = NotificationCenter.default.addObserver(
             forName: .openMainWindow,
             object: nil,

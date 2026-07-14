@@ -1,0 +1,49 @@
+name: XCTest
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xctest-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: ./generate_project.sh
+
+      # macOS UI-test bundles need an Apple Development identity whose Team ID matches the
+      # Xcode-generated runner. PR jobs deliberately have no signing secrets, so compile every
+      # test target here and execute the host-based XCTest suite. AppCatUITests run on a signed
+      # developer Mac (the normal `xcodebuild test` command in AGENTS.md).
+      - name: Build all XCTest targets
+        run: |
+          xcodebuild build-for-testing \
+            -project AppCat.xcodeproj \
+            -scheme "AppCat DEV" \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run unit and integration XCTest suites
+        run: |
+          xcodebuild test-without-building \
+            -project AppCat.xcodeproj \
+            -scheme "AppCat DEV" \
+            -destination "platform=macOS" \
+            -only-testing:AppCatTests \
+            CODE_SIGNING_ALLOWED=NO

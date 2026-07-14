@@ -85,6 +85,9 @@ final class PickerCoordinator {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
+            #if DEBUG
+                if UITestRuntime.isEnabled { return }
+            #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch()
@@ -92,6 +95,9 @@ final class PickerCoordinator {
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
+        #if DEBUG
+            if UITestRuntime.isEnabled { return }
+        #endif
         // Launch the original/wrapped URL(s) so Slack click tracking, Teams Safe Links security
         // scanning, OIDC handshakes, etc. still see the click. The normalized URL is only used
         // internally for rule matching, history, and suggestions.
@@ -122,6 +128,9 @@ final class PickerCoordinator {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
+            #if DEBUG
+                if UITestRuntime.isEnabled { return }
+            #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch()
@@ -132,6 +141,9 @@ final class PickerCoordinator {
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
+        #if DEBUG
+            if UITestRuntime.isEnabled { return }
+        #endif
         for launchURL in pendingOpen.launchURLs {
             browserLauncher.open(url: launchURL, with: app)
         }

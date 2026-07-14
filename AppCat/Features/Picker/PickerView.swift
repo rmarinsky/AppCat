@@ -832,6 +832,9 @@ struct PickerView: View {
         }
         .buttonStyle(.plain)
         .focusable(PickerCellFocusPolicy.allowsNativeFocus)
+        .accessibilityIdentifier("picker.item.\(item.id)")
+        .accessibilityLabel(item.displayName)
+        .accessibilityValue(shortcut.map { String($0.key) } ?? "")
         .contentShape(Rectangle())
         .onHover { isHovered in
             guard isHovered, appState.isPickerVisible else { return }

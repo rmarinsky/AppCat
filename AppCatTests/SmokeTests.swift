@@ -601,7 +601,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testServiceKeyPickerReservesLettersForTypeAheadWhenHoldModeIsConfigured() throws {
+    func testServiceKeyPickerIndexesOverflowItemsWithLettersWhenHoldModeIsConfigured() throws {
         let state = AppState()
         state.pickerActivationMode = .holdOptionTab
         state.pickerInvocationSource = .serviceKey
@@ -627,7 +627,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(state.pickerInvocationSource.refreshesLiveSnapshot)
         XCTAssertEqual(assignments[items[0].id]?.key, "1")
         XCTAssertEqual(assignments[items[9].id]?.key, "0")
-        XCTAssertNil(assignments[items[10].id])
+        XCTAssertEqual(assignments[items[10].id]?.key, "q")
         XCTAssertEqual(
             PickerShortcutPolicy.item(
                 forKeyCode: zeroKeyCode,
@@ -637,7 +637,7 @@ final class SmokeTests: XCTestCase {
             )?.id,
             items[9].id
         )
-        XCTAssertNil(selectedItem)
+        XCTAssertEqual(selectedItem?.id, items[10].id)
     }
 
     func testRoutingPickerKeepsPositionalLetterDirectSelection() throws {

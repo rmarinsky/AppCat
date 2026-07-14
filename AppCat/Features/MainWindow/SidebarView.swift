@@ -102,6 +102,7 @@ struct SidebarView: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+        .accessibilityIdentifier("sidebar.\(section.rawValue)")
         .padding(.horizontal, 16)
     }
 

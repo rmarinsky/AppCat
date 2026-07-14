@@ -88,18 +88,37 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: "8JL9TM5WLG"
 
+  AppCatUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: AppCatUITests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: AppCat
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat.uitests
+        TEST_TARGET_NAME: AppCat
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: "8JL9TM5WLG"
+
 schemes:
   AppCat DEV:
     build:
       targets:
         AppCat: all
         AppCatTests: [test]
+        AppCatUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - AppCatTests
+        - AppCatUITests
     archive:
       config: Debug
 
