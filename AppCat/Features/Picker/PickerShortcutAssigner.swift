@@ -122,12 +122,11 @@ enum PickerShortcutPolicy {
             for: items,
             positionalEnabled: selectWithNumberKeys
         )
-        guard invocationSource.isManualPresentation else { return assignments }
+        guard invocationSource == .toggleShortcut else { return assignments }
 
-        // Manual app switching supports type-ahead by app/window name. Reserve letters for that
+        // Toggle app switching supports type-ahead by app/window name. Reserve letters for that
         // search path so a query such as "chatgpt" cannot open the positional item assigned to T.
-        // Number keys remain immediate direct-selection shortcuts; URL/file routing retains its
-        // configured and positional letter shortcuts.
+        // Service-key and URL/file routing sessions retain configured and positional letters.
         return assignments.filter { !isAlphabetic($0.value.key) }
     }
 

@@ -17,6 +17,7 @@ struct MainWindowView: View {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color("SurfaceWindow"))
+                .accessibilityIdentifier("main.section.\(appState.mainWindowSection.rawValue)")
         }
         .frame(minWidth: 900, minHeight: 620)
         .background(Color("SurfaceWindow"))
