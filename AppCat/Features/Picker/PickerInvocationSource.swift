@@ -12,14 +12,6 @@ enum PickerInvocationSource: Equatable {
         self == .holdOptionTab
     }
 
-    var allowsDirectSelection: Bool {
-        !isHoldToSwitch
-    }
-
-    var requiresKeyboardFocus: Bool {
-        !isHoldToSwitch
-    }
-
     var refreshesLiveSnapshot: Bool {
         isManualPresentation && !isHoldToSwitch
     }

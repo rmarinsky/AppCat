@@ -74,6 +74,37 @@ final class PickerCoordinator {
         MainWindowActivation.requestOpen()
     }
 
+    @discardableResult
+    func select(
+        _ item: PickerItem,
+        mode: BrowserLauncher.OpenMode = .normal,
+        state: AppState,
+        source: OpenSource = .pickerClick
+    ) -> Bool {
+        guard state.isPickerVisible else { return false }
+
+        if let app = item.app {
+            openURL(
+                with: app,
+                windowTarget: item.windowTarget,
+                state: state,
+                source: source
+            )
+            return true
+        }
+
+        guard let browser = item.browser else { return false }
+        openURL(
+            with: browser,
+            mode: mode,
+            profile: item.profile,
+            windowTarget: item.windowTarget,
+            state: state,
+            source: source
+        )
+        return true
+    }
+
     func openURL(
         with browser: InstalledBrowser,
         mode: BrowserLauncher.OpenMode = .normal,

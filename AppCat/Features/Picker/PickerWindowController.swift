@@ -32,7 +32,6 @@ final class PickerHostingView<Content: View>: NSHostingView<Content> {
 
 enum PickerPanelKeyResignAction: Equatable {
     case refocus
-    case remainVisible
     case dismiss
 }
 
@@ -74,11 +73,9 @@ enum PickerPanelInteractionPolicy {
     }
 
     static func keyResignAction(
-        for source: PickerInvocationSource,
         isInDismissGracePeriod: Bool
     ) -> PickerPanelKeyResignAction {
-        guard source.requiresKeyboardFocus else { return .remainVisible }
-        return isInDismissGracePeriod ? .refocus : .dismiss
+        isInDismissGracePeriod ? .refocus : .dismiss
     }
 
     static func apply(to panel: NSPanel) {
@@ -233,12 +230,7 @@ final class PickerWindowController: NSObject {
 
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
         panel.orderFrontRegardless()
-        if shouldTakeKeyboardFocusForCurrentPresentation {
-            focusPanel(panel)
-        } else if panel.isKeyWindow {
-            // A reused link/toggle panel may still be key when the invocation changes to hold.
-            panel.resignKey()
-        }
+        focusPanel(panel)
 
         installMonitors()
 
@@ -316,10 +308,6 @@ final class PickerWindowController: NSObject {
         Log.picker.debug("Picker dismissed")
     }
 
-    private var shouldTakeKeyboardFocusForCurrentPresentation: Bool {
-        appState.pickerInvocationSource.requiresKeyboardFocus
-    }
-
     private func focusPanel(_ panel: NSPanel) {
         panel.makeKey()
         panel.makeFirstResponder(hostingView(in: panel))
@@ -379,21 +367,8 @@ final class PickerWindowController: NSObject {
             clearTypeAheadBuffer()
             coordinator.dismissPicker(state: appState)
             return true
-        case 36: // Return
-            let items = pickerItemsForCurrentSession()
-            switch PickerReturnKeyPolicy.action(
-                itemCount: items.count,
-                focusedIndex: appState.focusedBrowserIndex,
-                url: appState.pendingURL,
-                invocationSource: appState.pickerInvocationSource
-            ) {
-            case let .openItem(index):
-                open(items[index])
-            case .configureApps:
-                coordinator.configureAppsForUnmatchedFile(state: appState)
-            case .consume:
-                break
-            }
+        case 36, 49: // Return / Space
+            confirmFocusedSelection()
             return true
         case 51: // Delete / Backspace
             removeLastTypeAheadCharacter()
@@ -434,15 +409,14 @@ final class PickerWindowController: NSObject {
             )
 
             if canHandlePickerShortcut(event),
-               let item = PickerShortcutPolicy.item(
+               let item = PickerShortcutAssigner.item(
                    forKeyCode: pressedKeyCode,
                    in: items,
-                   invocationSource: appState.pickerInvocationSource,
-                   selectWithNumberKeys: appState.selectWithNumberKeys
+                   positionalEnabled: appState.selectWithNumberKeys
                )
             {
                 guard !event.isARepeat else { return true }
-                open(item, mode: mode, source: .pickerHotkey)
+                coordinator.select(item, mode: mode, state: appState, source: .pickerHotkey)
                 return true
             }
 
@@ -455,32 +429,31 @@ final class PickerWindowController: NSObject {
         }
     }
 
+    private func confirmFocusedSelection() {
+        let items = pickerItemsForCurrentSession()
+        switch PickerConfirmPolicy.action(
+            itemCount: items.count,
+            focusedIndex: appState.focusedBrowserIndex,
+            url: appState.pendingURL,
+            invocationSource: appState.pickerInvocationSource
+        ) {
+        case let .openItem(index):
+            coordinator.select(items[index], state: appState)
+        case .configureApps:
+            coordinator.configureAppsForUnmatchedFile(state: appState)
+        case .consume:
+            break
+        }
+    }
+
     private func canHandlePickerShortcut(_ event: NSEvent) -> Bool {
-        guard appState.pickerInvocationSource.allowsDirectSelection else { return false }
         var blocked: NSEvent.ModifierFlags = [.command, .control]
-        if appState.isManualPickerPresentation {
+        if appState.isManualPickerPresentation,
+           appState.pickerInvocationSource != .holdOptionTab
+        {
             blocked.insert([.shift, .option])
         }
         return event.modifierFlags.intersection(blocked).isEmpty
-    }
-
-    private func open(
-        _ item: PickerItem,
-        mode: BrowserLauncher.OpenMode = .normal,
-        source: OpenSource = .pickerClick
-    ) {
-        if let app = item.app {
-            coordinator.openURL(with: app, windowTarget: item.windowTarget, state: appState, source: source)
-        } else if let browser = item.browser {
-            coordinator.openURL(
-                with: browser,
-                mode: mode,
-                profile: item.profile,
-                windowTarget: item.windowTarget,
-                state: appState,
-                source: source
-            )
-        }
     }
 
     private func typeAheadCharacter(from event: NSEvent) -> String? {
@@ -646,7 +619,7 @@ final class PickerWindowController: NSObject {
         guard appState.isPickerVisible else { return }
         let items = pickerItemsForCurrentSession()
         guard items.indices.contains(appState.focusedBrowserIndex) else { return }
-        open(items[appState.focusedBrowserIndex], source: .pickerHotkey)
+        coordinator.select(items[appState.focusedBrowserIndex], state: appState, source: .pickerHotkey)
     }
 
     private func openItemForGlobalMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
@@ -672,8 +645,7 @@ final class PickerWindowController: NSObject {
         }
 
         appState.focusedBrowserIndex = index
-        open(items[index], source: .pickerClick)
-        return true
+        return coordinator.select(items[index], state: appState, source: .pickerClick)
     }
 
     /// Where focus should land after the item list is replaced: follow the focused item's id,
@@ -949,7 +921,7 @@ final class PickerWindowController: NSObject {
         bounds
     }
 
-    private func firstDescendant<T: NSView>(of type: T.Type, in root: NSView) -> T? {
+    private func firstDescendant<T: NSView>(of _: T.Type, in root: NSView) -> T? {
         firstDescendant(in: root, matching: { $0 is T }) as? T
     }
 
@@ -1052,7 +1024,6 @@ extension PickerWindowController: NSWindowDelegate {
             else { return }
 
             switch PickerPanelInteractionPolicy.keyResignAction(
-                for: self.appState.pickerInvocationSource,
                 isInDismissGracePeriod: self.isInDismissGracePeriod
             ) {
             case .refocus:
@@ -1060,8 +1031,6 @@ extension PickerWindowController: NSWindowDelegate {
                     panel.orderFrontRegardless()
                     self.focusPanel(panel)
                 }
-            case .remainVisible:
-                self.panel?.orderFrontRegardless()
             case .dismiss:
                 self.close()
             }
