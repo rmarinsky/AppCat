@@ -109,49 +109,6 @@ enum PickerShortcutAssigner {
     }
 }
 
-enum PickerShortcutPolicy {
-    static func assignments(
-        for items: [PickerItem],
-        invocationSource: PickerInvocationSource,
-        selectWithNumberKeys: Bool
-    ) -> [String: PickerShortcut] {
-        guard invocationSource.allowsDirectSelection else {
-            return [:]
-        }
-        let assignments = PickerShortcutAssigner.assignments(
-            for: items,
-            positionalEnabled: selectWithNumberKeys
-        )
-        guard invocationSource == .toggleShortcut else { return assignments }
-
-        // Toggle app switching supports type-ahead by app/window name. Reserve letters for that
-        // search path so a query such as "chatgpt" cannot open the positional item assigned to T.
-        // Service-key and URL/file routing sessions retain configured and positional letters.
-        return assignments.filter { !isAlphabetic($0.value.key) }
-    }
-
-    static func item(
-        forKeyCode keyCode: UInt16,
-        in items: [PickerItem],
-        invocationSource: PickerInvocationSource,
-        selectWithNumberKeys: Bool
-    ) -> PickerItem? {
-        guard invocationSource.allowsDirectSelection else {
-            return nil
-        }
-        let assigned = assignments(
-            for: items,
-            invocationSource: invocationSource,
-            selectWithNumberKeys: selectWithNumberKeys
-        )
-        return items.first { assigned[$0.id]?.keyCode == keyCode }
-    }
-
-    private static func isAlphabetic(_ character: Character) -> Bool {
-        character.unicodeScalars.allSatisfy(CharacterSet.letters.contains)
-    }
-}
-
 enum PickerShortcutOpenPolicy {
     static func mode(
         for modifiers: NSEvent.ModifierFlags,

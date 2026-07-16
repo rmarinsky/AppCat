@@ -10,6 +10,7 @@
 
     private enum UITestLaunchScenario: String {
         case servicePicker = "service-picker"
+        case holdPicker = "hold-picker"
         case linkPicker = "link-picker"
         case mainWindow = "main-window"
     }
@@ -29,6 +30,8 @@
             switch scenario {
             case .servicePicker:
                 configureServicePickerUITest()
+            case .holdPicker:
+                configureHoldPickerUITest()
             case .linkPicker:
                 configureLinkPickerUITest()
             case .mainWindow:
@@ -60,6 +63,32 @@
             appState.showWindowlessApps = true
             appState.showBackgroundApps = false
             appState.pickerInvocationSource = .serviceKey
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pickerCoordinator.showPicker(state: self.appState)
+            }
+        }
+
+        private func configureHoldPickerUITest() {
+            let apps = (0 ..< 12).map { index in
+                makeUITestApp(
+                    id: "ui.hold.\(index)",
+                    displayName: String(format: "UI Hold App %02d", index + 1)
+                )
+            }
+            let appIDs = Set(apps.map(\.id))
+
+            appState.apps = apps
+            appState.runningAppBundleIDs = appIDs
+            appState.regularAppBundleIDs = appIDs
+            appState.runningAppsByBundleID = Dictionary(uniqueKeysWithValues: apps.map { ($0.id, $0) })
+            appState.runningWindowsByAppID = [:]
+            appState.appActivityUpdatedAt = Date()
+            appState.appWindowActivityUpdatedAt = Date()
+            appState.showWindowlessApps = true
+            appState.showBackgroundApps = false
+            appState.pickerInvocationSource = .holdOptionTab
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }

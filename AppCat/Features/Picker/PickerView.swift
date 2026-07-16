@@ -15,7 +15,7 @@ struct PickerItem: Identifiable {
     var isBackgroundRunning: Bool = false
     /// Current icon reported by the running process. It overrides the installed-app scan icon so
     /// apps that change their icon at runtime are represented accurately in the switcher.
-    var runtimeIcon: NSImage? = nil
+    var runtimeIcon: NSImage?
 
     var isBrowser: Bool {
         browser != nil
@@ -283,9 +283,9 @@ struct PickerItem: Identifiable {
     ) -> [PickerItem] {
         struct Entry { let id: String; let name: String; let hasWindows: Bool; let items: [PickerItem] }
 
-        // Menu-bar (`.accessory`) and background (`.prohibited`) apps are hidden unless opted in.
-        // An empty/nil policy set means it hasn't been captured yet (first launch), so don't
-        // over-filter — better to show everything briefly than an empty switcher.
+        /// Menu-bar (`.accessory`) and background (`.prohibited`) apps are hidden unless opted in.
+        /// An empty/nil policy set means it hasn't been captured yet (first launch), so don't
+        /// over-filter — better to show everything briefly than an empty switcher.
         func passesPolicy(_ id: String) -> Bool {
             if showBackgroundApps { return true }
             guard let regularBundleIDs, !regularBundleIDs.isEmpty else { return true }
@@ -349,8 +349,8 @@ struct PickerItem: Identifiable {
         let representedIDs = configuredAppIDs.union(browserIDs)
         for runtimeApp in runningAppsByBundleID.values
             where runningBundleIDs.contains(runtimeApp.id)
-                && !representedIDs.contains(runtimeApp.id)
-                && passesPolicy(runtimeApp.id)
+            && !representedIDs.contains(runtimeApp.id)
+            && passesPolicy(runtimeApp.id)
         {
             let windows = windowsByAppID[runtimeApp.id] ?? []
             entries.append(Entry(
@@ -361,7 +361,7 @@ struct PickerItem: Identifiable {
             ))
         }
 
-        // Most-recent first, usage count as tiebreak, then name for a stable order among never-used apps.
+        /// Most-recent first, usage count as tiebreak, then name for a stable order among never-used apps.
         func before(_ x: Entry, _ y: Entry) -> Bool {
             let rx = activations[x.id], ry = activations[y.id]
             let dx = rx?.lastUsed ?? .distantPast, dy = ry?.lastUsed ?? .distantPast
@@ -425,7 +425,7 @@ enum PickerPresentationStyle {
 }
 
 enum PickerCellFocusPolicy {
-    // The panel owns keyboard selection. Native Button focus would draw a second rectangular ring.
+    /// The panel owns keyboard selection. Native Button focus would draw a second rectangular ring.
     static let allowsNativeFocus = false
 }
 
@@ -449,19 +449,19 @@ enum PickerEmptyStatePolicy {
     }
 }
 
-enum PickerReturnKeyAction: Equatable {
+enum PickerConfirmAction: Equatable {
     case openItem(Int)
     case configureApps
     case consume
 }
 
-enum PickerReturnKeyPolicy {
+enum PickerConfirmPolicy {
     static func action(
         itemCount: Int,
         focusedIndex: Int,
         url: URL?,
         invocationSource: PickerInvocationSource
-    ) -> PickerReturnKeyAction {
+    ) -> PickerConfirmAction {
         if focusedIndex >= 0, focusedIndex < itemCount {
             return .openItem(focusedIndex)
         }
@@ -663,22 +663,6 @@ enum PickerTypeAheadMatcher {
     }
 }
 
-enum PickerTapAction: Equatable {
-    case ignore
-    case open
-}
-
-enum PickerTapPolicy {
-    static func action(
-        for item: PickerItem,
-        isPickerVisible: Bool,
-        isManualPickerPresentation: Bool
-    ) -> PickerTapAction {
-        guard isPickerVisible else { return .ignore }
-        return .open
-    }
-}
-
 struct PickerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.pickerCoordinator) private var pickerCoordinator
@@ -717,10 +701,9 @@ struct PickerView: View {
         let items = pickerItems
         let style = presentationStyle
         let scale = CGFloat(appState.pickerScale)
-        let shortcuts = PickerShortcutPolicy.assignments(
+        let shortcuts = PickerShortcutAssigner.assignments(
             for: items,
-            invocationSource: appState.pickerInvocationSource,
-            selectWithNumberKeys: appState.selectWithNumberKeys
+            positionalEnabled: appState.selectWithNumberKeys
         )
         let showsIncognitoHint = appState.showsPickerIncognitoHint
         let panelHeight = PickerMetrics.panelHeight(showsIncognitoHint: showsIncognitoHint, scale: scale)
@@ -819,7 +802,7 @@ struct PickerView: View {
         let isFocused = appState.focusedBrowserIndex == index
 
         Button {
-            handleItemTap(item)
+            pickerCoordinator?.select(item, state: appState)
         } label: {
             PickerCell(
                 item: item,
@@ -841,25 +824,19 @@ struct PickerView: View {
             appState.focusedBrowserIndex = index
         }
         .contextMenu {
-            if let app = item.app {
+            if item.app != nil {
                 Button {
-                    pickerCoordinator?.openURL(with: app, windowTarget: item.windowTarget, state: appState)
+                    pickerCoordinator?.select(item, state: appState)
                 } label: {
                     Text("\(String(localized: "Open in")) \(item.displayName)")
                 }
             } else if let browser = item.browser {
                 Button(String(localized: "Open")) {
-                    pickerCoordinator?.openURL(
-                        with: browser,
-                        mode: .normal,
-                        profile: item.profile,
-                        windowTarget: item.windowTarget,
-                        state: appState
-                    )
+                    pickerCoordinator?.select(item, state: appState)
                 }
                 if item.windowTarget == nil, browser.supportsPrivateMode {
                     Button(String(localized: "Open Private")) {
-                        pickerCoordinator?.openURL(with: browser, mode: .privateMode, profile: item.profile, state: appState)
+                        pickerCoordinator?.select(item, mode: .privateMode, state: appState)
                     }
                 }
                 if item.windowTarget == nil, item.profile == nil && hasVisibleProfiles {
@@ -867,7 +844,10 @@ struct PickerView: View {
                     Menu(String(localized: "Open with Profile")) {
                         ForEach(browser.profiles.filter(\.isVisible)) { profile in
                             Button {
-                                pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
+                                pickerCoordinator?.select(
+                                    PickerItem(browser: browser, profile: profile),
+                                    state: appState
+                                )
                             } label: {
                                 if let email = profile.email {
                                     Text("\(profile.displayName) (\(email))")
@@ -896,36 +876,6 @@ struct PickerView: View {
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)
         .frame(height: PickerMetrics.hintHeight(scale: scale), alignment: .center)
-    }
-
-    private func handleItemTap(_ item: PickerItem) {
-        switch PickerTapPolicy.action(
-            for: item,
-            isPickerVisible: appState.isPickerVisible,
-            isManualPickerPresentation: appState.isManualPickerPresentation
-        ) {
-        case .ignore:
-            break
-        case .open:
-            open(item)
-        }
-    }
-
-    private func open(_ item: PickerItem) {
-        if let app = item.app {
-            pickerCoordinator?.openURL(with: app, windowTarget: item.windowTarget, state: appState)
-        } else if let profile = item.profile, let browser = item.browser {
-            pickerCoordinator?.openURL(with: browser, mode: .normal, profile: profile, state: appState)
-        } else if let browser = item.browser, item.windowTarget != nil {
-            pickerCoordinator?.openURL(
-                with: browser,
-                mode: .normal,
-                windowTarget: item.windowTarget,
-                state: appState
-            )
-        } else if let browser = item.browser {
-            pickerCoordinator?.openURL(with: browser, mode: .normal, state: appState)
-        }
     }
 
     private func scrollFocusedItemIntoView(proxy: ScrollViewProxy, items: [PickerItem]) {
@@ -1226,7 +1176,6 @@ struct AppCell: View {
                         .font(.system(size: 32))
                         .frame(width: 40, height: 40)
                 }
-
             }
 
             Text(title)

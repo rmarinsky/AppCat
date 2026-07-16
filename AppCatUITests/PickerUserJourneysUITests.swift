@@ -9,7 +9,10 @@ final class PickerUserJourneysUITests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        app.terminate()
+        if app.state != .notRunning {
+            app.terminate()
+            XCTAssertTrue(app.wait(for: .notRunning, timeout: 5))
+        }
         app = nil
     }
 
@@ -19,6 +22,26 @@ final class PickerUserJourneysUITests: XCTestCase {
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testServiceKeyPickerOpensAppWithNumberKey() {
+        launch(scenario: "service-picker")
+        let firstApp = app.buttons["picker.item.app:ui.service.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertEqual(firstApp.value as? String, "1")
+        app.typeKey("1", modifierFlags: [])
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testHoldPickerOpensAppWithNumberKey() {
+        launch(scenario: "hold-picker")
+        let firstApp = app.buttons["picker.item.app:ui.hold.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertEqual(firstApp.value as? String, "1")
+        app.typeKey("1", modifierFlags: [])
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -47,6 +70,15 @@ final class PickerUserJourneysUITests: XCTestCase {
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testPickerOpensFocusedAppWithSpace() {
+        launch(scenario: "service-picker")
+        let firstApp = app.buttons["picker.item.app:ui.service.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        app.typeKey(.space, modifierFlags: [])
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -87,5 +119,4 @@ final class PickerUserJourneysUITests: XCTestCase {
         app.launchEnvironment["APPCAT_UI_TEST_SCENARIO"] = scenario
         app.launch()
     }
-
 }

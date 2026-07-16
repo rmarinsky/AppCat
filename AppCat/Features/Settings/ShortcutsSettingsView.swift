@@ -3,13 +3,9 @@ import SwiftUI
 
 /// Shortcuts settings — a 1:1 port of the Figma Settings/Shortcuts frame.
 /// ACTIVATION holds the two real global hotkeys (recordable); WITHIN THE PICKER is a
-/// reference list of the picker's built-in keys plus mode-specific direct selection.
+/// reference list of the picker's built-in keys and unified direct selection.
 struct ShortcutsSettingsView: View {
     @Environment(AppState.self) private var appState
-
-    private var directSelectionAvailable: Bool {
-        appState.pickerActivationMode == .toggleShortcut || appState.pickerServiceKey != .off
-    }
 
     var body: some View {
         ScrollView {
@@ -126,33 +122,37 @@ struct ShortcutsSettingsView: View {
 
     private var pickerCard: some View {
         SettingsCard(cornerRadius: 8) {
-            if directSelectionAvailable {
-                shortcutRow(String(localized: "Select picker item")) {
-                    HStack(spacing: 4) {
-                        Keycap("1")
-                        Text("…").foregroundStyle(.tertiary)
-                        Keycap("0")
-                    }
+            shortcutRow(String(localized: "Select picker item")) {
+                HStack(spacing: 4) {
+                    Keycap("1")
+                    Text("…").foregroundStyle(.tertiary)
+                    Keycap("0")
+                    Keycap("Q")
+                    Text("…").foregroundStyle(.tertiary)
+                    Keycap("M")
                 }
-                divider
             }
-            shortcutRow(String(localized: "Confirm selection")) { Keycap("⏎") }
+            divider
+            shortcutRow(String(localized: "Confirm selection")) {
+                HStack(spacing: 4) {
+                    Keycap("⏎")
+                    Keycap(String(localized: "Space"))
+                }
+            }
             divider
             shortcutRow(String(localized: "Cancel")) { Keycap("esc") }
-            if directSelectionAvailable {
-                divider
-                shortcutRow(String(localized: "Select with shortcut keys")) {
-                    Toggle("", isOn: Binding(
-                        get: { appState.selectWithNumberKeys },
-                        set: { newValue in
-                            appState.setSelectWithNumberKeys(newValue)
-                        }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .labelsHidden()
-                    .tint(Color.accentColor)
-                }
+            divider
+            shortcutRow(String(localized: "Select with shortcut keys")) {
+                Toggle("", isOn: Binding(
+                    get: { appState.selectWithNumberKeys },
+                    set: { newValue in
+                        appState.setSelectWithNumberKeys(newValue)
+                    }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .tint(Color.accentColor)
             }
         }
     }

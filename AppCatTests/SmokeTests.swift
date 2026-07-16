@@ -219,11 +219,11 @@ final class SmokeTests: XCTestCase {
         )
     }
 
-    func testReturnKeyConfiguresUnmatchedRoutedFilesAndOtherwiseKeepsNormalSelection() throws {
+    func testConfirmConfiguresUnmatchedRoutedFilesAndOtherwiseKeepsNormalSelection() throws {
         let fileURL = try makeTempFile(named: "payload.romanunknownformat")
 
         XCTAssertEqual(
-            PickerReturnKeyPolicy.action(
+            PickerConfirmPolicy.action(
                 itemCount: 0,
                 focusedIndex: 0,
                 url: fileURL,
@@ -232,7 +232,7 @@ final class SmokeTests: XCTestCase {
             .configureApps
         )
         XCTAssertEqual(
-            PickerReturnKeyPolicy.action(
+            PickerConfirmPolicy.action(
                 itemCount: 3,
                 focusedIndex: 1,
                 url: fileURL,
@@ -241,7 +241,7 @@ final class SmokeTests: XCTestCase {
             .openItem(1)
         )
         XCTAssertEqual(
-            PickerReturnKeyPolicy.action(
+            PickerConfirmPolicy.action(
                 itemCount: 0,
                 focusedIndex: 0,
                 url: nil,
@@ -277,28 +277,17 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerInvocationSourceDefinesSessionInteractionPolicy() {
-        let items = [PickerItem(app: makeApp(id: "test.matrix"))]
-        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool, Bool)] = [
-            (.linkRouting, false, false, true, true, false),
-            (.toggleShortcut, true, false, true, true, true),
-            (.serviceKey, true, false, true, true, true),
-            (.holdOptionTab, true, true, false, false, false),
+        let expectations: [(PickerInvocationSource, Bool, Bool, Bool)] = [
+            (.linkRouting, false, false, false),
+            (.toggleShortcut, true, false, true),
+            (.serviceKey, true, false, true),
+            (.holdOptionTab, true, true, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, allowsDirectSelection, requiresKeyboardFocus, refreshesSnapshot) in expectations {
+        for (source, isManual, isHoldToSwitch, refreshesSnapshot) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
-            XCTAssertEqual(source.allowsDirectSelection, allowsDirectSelection)
-            XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
-            XCTAssertEqual(
-                PickerShortcutPolicy.assignments(
-                    for: items,
-                    invocationSource: source,
-                    selectWithNumberKeys: true
-                ).isEmpty,
-                !allowsDirectSelection
-            )
         }
     }
 
@@ -427,31 +416,15 @@ final class SmokeTests: XCTestCase {
         )
     }
 
-    func testHoldOptionTabRemainsVisibleWithoutRefocusingWhenAReusedPanelResignsKey() {
+    func testPickerRefocusesDuringGracePeriodAndDismissesAfterward() {
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
-                for: .holdOptionTab,
-                isInDismissGracePeriod: true
-            ),
-            .remainVisible
-        )
-        XCTAssertEqual(
-            PickerPanelInteractionPolicy.keyResignAction(
-                for: .holdOptionTab,
-                isInDismissGracePeriod: false
-            ),
-            .remainVisible
-        )
-        XCTAssertEqual(
-            PickerPanelInteractionPolicy.keyResignAction(
-                for: .linkRouting,
                 isInDismissGracePeriod: true
             ),
             .refocus
         )
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
-                for: .linkRouting,
                 isInDismissGracePeriod: false
             ),
             .dismiss
@@ -527,8 +500,8 @@ final class SmokeTests: XCTestCase {
         var runtimeApp = configuredApp
         runtimeApp.icon = runtimeIcon
 
-        let items = PickerItem.items(
-            for: try XCTUnwrap(URL(string: "https://example.com/path")),
+        let items = try PickerItem.items(
+            for: XCTUnwrap(URL(string: "https://example.com/path")),
             pickerBrowsers: [],
             allBrowsers: [],
             apps: [configuredApp],
@@ -562,7 +535,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(lightTint.alphaComponent, 0.04, accuracy: 0.001)
     }
 
-    func testRoutingPickerShortcutPolicyShowsDirectKeys() throws {
+    func testPickerShortcutAssignerShowsConfiguredAndPositionalKeys() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -572,17 +545,16 @@ final class SmokeTests: XCTestCase {
         let positional = PickerItem(app: makeApp(id: "test.cursor"))
         let items = [configured, positional]
 
-        let assignments = PickerShortcutPolicy.assignments(
+        let assignments = PickerShortcutAssigner.assignments(
             for: items,
-            invocationSource: .linkRouting,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
 
         XCTAssertEqual(assignments[configured.id]?.source, .configured)
         XCTAssertEqual(assignments[positional.id]?.source, .positional)
     }
 
-    func testManualPickerShortcutPolicyDoesNotOpenItemsByKeyInHoldMode() throws {
+    func testHoldPickerShortcutAssignerOpensItemsByKey() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -590,14 +562,13 @@ final class SmokeTests: XCTestCase {
             hotkeyKeyCode: configuredKeyCode
         ))
 
-        let item = PickerShortcutPolicy.item(
+        let item = PickerShortcutAssigner.item(
             forKeyCode: configuredKeyCode,
             in: [configured],
-            invocationSource: .holdOptionTab,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
 
-        XCTAssertNil(item)
+        XCTAssertEqual(item?.id, configured.id)
     }
 
     @MainActor
@@ -611,29 +582,25 @@ final class SmokeTests: XCTestCase {
         let zeroKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "0"))
         let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
 
-        let assignments = PickerShortcutPolicy.assignments(
+        let assignments = PickerShortcutAssigner.assignments(
             for: items,
-            invocationSource: state.pickerInvocationSource,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
-        let selectedItem = PickerShortcutPolicy.item(
+        let selectedItem = PickerShortcutAssigner.item(
             forKeyCode: qKeyCode,
             in: items,
-            invocationSource: state.pickerInvocationSource,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
 
-        XCTAssertTrue(state.pickerInvocationSource.requiresKeyboardFocus)
         XCTAssertTrue(state.pickerInvocationSource.refreshesLiveSnapshot)
         XCTAssertEqual(assignments[items[0].id]?.key, "1")
         XCTAssertEqual(assignments[items[9].id]?.key, "0")
         XCTAssertEqual(assignments[items[10].id]?.key, "q")
         XCTAssertEqual(
-            PickerShortcutPolicy.item(
+            PickerShortcutAssigner.item(
                 forKeyCode: zeroKeyCode,
                 in: items,
-                invocationSource: state.pickerInvocationSource,
-                selectWithNumberKeys: true
+                positionalEnabled: true
             )?.id,
             items[9].id
         )
@@ -646,68 +613,16 @@ final class SmokeTests: XCTestCase {
         }
         let qKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
 
-        let selectedItem = PickerShortcutPolicy.item(
+        let selectedItem = PickerShortcutAssigner.item(
             forKeyCode: qKeyCode,
             in: items,
-            invocationSource: .linkRouting,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
 
         XCTAssertEqual(selectedItem?.id, items[10].id)
     }
 
-    func testManualPickerTapOpensBrowserWithProfilesInsteadOfShowingProfileMenu() {
-        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
-        let item = PickerItem(browser: makeBrowser(profiles: [profile]))
-
-        let action = PickerTapPolicy.action(
-            for: item,
-            isPickerVisible: true,
-            isManualPickerPresentation: true
-        )
-
-        XCTAssertEqual(action, .open)
-    }
-
-    func testRoutingPickerTapOpensBrowserWithProfilesInsteadOfShowingProfileMenu() {
-        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
-        let item = PickerItem(browser: makeBrowser(profiles: [profile]))
-
-        let action = PickerTapPolicy.action(
-            for: item,
-            isPickerVisible: true,
-            isManualPickerPresentation: false
-        )
-
-        XCTAssertEqual(action, .open)
-    }
-
-    func testRoutingPickerTapOpensSpecificProfileItem() {
-        let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
-        let item = PickerItem(browser: makeBrowser(profiles: [profile]), profile: profile)
-
-        let action = PickerTapPolicy.action(
-            for: item,
-            isPickerVisible: true,
-            isManualPickerPresentation: false
-        )
-
-        XCTAssertEqual(action, .open)
-    }
-
-    func testPickerTapPolicyIgnoresLateTapAfterPickerDismissed() {
-        let item = PickerItem(app: makeApp(id: "test.figma"))
-
-        let action = PickerTapPolicy.action(
-            for: item,
-            isPickerVisible: false,
-            isManualPickerPresentation: true
-        )
-
-        XCTAssertEqual(action, .ignore)
-    }
-
-    func testRoutingPickerShortcutPolicyOpensItemsByKey() throws {
+    func testConfiguredPickerShortcutOpensItemByKey() throws {
         let configuredKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "f"))
         let configured = PickerItem(app: makeApp(
             id: "test.figma",
@@ -715,11 +630,10 @@ final class SmokeTests: XCTestCase {
             hotkeyKeyCode: configuredKeyCode
         ))
 
-        let item = PickerShortcutPolicy.item(
+        let item = PickerShortcutAssigner.item(
             forKeyCode: configuredKeyCode,
             in: [configured],
-            invocationSource: .linkRouting,
-            selectWithNumberKeys: true
+            positionalEnabled: true
         )
 
         XCTAssertEqual(item?.id, configured.id)
@@ -855,12 +769,12 @@ final class SmokeTests: XCTestCase {
         var browser = makeBrowser()
         browser.hotkey = "b"
         browser.hotkeyKeyCode = try XCTUnwrap(KeyCodeMap.keyCode(for: "b"))
-        let profile = BrowserProfile(
+        let profile = try BrowserProfile(
             directoryName: "Default",
             displayName: "Work",
             email: nil,
             hotkey: "w",
-            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "w"))
+            hotkeyKeyCode: XCTUnwrap(KeyCodeMap.keyCode(for: "w"))
         )
         let profileBrowser = makeBrowser(profiles: [profile])
         let items = [
@@ -869,16 +783,16 @@ final class SmokeTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            PickerShortcutAssigner.item(
-                forKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "b")),
+            try PickerShortcutAssigner.item(
+                forKeyCode: XCTUnwrap(KeyCodeMap.keyCode(for: "b")),
                 in: items,
                 positionalEnabled: true
             )?.id,
             browser.id
         )
         XCTAssertEqual(
-            PickerShortcutAssigner.item(
-                forKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "w")),
+            try PickerShortcutAssigner.item(
+                forKeyCode: XCTUnwrap(KeyCodeMap.keyCode(for: "w")),
                 in: items,
                 positionalEnabled: true
             )?.id,
@@ -887,10 +801,10 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerShortcutAssignerSkipsConfiguredKeyForPositionalPool() throws {
-        let appWithCustomKey = PickerItem(app: makeApp(
+        let appWithCustomKey = try PickerItem(app: makeApp(
             id: "test.custom",
             hotkey: "q",
-            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
+            hotkeyKeyCode: XCTUnwrap(KeyCodeMap.keyCode(for: "q"))
         ))
         let positionalItems = (0 ..< 11).map { index in
             PickerItem(app: makeApp(id: "test.positional.\(index)"))
@@ -906,11 +820,11 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerShortcutAssignerShowsConfiguredKeyOnOnlyFirstWindowItem() throws {
-        let app = makeApp(
+        let app = try makeApp(
             id: "test.cursor",
             displayName: "Cursor",
             hotkey: "c",
-            hotkeyKeyCode: try XCTUnwrap(KeyCodeMap.keyCode(for: "c"))
+            hotkeyKeyCode: XCTUnwrap(KeyCodeMap.keyCode(for: "c"))
         )
         let items = [
             PickerItem(app: app, windowTarget: AppWindowTarget(bundleID: app.id, title: "One", index: 0)),
@@ -925,7 +839,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(assignments[items[1].id]?.source, .positional)
     }
 
-    func testBrowserConfigPreservesBrowserAndProfileHotkeySymbols() throws {
+    func testBrowserConfigPreservesBrowserAndProfileHotkeySymbols() {
         let profile = BrowserProfile(
             directoryName: "Default",
             displayName: "Work",
@@ -1259,8 +1173,8 @@ final class SmokeTests: XCTestCase {
             allBrowsers: [],
             apps: [rarelyUsed, frequentlyUsed],
             appUsage: [
-                frequentlyUsed.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1_000)),
-                rarelyUsed.id: AppUsage(count: 1, lastUsed: Date(timeIntervalSince1970: 2_000)),
+                frequentlyUsed.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1000)),
+                rarelyUsed.id: AppUsage(count: 1, lastUsed: Date(timeIntervalSince1970: 2000)),
             ]
         )
 
@@ -1547,9 +1461,9 @@ final class SmokeTests: XCTestCase {
             runningBundleIDs: [a.id, b.id, c.id],
             windowsByAppID: [a.id: window(a.id), b.id: window(b.id), c.id: window(c.id)],
             activations: [
-                a.id: AppUsage(count: 5, lastUsed: Date(timeIntervalSince1970: 9_000)),
-                b.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1_000)),
-                c.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 2_000)),
+                a.id: AppUsage(count: 5, lastUsed: Date(timeIntervalSince1970: 9000)),
+                b.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1000)),
+                c.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 2000)),
             ],
             regularBundleIDs: [a.id, b.id, c.id]
         )
