@@ -23,6 +23,7 @@ xcuserdata/
 .build/
 .swiftpm/
 Package.resolved
+!AppCat.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # CocoaPods
 Pods/

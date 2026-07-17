@@ -15,14 +15,36 @@ jobs:
   test:
     runs-on: macos-26
     timeout-minutes: 20
+    env:
+      SWIFTPM_PACKAGES_PATH: ${{ github.workspace }}/.ci/SourcePackages
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate CI workflow contract
+        run: bash scripts/check-ci-workflow.sh
 
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
 
+      - name: Fingerprint Xcode
+        id: xcode
+        run: echo "version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache resolved Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SWIFTPM_PACKAGES_PATH }}
+          key: swiftpm-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('project.yml', 'AppCat.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          SECONDS=0
+          brew install xcodegen
+          elapsed="${SECONDS}"
+          echo "XcodeGen setup: ${elapsed}s" >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${elapsed}" -gt 20 ]; then
+            echo "::notice::XcodeGen setup exceeded the 20s pinned-binary threshold (${elapsed}s)"
+          fi
 
       - name: Generate Xcode project
         run: ./generate_project.sh
@@ -37,6 +59,7 @@ jobs:
             -project AppCat.xcodeproj \
             -scheme "AppCat DEV" \
             -destination "platform=macOS" \
+            -clonedSourcePackagesDirPath "$SWIFTPM_PACKAGES_PATH" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Run unit and integration XCTest suites
@@ -45,5 +68,6 @@ jobs:
             -project AppCat.xcodeproj \
             -scheme "AppCat DEV" \
             -destination "platform=macOS" \
+            -clonedSourcePackagesDirPath "$SWIFTPM_PACKAGES_PATH" \
             -only-testing:AppCatTests \
             CODE_SIGNING_ALLOWED=NO
