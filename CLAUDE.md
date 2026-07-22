@@ -68,7 +68,21 @@ Version math: `scripts/next-version.sh`.
 
 ## Task tracking
 
-Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain`, `backlog board`, `backlog task create` — do not use any `mcp__vatra-*` tool, the hosted Vatra Ops service was decommissioned 2026-07.
+Tasks and PRDs live in GitHub Issues. Use the `gh` CLI for issue operations. The local `backlog/` directory is legacy and must not be used for new work.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues; external pull requests are not a triage request surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+AppCat uses a single-context domain layout with `CONTEXT.md` at the root and ADRs under `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Architecture
 

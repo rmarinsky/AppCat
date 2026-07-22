@@ -83,7 +83,7 @@ Version math: `scripts/next-version.sh`.
 
 ## Task tracking
 
-Tasks live in `backlog/` (Backlog.md CLI format). Use `backlog task list --plain`, `backlog board`, `backlog task create` — do not use any `mcp__vatra-*` tool, the hosted Vatra Ops service was decommissioned 2026-07.
+Tasks and PRDs live in GitHub Issues. Use the `gh` CLI for issue operations. The local `backlog/` directory is legacy and must not be used for new work.
 
 ## Ponytail rules
 
