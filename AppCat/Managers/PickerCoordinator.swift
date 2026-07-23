@@ -10,12 +10,20 @@ final class PickerCoordinator {
         let title: String?
     }
 
-    private let browserLauncher = BrowserLauncher()
+    private let browserLauncher: BrowserLauncher
     private let urlResolver = URLResolver()
     private var pickerController: PickerWindowController?
     var historyManager: HistoryManager?
     var suggestionsManager: SuggestionsManager?
     var statsManager: StatsManager?
+
+    init() {
+        browserLauncher = BrowserLauncher()
+    }
+
+    init(browserLauncher: BrowserLauncher) {
+        self.browserLauncher = browserLauncher
+    }
 
     func showPicker(state: AppState) {
         if pickerController == nil {

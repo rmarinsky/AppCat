@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class PickerUserJourneysUITests: XCTestCase {
@@ -21,7 +22,10 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.service.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: firstApp.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -31,7 +35,8 @@ final class PickerUserJourneysUITests: XCTestCase {
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         XCTAssertEqual(firstApp.value as? String, "1")
-        app.typeKey("1", modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 18)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -41,7 +46,8 @@ final class PickerUserJourneysUITests: XCTestCase {
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         XCTAssertEqual(firstApp.value as? String, "1")
-        app.typeKey("1", modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 18)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -63,13 +69,44 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
+    func testLinkPickerOpensFromRawIconClickWhileAppStaysInactive() {
+        launch(scenario: "link-picker")
+        let firstApp = app.buttons["picker.item.app:ui.link.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+
+        let iconPoint = firstApp.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)
+        ).screenPoint
+        postRawClick(at: iconPoint)
+
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testFilePickerOpensFromRawIconClickWhileAppStaysInactive() {
+        launch(scenario: "file-picker")
+        let firstApp = app.buttons["picker.item.app:ui.file.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+
+        let iconPoint = firstApp.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint
+        postRawClick(at: iconPoint)
+
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
     func testLinkPickerOpensAppWithNumberKey() {
         launch(scenario: "link-picker")
         let firstApp = app.buttons["picker.item.app:ui.link.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         XCTAssertEqual(firstApp.value as? String, "1")
-        app.typeKey("1", modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 18)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -78,7 +115,8 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.service.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 36)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -87,7 +125,28 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.service.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        app.typeKey(.space, modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 49)
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testLinkPickerOpensFocusedAppWithReturn() {
+        launch(scenario: "link-picker")
+        let firstApp = app.buttons["picker.item.app:ui.link.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 36)
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
+    func testFilePickerOpensFocusedAppWithSpace() {
+        launch(scenario: "file-picker")
+        let firstApp = app.buttons["picker.item.app:ui.file.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 49)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -96,7 +155,8 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.link.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawKey(keyCode: 53)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -127,5 +187,43 @@ final class PickerUserJourneysUITests: XCTestCase {
     private func launch(scenario: String) {
         app.launchEnvironment["APPCAT_UI_TEST_SCENARIO"] = scenario
         app.launch()
+    }
+
+    private func waitForAppCatToDeactivate() -> Bool {
+        let predicate = NSPredicate { _, _ in
+            NSRunningApplication.runningApplications(
+                withBundleIdentifier: "ua.com.rmarinsky.appcat.dev"
+            ).first?.isActive == false
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: nil)
+        return XCTWaiter.wait(for: [expectation], timeout: 2) == .completed
+    }
+
+    private func postRawClick(at point: CGPoint) {
+        CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDown,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )?.post(tap: .cghidEventTap)
+        CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )?.post(tap: .cghidEventTap)
+    }
+
+    private func postRawKey(keyCode: CGKeyCode) {
+        CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: keyCode,
+            keyDown: true
+        )?.post(tap: .cghidEventTap)
+        CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: keyCode,
+            keyDown: false
+        )?.post(tap: .cghidEventTap)
     }
 }

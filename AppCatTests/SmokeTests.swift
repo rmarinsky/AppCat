@@ -525,6 +525,74 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerInvocationSource.serviceKey.opensFocusedItemOnOptionRelease(isPickerVisible: true))
     }
 
+    func testRepeatedManualShortcutReleaseConfirmsVisiblePickerSelection() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: true,
+                isPresentationPending: false
+            ),
+            .confirmFocusedItem
+        )
+    }
+
+    func testRepeatedManualShortcutReleaseCancelsPendingPresentation() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: false,
+                isPresentationPending: true
+            ),
+            .cancelPendingPresentation
+        )
+    }
+
+    func testManualShortcutReleasePresentsPickerWhenIdle() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: false,
+                isPresentationPending: false
+            ),
+            .presentPicker
+        )
+    }
+
+    func testHoldOptionTabInvokesOpenCallbackWhenOptionIsReleased() throws {
+        let listener = PickerActivationListener()
+        let step = expectation(description: "Tab advances picker focus")
+        let release = expectation(description: "Option release confirms focused item")
+        listener.onHoldStep = { delta in
+            XCTAssertEqual(delta, 1)
+            step.fulfill()
+        }
+        listener.onHoldRelease = {
+            release.fulfill()
+        }
+        listener.refresh(settings: PickerActivationSettings(
+            mode: .holdOptionTab,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 48,
+            keyDown: true
+        ))
+        tabDown.flags = [.maskAlternate]
+        _ = listener.handle(type: .keyDown, event: tabDown)
+
+        let optionUp = try XCTUnwrap(CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 58,
+            keyDown: false
+        ))
+        optionUp.flags = []
+        _ = listener.handle(type: .flagsChanged, event: optionUp)
+
+        wait(for: [step, release], timeout: 1)
+    }
+
     func testPickerSurfaceUsesSharedAdaptiveNeutralTint() throws {
         let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
         let lightAppearance = try XCTUnwrap(NSAppearance(named: .aqua))

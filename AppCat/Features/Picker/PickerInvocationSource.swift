@@ -27,3 +27,24 @@ enum PickerInvocationSource: Equatable {
         isPickerVisible && isHoldToSwitch
     }
 }
+
+enum PickerManualActivationAction: Equatable {
+    case presentPicker
+    case confirmFocusedItem
+    case cancelPendingPresentation
+}
+
+enum PickerManualActivationPolicy {
+    static func action(
+        isPickerVisible: Bool,
+        isPresentationPending: Bool
+    ) -> PickerManualActivationAction {
+        if isPickerVisible {
+            return .confirmFocusedItem
+        }
+        if isPresentationPending {
+            return .cancelPendingPresentation
+        }
+        return .presentPicker
+    }
+}

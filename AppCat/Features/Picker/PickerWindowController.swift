@@ -340,9 +340,11 @@ final class PickerWindowController: NSObject {
         // selection path as keyboard and global-click handling. Returning nil prevents a second
         // Button action when SwiftUI would also have accepted the click.
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self,
-                  event.window === self.panel,
-                  self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type)
+            guard let self, let panel = self.panel, event.window === panel else {
+                return event
+            }
+            let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
+            guard self.openItemForMouseDown(at: screenLocation, eventType: event.type)
             else {
                 return event
             }
@@ -658,7 +660,8 @@ final class PickerWindowController: NSObject {
             panelFrame: panel.frame,
             itemCount: items.count,
             scrollOffsetX: pickerScrollOffsetX(in: panel),
-            scale: pickerScale
+            scale: pickerScale,
+            showsIncognitoHint: appState.showsPickerIncognitoHint
         ) else {
             return false
         }
@@ -686,7 +689,8 @@ final class PickerWindowController: NSObject {
         panelFrame: NSRect?,
         itemCount: Int,
         scrollOffsetX: CGFloat,
-        scale: CGFloat
+        scale: CGFloat,
+        showsIncognitoHint: Bool = false
     ) -> Int? {
         guard itemCount > 0,
               let panelFrame,
@@ -699,8 +703,12 @@ final class PickerWindowController: NSObject {
         let localX = screenLocation.x - panelFrame.minX
         let localY = screenLocation.y - panelFrame.minY
         let verticalPadding = PickerMetrics.verticalPadding(scale: scale)
-        guard localY >= verticalPadding,
-              localY <= verticalPadding + PickerMetrics.itemHeight(scale: scale)
+        let itemBottom = showsIncognitoHint
+            ? PickerMetrics.panelHeight(showsIncognitoHint: true, scale: scale)
+                - PickerMetrics.scrollHeight(showsIncognitoHint: true, scale: scale)
+            : verticalPadding
+        guard localY >= itemBottom,
+              localY <= itemBottom + PickerMetrics.itemHeight(scale: scale)
         else {
             return nil
         }
