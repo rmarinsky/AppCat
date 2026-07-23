@@ -220,6 +220,29 @@ final class PickerSessionTests: XCTestCase {
         ), 1)
     }
 
+    @MainActor
+    func testLinkPickerClickHitTestCoversTopOfIconAboveShortcutHint() {
+        let panelFrame = NSRect(
+            x: 100,
+            y: 200,
+            width: PickerMetrics.panelWidth(itemCount: 2, availableWidth: 1200),
+            height: PickerMetrics.panelHeight(showsIncognitoHint: true)
+        )
+        let pointInsideTopOfFirstIcon = NSPoint(
+            x: panelFrame.minX + PickerMetrics.horizontalPadding() + PickerMetrics.itemWidth() / 2,
+            y: panelFrame.maxY - PickerMetrics.verticalPadding() - 1
+        )
+
+        XCTAssertEqual(PickerWindowController.itemIndexForManualPickerClick(
+            at: pointInsideTopOfFirstIcon,
+            panelFrame: panelFrame,
+            itemCount: 2,
+            scrollOffsetX: 0,
+            scale: 1,
+            showsIncognitoHint: true
+        ), 0)
+    }
+
     // MARK: - Icon downsampling
 
     func testDownsampledIconHasSingleTileSizedRep() {

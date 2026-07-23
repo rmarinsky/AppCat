@@ -228,14 +228,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Show the manual app/window switcher.
     private func openPickerManually(source: PickerInvocationSource) {
-        if appState.isPickerVisible {
-            pickerCoordinator.dismissPicker(state: appState)
+        switch PickerManualActivationPolicy.action(
+            isPickerVisible: appState.isPickerVisible,
+            isPresentationPending: pendingManualPickerPresentationID != nil
+        ) {
+        case .confirmFocusedItem:
+            pickerCoordinator.openFocusedItem(state: appState)
             return
-        }
-        if pendingManualPickerPresentationID != nil {
+        case .cancelPendingPresentation:
             pendingManualPickerPresentationID = nil
             appState.pickerInvocationSource = .linkRouting
             return
+        case .presentPicker:
+            break
         }
 
         presentManualPicker(source: source)

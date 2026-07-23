@@ -12,6 +12,7 @@
         case servicePicker = "service-picker"
         case holdPicker = "hold-picker"
         case linkPicker = "link-picker"
+        case filePicker = "file-picker"
         case mainWindow = "main-window"
     }
 
@@ -34,6 +35,8 @@
                 configureHoldPickerUITest()
             case .linkPicker:
                 configureLinkPickerUITest()
+            case .filePicker:
+                configureFilePickerUITest()
             case .mainWindow:
                 appState.mainWindowSection = .overview
                 DispatchQueue.main.async { [weak self] in
@@ -104,6 +107,21 @@
             let url = URL(string: "https://ui-test.invalid/example")!
 
             appState.apps = apps
+            appState.pickerInvocationSource = .linkRouting
+            appState.setPendingOpen(displayURLs: [url], launchURLs: [url])
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pickerCoordinator.showPicker(state: self.appState)
+            }
+        }
+
+        private func configureFilePickerUITest() {
+            var app = makeUITestApp(id: "ui.file.0", displayName: "UI File App 01")
+            app.customFormats = ["romanuitest"]
+            let url = URL(fileURLWithPath: "/tmp/example.romanuitest")
+
+            appState.apps = [app]
             appState.pickerInvocationSource = .linkRouting
             appState.setPendingOpen(displayURLs: [url], launchURLs: [url])
 

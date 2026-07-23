@@ -3,6 +3,63 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testPickerSelectionLaunchesChosenAppForLinksAndFiles() throws {
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+        let targets = [
+            try XCTUnwrap(URL(string: "https://example.com/path")),
+            URL(fileURLWithPath: "/tmp/example.txt"),
+        ]
+
+        for target in targets {
+            let world = FakeBrowserLauncherWorld()
+            let coordinator = PickerCoordinator(
+                browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+            )
+            let state = AppState()
+            state.setPendingOpen(displayURLs: [target], launchURLs: [target])
+            state.isPickerVisible = true
+
+            XCTAssertTrue(coordinator.select(PickerItem(app: app), state: state, source: .pickerClick))
+            XCTAssertEqual(world.openedURLs.count, 1)
+            XCTAssertEqual(world.openedURLs[0].urls, [target])
+            XCTAssertEqual(world.openedURLs[0].appURL, app.appURL)
+        }
+    }
+
+    @MainActor
+    func testReturnAndSpaceActivateFocusedManualPickerApp() throws {
+        for (keyCode, characters) in [(UInt16(36), "\r"), (UInt16(49), " ")] {
+            let runningApp = FakeRunningApplication()
+            let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+            let coordinator = PickerCoordinator(
+                browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+            )
+            let state = AppState()
+            let item = PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: []))
+            state.isPickerVisible = true
+            state.pickerInvocationSource = .serviceKey
+            state.pickerItemsSnapshot = [item]
+            let controller = PickerWindowController(appState: state, coordinator: coordinator)
+            let event = try XCTUnwrap(NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: characters,
+                charactersIgnoringModifiers: characters,
+                isARepeat: false,
+                keyCode: keyCode
+            ))
+
+            XCTAssertTrue(controller.handleKeyEvent(event))
+            XCTAssertGreaterThan(runningApp.activateCount, 0)
+            XCTAssertFalse(state.isPickerVisible)
+        }
+    }
+
+    @MainActor
     func testManualActivationOfWindowlessRunningBrowserSendsReopenEventToExistingApp() {
         let app = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: false)
