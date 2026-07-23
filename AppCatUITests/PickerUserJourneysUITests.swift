@@ -45,6 +45,15 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
+    func testHoldPickerOpensClickedApp() {
+        launch(scenario: "hold-picker")
+        let firstApp = app.buttons["picker.item.app:ui.hold.0"]
+
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
+        firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+    }
+
     func testLinkPickerOpensClickedApp() {
         launch(scenario: "link-picker")
         let firstApp = app.buttons["picker.item.app:ui.link.0"]
