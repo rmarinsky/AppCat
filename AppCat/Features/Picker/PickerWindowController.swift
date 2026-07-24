@@ -48,7 +48,7 @@ enum PickerPanelInteractionPolicy {
     static let deactivationSettlingDelay: TimeInterval = 0.15
     static let styleMask: NSWindow.StyleMask = [
         .fullSizeContentView,
-        .borderless,
+        .titled,
         .nonactivatingPanel,
     ]
 
@@ -83,13 +83,6 @@ enum PickerPanelInteractionPolicy {
         panel.hidesOnDeactivate = false
         panel.level = windowLevel
         panel.collectionBehavior = collectionBehavior
-    }
-
-    /// A global mouse-down is only observed when AppKit did not deliver the click to AppCat.
-    /// Keeping this fallback for every picker makes the first click reliable across activation
-    /// policy changes without double-firing a SwiftUI Button that received its local event.
-    static func acceptsGlobalClickFallback(for _: PickerInvocationSource) -> Bool {
-        true
     }
 }
 
@@ -320,12 +313,9 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type) {
-                    return
-                }
                 guard !self.isInDismissGracePeriod else { return }
                 guard Self.shouldDismissForGlobalMouseDown(
                     at: NSEvent.mouseLocation,
@@ -335,10 +325,8 @@ final class PickerWindowController: NSObject {
             }
         }
 
-        // A nonactivating panel can receive the first mouse-down locally without SwiftUI firing
-        // the Button action. Intercept that event before AppKit dispatch and use the same picker
-        // selection path as keyboard and global-click handling. Returning nil prevents a second
-        // Button action when SwiftUI would also have accepted the click.
+        // Intercept the panel's mouse-down before SwiftUI dispatch and use the same selection path
+        // as keyboard handling. Returning nil prevents a second Button action.
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self, let panel = self.panel, event.window === panel else {
                 return event
@@ -646,9 +634,6 @@ final class PickerWindowController: NSObject {
     private func openItemForMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
         guard eventType == .leftMouseDown,
               appState.isPickerVisible,
-              PickerPanelInteractionPolicy.acceptsGlobalClickFallback(
-                  for: appState.pickerInvocationSource
-              ),
               let panel
         else {
             return false
@@ -798,6 +783,8 @@ final class PickerWindowController: NSObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
         panel.animationBehavior = .none
         panel.isMovableByWindowBackground = false
         PickerPanelInteractionPolicy.apply(to: panel)

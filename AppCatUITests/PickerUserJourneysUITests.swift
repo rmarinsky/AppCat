@@ -56,7 +56,10 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.hold.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: firstApp.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 

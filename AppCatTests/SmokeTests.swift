@@ -295,19 +295,12 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
     }
 
-    func testEveryPickerUsesANonactivatingPanelAndAcceptsFallbackClicks() {
-        for source in [
-            PickerInvocationSource.linkRouting,
-            .toggleShortcut,
-            .serviceKey,
-            .holdOptionTab,
-        ] {
-            XCTAssertTrue(
-                PickerPanelInteractionPolicy.styleMask.contains(.nonactivatingPanel),
-                "\(source) must not activate AppCat or switch Spaces"
-            )
-            XCTAssertTrue(PickerPanelInteractionPolicy.acceptsGlobalClickFallback(for: source))
-        }
+    func testPickerPanelUsesTitledNonactivatingStyle() {
+        XCTAssertTrue(PickerPanelInteractionPolicy.styleMask.contains(.nonactivatingPanel))
+        XCTAssertTrue(
+            PickerPanelInteractionPolicy.styleMask.contains(.titled),
+            "AppKit only honors nonactivatingPanel for titled windows"
+        )
     }
 
     @MainActor
