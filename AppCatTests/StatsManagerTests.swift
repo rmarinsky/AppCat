@@ -46,6 +46,30 @@ final class StatsManagerTests: XCTestCase {
         XCTAssertEqual(manager.totalOpenCount, 0)
         XCTAssertEqual(storage.savedEntries.last, manager.dailyStats)
     }
+
+    func testRecentManualPickerTargetCountsUsesTrailingSevenCalendarDays() throws {
+        let storage = FakeStatsStorage()
+        let manager = StatsManager(storage: storage)
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12
+        ).date)
+        let sixDaysAgo = try XCTUnwrap(calendar.date(byAdding: .day, value: -6, to: today))
+        let sevenDaysAgo = try XCTUnwrap(calendar.date(byAdding: .day, value: -7, to: today))
+
+        manager.recordManualPickerSwitch(targetID: "com.test.editor", at: today)
+        manager.recordManualPickerSwitch(targetID: "com.test.editor", at: sixDaysAgo)
+        manager.recordManualPickerSwitch(targetID: "com.test.expired", at: sevenDaysAgo)
+
+        XCTAssertEqual(
+            manager.recentManualPickerTargetCounts(days: 7, today: today),
+            ["com.test.editor": 2]
+        )
+    }
 }
 
 private final class FakeStatsStorage: StatsStoring {

@@ -162,6 +162,21 @@ final class StatsManager {
         dailyStats.reduce(0) { $0 + $1.manualPickerSwitchCount }
     }
 
+    func recentManualPickerTargetCounts(days: Int = 7, today: Date = Date()) -> [String: Int] {
+        guard days > 0 else { return [:] }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: today)
+        guard let cutoff = calendar.date(byAdding: .day, value: -(days - 1), to: today) else { return [:] }
+
+        var counts: [String: Int] = [:]
+        for entry in dailyStats where entry.date.map({ cutoff ... today ~= $0 }) == true {
+            for (targetID, count) in entry.manualPickerTargetCounts {
+                counts[targetID.lowercased(), default: 0] += count
+            }
+        }
+        return counts
+    }
+
     /// Percentage of all opens that were auto-routed by a rule (0–100).
     var autoRoutedPercent: Int {
         let total = totalOpenCount
