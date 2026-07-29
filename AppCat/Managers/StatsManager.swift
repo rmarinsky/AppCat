@@ -10,6 +10,7 @@ final class StatsManager {
 
     private static let maxDays = 365
     private static let maxRulesPerDay = 50
+    private static let pickerTargetRetentionDays = 7
 
     private let urlRuleMatcher = URLRuleMatcher()
     private let storage: StatsStoring
@@ -20,9 +21,12 @@ final class StatsManager {
         self.storage = storage
     }
 
-    func load() {
+    func load(today: Date = Date()) {
         let entries = storage.load()
         dailyStats = entries
+        if removeExpiredManualPickerTargets(today: today) {
+            storage.save(dailyStats)
+        }
         firstUseDate = entries.compactMap(\.date).min()
         Log.settings.debug("StatsManager loaded \(entries.count) days")
     }
@@ -79,6 +83,7 @@ final class StatsManager {
         entry.secondsSaved += Int(TimeSavedConstants.manualPickerSwitch)
         dailyStats.append(entry)
 
+        _ = removeExpiredManualPickerTargets(today: date)
         trimAndSave()
         if firstUseDate == nil { firstUseDate = entry.date }
     }
@@ -133,6 +138,28 @@ final class StatsManager {
             dailyStats = Array(dailyStats.suffix(Self.maxDays))
         }
         storage.save(dailyStats)
+    }
+
+    @discardableResult
+    private func removeExpiredManualPickerTargets(today: Date) -> Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: today)
+        guard let cutoff = calendar.date(
+            byAdding: .day,
+            value: -(Self.pickerTargetRetentionDays - 1),
+            to: today
+        ) else { return false }
+
+        var changed = false
+        for index in dailyStats.indices {
+            guard let date = dailyStats[index].date,
+                  date < cutoff,
+                  !dailyStats[index].manualPickerTargetCounts.isEmpty
+            else { continue }
+            dailyStats[index].manualPickerTargetCounts = [:]
+            changed = true
+        }
+        return changed
     }
 
     // MARK: - Derived metrics

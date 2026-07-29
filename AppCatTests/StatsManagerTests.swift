@@ -70,6 +70,68 @@ final class StatsManagerTests: XCTestCase {
             ["com.test.editor": 2]
         )
     }
+
+    func testLoadRemovesExpiredPickerTargetIdentityButKeepsAggregateStats() throws {
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12
+        ).date)
+        let recentDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -6, to: today))
+        let expiredDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -7, to: today))
+        let expired = DailyStats(
+            day: DailyStats.dayKey(for: expiredDate),
+            manualPickerSwitchCount: 3,
+            manualPickerTargetCounts: ["com.test.expired": 3],
+            secondsSaved: 3
+        )
+        let recent = DailyStats(
+            day: DailyStats.dayKey(for: recentDate),
+            manualPickerSwitchCount: 2,
+            manualPickerTargetCounts: ["com.test.recent": 2],
+            secondsSaved: 2
+        )
+        let storage = FakeStatsStorage(loadedEntries: [expired, recent])
+        let manager = StatsManager(storage: storage)
+
+        manager.load(today: today)
+
+        XCTAssertEqual(manager.dailyStats[0].manualPickerTargetCounts, [:])
+        XCTAssertEqual(manager.dailyStats[0].manualPickerSwitchCount, 3)
+        XCTAssertEqual(manager.dailyStats[0].secondsSaved, 3)
+        XCTAssertEqual(manager.dailyStats[1].manualPickerTargetCounts, ["com.test.recent": 2])
+        XCTAssertEqual(storage.savedEntries.last, manager.dailyStats)
+    }
+
+    func testRecordingRemovesExpiredPickerTargetIdentity() throws {
+        let calendar = Calendar.current
+        let today = try XCTUnwrap(DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 7,
+            day: 29,
+            hour: 12
+        ).date)
+        let expiredDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -7, to: today))
+        let storage = FakeStatsStorage(loadedEntries: [
+            DailyStats(
+                day: DailyStats.dayKey(for: expiredDate),
+                manualPickerSwitchCount: 1,
+                manualPickerTargetCounts: ["com.test.expired": 1],
+                secondsSaved: 1
+            ),
+        ])
+        let manager = StatsManager(storage: storage)
+        manager.load(today: expiredDate)
+
+        manager.recordManualPickerSwitch(targetID: "com.test.current", at: today)
+
+        XCTAssertEqual(manager.dailyStats[0].manualPickerTargetCounts, [:])
+        XCTAssertEqual(manager.dailyStats[0].manualPickerSwitchCount, 1)
+    }
 }
 
 private final class FakeStatsStorage: StatsStoring {
