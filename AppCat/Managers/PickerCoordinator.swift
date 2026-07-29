@@ -26,6 +26,9 @@ final class PickerCoordinator {
     }
 
     func showPicker(state: AppState) {
+        if state.isManualPickerPresentation, !state.isPickerVisible {
+            state.manualPickerTargetCounts = statsManager?.recentManualPickerTargetCounts() ?? [:]
+        }
         if pickerController == nil {
             pickerController = PickerWindowController(appState: state, coordinator: self)
         }
@@ -129,7 +132,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch()
+                statsManager?.recordManualPickerSwitch(targetID: browser.id)
             }
             return
         }
@@ -172,10 +175,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch()
-            }
-            deferPostSelectionWork {
-                state.recordAppUsage(app.id)
+                statsManager?.recordManualPickerSwitch(targetID: app.id)
             }
             return
         }

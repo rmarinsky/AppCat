@@ -139,11 +139,6 @@ final class AppActivityMonitor {
         if activatedBundleID == Bundle.main.bundleIdentifier {
             return
         }
-        // Tally real usage: count an app each time it becomes frontmost. This is the switcher's
-        // frequency + recency signal.
-        if notificationName == NSWorkspace.didActivateApplicationNotification, let activatedBundleID {
-            appState?.recordAppActivation(activatedBundleID)
-        }
         if notificationName == NSWorkspace.didLaunchApplicationNotification
             || notificationName == NSWorkspace.didTerminateApplicationNotification
         {

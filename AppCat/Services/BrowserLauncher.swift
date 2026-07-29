@@ -300,10 +300,10 @@ final class BrowserLauncher {
             return false
         }
 
-        activateRunningApplication(runningApp, displayName: displayName)
+        let didActivate = activateRunningApplication(runningApp, displayName: displayName)
         if let appURL, dependencies.hasOpenWindows(bundleID) == false {
-            reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
-            return true
+            let didReopen = reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
+            return didActivate || didReopen
         }
 
         retryActivateIfActivationDidNotStick(
@@ -312,7 +312,7 @@ final class BrowserLauncher {
             displayName: displayName,
             reopenWindowlessWith: appURL
         )
-        return true
+        return didActivate
     }
 
     @discardableResult
@@ -361,14 +361,15 @@ final class BrowserLauncher {
         }
     }
 
+    @discardableResult
     private func reopenWindowlessApplication(
         _ app: BrowserLauncherRunningApplication,
         appURL: URL,
         displayName: String
-    ) {
+    ) -> Bool {
         Log.apps.info("Reopening \(displayName) because it is running without open windows at \(appURL.path)")
         dependencies.sendReopenEvent(app, displayName)
-        activateRunningApplication(app, displayName: displayName)
+        return activateRunningApplication(app, displayName: displayName)
     }
 
     private func activateRunningApp(bundleID: String) {

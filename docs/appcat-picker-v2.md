@@ -35,7 +35,13 @@ Content rules:
 - Running apps without windows are optional and appear dimmed when enabled.
 - Background and menu-bar apps are optional and hidden by default.
 - Settings -> Picker exclusions apply to both routing and switching pickers.
-- Sorting prefers recent app activation, then activation count, then display name.
+- Existing visibility, running, hidden, background, and windowless rules determine candidates first.
+- Candidate app groups are sorted by successful manual-picker selections from the trailing seven local
+  calendar days, then localized display name. Windows of one app remain adjacent.
+- Windowless apps remain dimmed but share the same frequency order, so a frequently selected
+  windowless app can appear before a windowed app.
+- Each manual-picker session snapshots the counts before presentation. A successful selection changes
+  the next session's order rather than moving the current keyboard focus.
 - Toggle-shortcut and service-key sessions publish a fresh Accessibility window snapshot before
   the panel appears, so newly opened windows do not arrive as a delayed in-place replacement.
 - A live `NSRunningApplication` snapshot makes newly launched apps available before the slower

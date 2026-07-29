@@ -9,6 +9,8 @@ struct DailyStats: Codable, Equatable {
     var pickerHotkeyCount: Int
     var pickerClickCount: Int
     var manualPickerSwitchCount: Int
+    /// Manual app/window picker selections keyed by lowercase bundle identifier.
+    var manualPickerTargetCounts: [String: Int]
     /// Per-rule usage counts — used to build the "Top rules" leaderboard.
     /// Capped to 50 rules per day to keep the file small.
     var rulesCounts: [UUID: Int]
@@ -21,6 +23,7 @@ struct DailyStats: Codable, Equatable {
         pickerHotkeyCount: Int = 0,
         pickerClickCount: Int = 0,
         manualPickerSwitchCount: Int = 0,
+        manualPickerTargetCounts: [String: Int] = [:],
         rulesCounts: [UUID: Int] = [:],
         secondsSaved: Int = 0
     ) {
@@ -29,6 +32,7 @@ struct DailyStats: Codable, Equatable {
         self.pickerHotkeyCount = pickerHotkeyCount
         self.pickerClickCount = pickerClickCount
         self.manualPickerSwitchCount = manualPickerSwitchCount
+        self.manualPickerTargetCounts = manualPickerTargetCounts
         self.rulesCounts = rulesCounts
         self.secondsSaved = secondsSaved
     }
@@ -40,6 +44,7 @@ struct DailyStats: Codable, Equatable {
         pickerHotkeyCount = try container.decodeIfPresent(Int.self, forKey: .pickerHotkeyCount) ?? 0
         pickerClickCount = try container.decodeIfPresent(Int.self, forKey: .pickerClickCount) ?? 0
         manualPickerSwitchCount = try container.decodeIfPresent(Int.self, forKey: .manualPickerSwitchCount) ?? 0
+        manualPickerTargetCounts = try container.decodeIfPresent([String: Int].self, forKey: .manualPickerTargetCounts) ?? [:]
         rulesCounts = try container.decodeIfPresent([UUID: Int].self, forKey: .rulesCounts) ?? [:]
         secondsSaved = try container.decodeIfPresent(Int.self, forKey: .secondsSaved) ?? 0
     }

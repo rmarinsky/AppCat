@@ -10,6 +10,7 @@ final class StatsManager {
 
     private static let maxDays = 365
     private static let maxRulesPerDay = 50
+    private static let pickerTargetRetentionDays = 7
 
     private let urlRuleMatcher = URLRuleMatcher()
     private let storage: StatsStoring
@@ -20,9 +21,12 @@ final class StatsManager {
         self.storage = storage
     }
 
-    func load() {
+    func load(today: Date = Date()) {
         let entries = storage.load()
         dailyStats = entries
+        if removeManualPickerTargetsOutsideRetentionWindow(today: today) {
+            storage.save(dailyStats)
+        }
         firstUseDate = entries.compactMap(\.date).min()
         Log.settings.debug("StatsManager loaded \(entries.count) days")
     }
@@ -64,7 +68,7 @@ final class StatsManager {
         if firstUseDate == nil { firstUseDate = entry.date }
     }
 
-    func recordManualPickerSwitch(at date: Date = Date()) {
+    func recordManualPickerSwitch(targetID: String, at date: Date = Date()) {
         let key = DailyStats.dayKey(for: date)
         var entry: DailyStats
         if let idx = dailyStats.firstIndex(where: { $0.day == key }) {
@@ -75,9 +79,11 @@ final class StatsManager {
         }
 
         entry.manualPickerSwitchCount += 1
+        entry.manualPickerTargetCounts[targetID.lowercased(), default: 0] += 1
         entry.secondsSaved += Int(TimeSavedConstants.manualPickerSwitch)
         dailyStats.append(entry)
 
+        _ = removeManualPickerTargetsOutsideRetentionWindow(today: date)
         trimAndSave()
         if firstUseDate == nil { firstUseDate = entry.date }
     }
@@ -134,6 +140,28 @@ final class StatsManager {
         storage.save(dailyStats)
     }
 
+    @discardableResult
+    private func removeManualPickerTargetsOutsideRetentionWindow(today: Date) -> Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: today)
+        guard let cutoff = calendar.date(
+            byAdding: .day,
+            value: -(Self.pickerTargetRetentionDays - 1),
+            to: today
+        ) else { return false }
+
+        var changed = false
+        for index in dailyStats.indices {
+            guard !dailyStats[index].manualPickerTargetCounts.isEmpty else { continue }
+            guard let date = dailyStats[index].date, cutoff ... today ~= date else {
+                dailyStats[index].manualPickerTargetCounts = [:]
+                changed = true
+                continue
+            }
+        }
+        return changed
+    }
+
     // MARK: - Derived metrics
 
     var secondsSavedToday: Int {
@@ -159,6 +187,21 @@ final class StatsManager {
 
     var manualPickerSwitchCountTotal: Int {
         dailyStats.reduce(0) { $0 + $1.manualPickerSwitchCount }
+    }
+
+    func recentManualPickerTargetCounts(days: Int = 7, today: Date = Date()) -> [String: Int] {
+        guard days > 0 else { return [:] }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: today)
+        guard let cutoff = calendar.date(byAdding: .day, value: -(days - 1), to: today) else { return [:] }
+
+        var counts: [String: Int] = [:]
+        for entry in dailyStats where entry.date.map({ cutoff ... today ~= $0 }) == true {
+            for (targetID, count) in entry.manualPickerTargetCounts {
+                counts[targetID.lowercased(), default: 0] += count
+            }
+        }
+        return counts
     }
 
     /// Percentage of all opens that were auto-routed by a rule (0–100).
