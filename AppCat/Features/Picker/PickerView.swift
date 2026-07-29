@@ -819,6 +819,7 @@ struct PickerView: View {
         .accessibilityLabel(item.displayName)
         .accessibilityValue(shortcut.map { String($0.key) } ?? "")
         .contentShape(Rectangle())
+        .pickerClickableCursor()
         .onHover { isHovered in
             guard isHovered, appState.isPickerVisible else { return }
             appState.focusedBrowserIndex = index
@@ -970,6 +971,9 @@ private final class HorizontalWheelScrollBridgeView: NSView {
     private func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
         guard let window, event.window === window else { return event }
         guard abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX) else { return event }
+        if event.phase == .ended || event.phase == .cancelled || event.phase == .stationary {
+            return nil
+        }
         guard let scrollView = scrollView ?? firstSuperview(of: NSScrollView.self),
               let documentView = scrollView.documentView
         else {
@@ -983,8 +987,13 @@ private final class HorizontalWheelScrollBridgeView: NSView {
         let maxX = max(0, documentView.bounds.width - visibleWidth)
         guard maxX > 1 else { return event }
 
-        let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 16
-        let deltaX = -event.scrollingDeltaY * multiplier
+        let rawDelta = event.scrollingDeltaY
+        let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 0.55 : 6
+        let clampedDelta = min(max(rawDelta, -14), 14)
+        let deltaX = -clampedDelta * multiplier
+        if abs(deltaX) < 0.35 {
+            return nil
+        }
         let current = scrollView.contentView.bounds.origin
         let nextX = min(max(current.x + deltaX, 0), maxX)
         guard nextX != current.x else { return event }
@@ -1200,5 +1209,18 @@ struct AppCell: View {
             }
         }
         .contentShape(Rectangle())
+    }
+}
+
+private extension View {
+    /// Show the pointing-hand ("link") cursor while hovering a picker tile so it reads as clickable.
+    func pickerClickableCursor() -> some View {
+        onHover { inside in
+            if inside {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
     }
 }

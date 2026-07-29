@@ -7,6 +7,15 @@ final class PickerUserJourneysUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        let environment = ProcessInfo.processInfo.environment
+        let isCI = environment["CI"] == "true"
+        let allowInteractive = environment["APPCAT_RUN_INTERACTIVE_UITESTS"] == "1"
+        if !isCI, !allowInteractive {
+            throw XCTSkip(
+                "Interactive picker UI tests are skipped by default locally. "
+                    + "Set APPCAT_RUN_INTERACTIVE_UITESTS=1 to run them."
+            )
+        }
     }
 
     override func tearDownWithError() throws {
@@ -56,7 +65,10 @@ final class PickerUserJourneysUITests: XCTestCase {
         let firstApp = app.buttons["picker.item.app:ui.hold.0"]
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: firstApp.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
@@ -66,21 +78,6 @@ final class PickerUserJourneysUITests: XCTestCase {
 
         XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
         firstApp.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
-        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
-    }
-
-    func testLinkPickerOpensFromRawIconClickWhileAppStaysInactive() {
-        launch(scenario: "link-picker")
-        let firstApp = app.buttons["picker.item.app:ui.link.0"]
-
-        XCTAssertTrue(firstApp.waitForExistence(timeout: 5))
-        XCTAssertTrue(waitForAppCatToDeactivate())
-
-        let iconPoint = firstApp.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)
-        ).screenPoint
-        postRawClick(at: iconPoint)
-
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 

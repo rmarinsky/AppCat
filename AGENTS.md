@@ -147,7 +147,7 @@ Tasks and PRDs live in GitHub Issues. Use the `gh` CLI for issue operations. The
 ### Picker Window
 
 - `KeyablePanel` (NSPanel subclass) — `canBecomeKey: true` for keyboard events on borderless panel
-- Style: `.nonactivatingPanel`, `.screenSaver` level, cross-app fullscreen collection policy, native `NSGlassEffectView` `.regular` on macOS 26+, `.hudWindow` fallback on older macOS, no panel shadow
+- Style: `.nonactivatingPanel`, interactive overlay level (`.screenSaver - 1`), cross-app fullscreen collection policy, native `NSGlassEffectView` `.regular` on macOS 26+, `.hudWindow` fallback on older macOS, no panel shadow
 - Single compact horizontal row with adaptive width, clamped to the visible screen width
 - Position: centered on cursor, shifted up 40pt, clamped to screen safe area
 

@@ -46,7 +46,7 @@ Browser/app identity is already visible through the icon, so app-switcher cells 
 ## Appearance
 
 The picker is a borderless `KeyablePanel` created once with `.fullSizeContentView`, `.borderless`,
-and `.nonactivatingPanel`. Every presentation reapplies `.screenSaver` level,
+and `.nonactivatingPanel`. Every presentation reapplies an interactive overlay level (`.screenSaver - 1`),
 `isFloatingPanel = true`, `hidesOnDeactivate = false`, and the cross-application fullscreen policy:
 `.canJoinAllSpaces`, `.canJoinAllApplications`, `.fullScreenAuxiliary`, `.stationary`, and
 `.ignoresCycle`.

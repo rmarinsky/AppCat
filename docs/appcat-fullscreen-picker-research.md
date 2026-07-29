@@ -77,7 +77,8 @@ nonactivating styles.
 
 Every `show()` reapplies:
 
-- `.screenSaver` level;
+- interactive overlay level (`.screenSaver - 1`; DTS documents `.screenSaver`, but that exact level
+  draws on top while passing mouse clicks through to the app beneath);
 - the shared five-flag collection policy;
 - `isFloatingPanel = true`;
 - `hidesOnDeactivate = false`.
@@ -89,8 +90,9 @@ The invocation-source semantic is `requiresKeyboardFocus`:
 - `true`: link/file, toggle shortcut, service key;
 - `false`: hold Option-Tab.
 
-The SwiftUI root uses a hosting-view subclass that accepts first responder. This is required for
-Escape, Return, arrows, type-ahead, and direct-selection events to reach the local monitor.
+The SwiftUI root uses a hosting-view subclass that accepts first responder and first mouse. This is
+required for Escape, Return, arrows, type-ahead, and direct mouse selection to reach the local
+monitor on the first click while AppCat remains inactive.
 
 ### Activation lifecycle and LaunchServices settling
 
@@ -127,7 +129,8 @@ Verified on the current macOS 26 machine:
 | ChatGPT manual selection after keyboard-policy fix | Native ChatGPT became frontmost in 3/3 runs |
 
 The cold fullscreen probe first observed the panel at 1.170 s. The reused probe first observed it at
-0.336 s. Both panels were at WindowServer layer 1000 and overlapped the fullscreen host.
+0.336 s. Both panels overlapped the fullscreen host; AppCat now uses an interactive level just below
+`.screenSaver` so clicks hit the picker instead of passing through the exact `.screenSaver` layer.
 
 The complete interactive matrix for all four invocation sources still needs manual execution on
 macOS 14 and 15. Compilation and unit tests are not evidence of cross-application fullscreen behavior
@@ -138,9 +141,9 @@ on those OS versions.
 Policy and behavior tests cover:
 
 - `.nonactivatingPanel` for all four invocation sources;
-- `.screenSaver` level and the common collection flags;
+- interactive overlay level (`.screenSaver - 1`) and the common collection flags;
 - focus policy for link/file, toggle, service key, and hold Option-Tab;
-- an accepting SwiftUI hosting responder;
+- an accepting SwiftUI hosting responder that accepts first mouse;
 - active-application deactivation planning, the interrupted-settling retry decision, and the
   settling interval;
 - reused hold-Option-Tab panels remaining visible without taking key focus;
@@ -157,7 +160,9 @@ machine.
 
 ## Risks and Boundaries
 
-- `.screenSaver` is intentionally high. The picker must remain transient and be ordered out on every
+- An interactive level just below `.screenSaver` keeps the panel interactive while still floating
+  above fullscreen and overlay content. Prefer this over exact `.screenSaver`, which draws on top
+  but does not receive clicks. The picker must remain transient and be ordered out on every
   completion path.
 - Protected system surfaces such as the login window are outside the supported behavior.
 - macOS 14–15 runtime behavior remains unverified until exercised in an interactive session or VM.
