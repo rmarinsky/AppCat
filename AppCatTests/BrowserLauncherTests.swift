@@ -63,6 +63,27 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testRejectedManualActivationDoesNotRecordTarget() {
+        let runningApp = FakeRunningApplication(activationResult: false)
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .serviceKey
+
+        XCTAssertTrue(coordinator.select(
+            PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: [])),
+            state: state
+        ))
+
+        XCTAssertTrue(stats.dailyStats.isEmpty)
+    }
+
+    @MainActor
     func testLinkAndFileRoutingDoNotRecordManualTargets() throws {
         let stats = StatsManager(storage: BrowserLauncherStatsStorage())
         let coordinator = PickerCoordinator(
@@ -464,20 +485,28 @@ private final class FakeRunningApplication: BrowserLauncherRunningApplication {
     private(set) var activateCount = 0
     private(set) var unhideCount = 0
     private(set) var lastActivationOptions: NSApplication.ActivationOptions?
+    private let activationResult: Bool
 
-    init(isActive: Bool = false, isTerminated: Bool = false, localizedName: String? = "Test Browser", processIdentifier: pid_t = 12345) {
+    init(
+        isActive: Bool = false,
+        isTerminated: Bool = false,
+        localizedName: String? = "Test Browser",
+        processIdentifier: pid_t = 12345,
+        activationResult: Bool = true
+    ) {
         self.isActive = isActive
         self.isTerminated = isTerminated
         self.localizedName = localizedName
         self.processIdentifier = processIdentifier
+        self.activationResult = activationResult
     }
 
     @discardableResult
     func activate(options: NSApplication.ActivationOptions) -> Bool {
         activateCount += 1
         lastActivationOptions = options
-        isActive = true
-        return true
+        isActive = activationResult
+        return activationResult
     }
 
     @discardableResult
