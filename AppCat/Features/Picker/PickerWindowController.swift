@@ -28,6 +28,15 @@ final class PickerHostingView<Content: View>: NSHostingView<Content> {
     override var acceptsFirstResponder: Bool {
         true
     }
+
+    /// The picker floats over another app as a nonactivating panel, so at click time AppCat is
+    /// often not the active application and the panel is not key. Without this, AppKit treats the
+    /// first click as a window-activation click and swallows it (or lets it fall through to the
+    /// app underneath) instead of delivering a usable mouse-down. Accepting first mouse makes the
+    /// click land on the picker on the very first press, matching keyboard/global-click handling.
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+        true
+    }
 }
 
 enum PickerPanelKeyResignAction: Equatable {
@@ -43,12 +52,14 @@ enum PickerPanelInteractionPolicy {
         .stationary,
         .ignoresCycle,
     ]
-    static let windowLevel = NSWindow.Level.screenSaver
+    // `.screenSaver` itself is non-interactive (click-through), but the level right under it keeps
+    // the picker above fullscreen/overlay content while remaining interactive.
+    static let windowLevel = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
     static let presentationActivationPolicy = NSApplication.ActivationPolicy.accessory
     static let deactivationSettlingDelay: TimeInterval = 0.15
     static let styleMask: NSWindow.StyleMask = [
         .fullSizeContentView,
-        .titled,
+        .borderless,
         .nonactivatingPanel,
     ]
 
@@ -72,15 +83,25 @@ enum PickerPanelInteractionPolicy {
         isApplicationActive || wasWaitingForDeactivation
     }
 
+    /// Making the panel key activates AppCat (needed for the local key/mouse monitors). AppCat is
+    /// only an accessory app, so it readily loses active status again — LaunchServices settling,
+    /// the previous app reclaiming focus, Mission Control, etc. When that happens the panel resigns
+    /// key even though the user never dismissed it. Tearing the picker down then is exactly what
+    /// drops it out from under an in-flight click and lets that click (and hover) reach the window
+    /// beneath. So only dismiss on a resignation that looks like a genuine click-away — the pointer
+    /// is outside the panel. While the pointer is over the panel (or during the presentation grace
+    /// period) refocus instead, which reclaims key + active so mouse events keep hitting the picker.
     static func keyResignAction(
-        isInDismissGracePeriod: Bool
+        isInDismissGracePeriod: Bool,
+        isPointerInsidePanel: Bool
     ) -> PickerPanelKeyResignAction {
-        isInDismissGracePeriod ? .refocus : .dismiss
+        (isInDismissGracePeriod || isPointerInsidePanel) ? .refocus : .dismiss
     }
 
     static func apply(to panel: NSPanel) {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
+        panel.ignoresMouseEvents = false
         panel.level = windowLevel
         panel.collectionBehavior = collectionBehavior
     }
@@ -313,10 +334,17 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard !self.isInDismissGracePeriod else { return }
+                if event.type == .leftMouseDown,
+                   self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type)
+                {
+                    // Fallback for rare click-through: if the global monitor sees a click inside
+                    // the picker hit area, route it as a picker click so selection still works.
+                    return
+                }
                 guard Self.shouldDismissForGlobalMouseDown(
                     at: NSEvent.mouseLocation,
                     panelFrame: self.panel?.frame
@@ -783,10 +811,11 @@ final class PickerWindowController: NSObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
         panel.animationBehavior = .none
         panel.isMovableByWindowBackground = false
+        // Deliver hover (mouse-moved) events to the panel so type-to-focus highlighting and the
+        // pointing-hand cursor track the pointer instead of leaking to the window underneath.
+        panel.acceptsMouseMovedEvents = true
         PickerPanelInteractionPolicy.apply(to: panel)
 
         let surfaceView = makePanelSurfaceView(frame: panelSurfaceFrame(in: NSRect(origin: .zero, size: size)))
@@ -1037,8 +1066,10 @@ extension PickerWindowController: NSWindowDelegate {
                   self.panel?.isVisible == true
             else { return }
 
+            let pointerInside = self.panel.map { $0.frame.contains(NSEvent.mouseLocation) } ?? false
             switch PickerPanelInteractionPolicy.keyResignAction(
-                isInDismissGracePeriod: self.isInDismissGracePeriod
+                isInDismissGracePeriod: self.isInDismissGracePeriod,
+                isPointerInsidePanel: pointerInside
             ) {
             case .refocus:
                 if let panel = self.panel {

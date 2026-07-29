@@ -295,11 +295,13 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerCellFocusPolicy.allowsNativeFocus)
     }
 
-    func testPickerPanelUsesTitledNonactivatingStyle() {
+    func testPickerPanelUsesBorderlessNonactivatingStyle() {
         XCTAssertTrue(PickerPanelInteractionPolicy.styleMask.contains(.nonactivatingPanel))
-        XCTAssertTrue(
+        XCTAssertTrue(PickerPanelInteractionPolicy.styleMask.contains(.fullSizeContentView))
+        XCTAssertFalse(
             PickerPanelInteractionPolicy.styleMask.contains(.titled),
-            "AppKit only honors nonactivatingPanel for titled windows"
+            "The picker must stay borderless: a titled panel inflates the frame and its content/frame "
+                + "mismatch breaks click hit-testing"
         )
     }
 
@@ -308,6 +310,10 @@ final class SmokeTests: XCTestCase {
         let hostingView = PickerHostingView(rootView: EmptyView())
 
         XCTAssertTrue(hostingView.acceptsFirstResponder)
+        XCTAssertTrue(
+            hostingView.acceptsFirstMouse(for: nil),
+            "First click on an inactive nonactivating panel must select, not activate-only"
+        )
     }
 
     func testPickerPanelUsesTheCrossApplicationFullscreenOverlayPolicy() {
@@ -331,7 +337,10 @@ final class SmokeTests: XCTestCase {
             )
             XCTAssertTrue(behavior.contains(.stationary), "\(source) must not move with Mission Control")
             XCTAssertTrue(behavior.contains(.ignoresCycle), "\(source) must stay out of window cycling")
-            XCTAssertEqual(PickerPanelInteractionPolicy.windowLevel, .screenSaver)
+            XCTAssertEqual(
+                PickerPanelInteractionPolicy.windowLevel,
+                NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
+            )
         }
     }
 
@@ -350,7 +359,7 @@ final class SmokeTests: XCTestCase {
 
         PickerPanelInteractionPolicy.apply(to: panel)
 
-        XCTAssertEqual(panel.level, .screenSaver)
+        XCTAssertEqual(panel.level, NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1))
         XCTAssertEqual(panel.collectionBehavior, PickerPanelInteractionPolicy.collectionBehavior)
         XCTAssertTrue(panel.isFloatingPanel)
         XCTAssertFalse(panel.hidesOnDeactivate)
@@ -409,16 +418,29 @@ final class SmokeTests: XCTestCase {
         )
     }
 
-    func testPickerRefocusesDuringGracePeriodAndDismissesAfterward() {
+    func testPickerRefocusesWhileInteractingAndDismissesOnClickAway() {
+        // During the presentation grace period, always refocus regardless of pointer position.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
-                isInDismissGracePeriod: true
+                isInDismissGracePeriod: true,
+                isPointerInsidePanel: false
             ),
             .refocus
         )
+        // Pointer over the panel: activation churn (LaunchServices settling, focus steal) must not
+        // tear the picker down out from under an in-flight click — refocus to reclaim key + active.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
-                isInDismissGracePeriod: false
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: true
+            ),
+            .refocus
+        )
+        // Pointer outside the panel and past the grace period: a genuine click-away, so dismiss.
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false
             ),
             .dismiss
         )
