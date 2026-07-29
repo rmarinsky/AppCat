@@ -17,6 +17,7 @@ final class StatsManagerTests: XCTestCase {
         let stats = try JSONDecoder().decode(DailyStats.self, from: data)
 
         XCTAssertEqual(stats.manualPickerSwitchCount, 0)
+        XCTAssertEqual(stats.manualPickerTargetCounts, [:])
         XCTAssertEqual(stats.secondsSaved, 19)
     }
 
