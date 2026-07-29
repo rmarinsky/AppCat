@@ -24,7 +24,7 @@ final class StatsManager {
     func load(today: Date = Date()) {
         let entries = storage.load()
         dailyStats = entries
-        if removeExpiredManualPickerTargets(today: today) {
+        if removeManualPickerTargetsOutsideRetentionWindow(today: today) {
             storage.save(dailyStats)
         }
         firstUseDate = entries.compactMap(\.date).min()
@@ -83,7 +83,7 @@ final class StatsManager {
         entry.secondsSaved += Int(TimeSavedConstants.manualPickerSwitch)
         dailyStats.append(entry)
 
-        _ = removeExpiredManualPickerTargets(today: date)
+        _ = removeManualPickerTargetsOutsideRetentionWindow(today: date)
         trimAndSave()
         if firstUseDate == nil { firstUseDate = entry.date }
     }
@@ -141,7 +141,7 @@ final class StatsManager {
     }
 
     @discardableResult
-    private func removeExpiredManualPickerTargets(today: Date) -> Bool {
+    private func removeManualPickerTargetsOutsideRetentionWindow(today: Date) -> Bool {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: today)
         guard let cutoff = calendar.date(
@@ -152,12 +152,12 @@ final class StatsManager {
 
         var changed = false
         for index in dailyStats.indices {
-            guard let date = dailyStats[index].date,
-                  date < cutoff,
-                  !dailyStats[index].manualPickerTargetCounts.isEmpty
-            else { continue }
-            dailyStats[index].manualPickerTargetCounts = [:]
-            changed = true
+            guard !dailyStats[index].manualPickerTargetCounts.isEmpty else { continue }
+            guard let date = dailyStats[index].date, cutoff ... today ~= date else {
+                dailyStats[index].manualPickerTargetCounts = [:]
+                changed = true
+                continue
+            }
         }
         return changed
     }
