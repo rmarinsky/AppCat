@@ -3,6 +3,111 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testSuccessfulManualSelectionsRecordAppAndBrowserTargets() {
+        let runningApp = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .serviceKey
+
+        XCTAssertTrue(coordinator.select(
+            PickerItem(app: makeApp(id: "Com.Test.Editor", urlSchemes: [])),
+            state: state
+        ))
+
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .toggleShortcut
+        XCTAssertTrue(coordinator.select(PickerItem(browser: makeBrowser()), state: state))
+
+        world.activateWindowTargetResult = true
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .holdOptionTab
+        let app = makeApp(id: "Com.Test.Editor", urlSchemes: [])
+        XCTAssertTrue(coordinator.select(
+            PickerItem(
+                app: app,
+                windowTarget: AppWindowTarget(bundleID: app.id, title: "Project", index: 0)
+            ),
+            state: state
+        ))
+
+        XCTAssertEqual(stats.dailyStats.first?.manualPickerTargetCounts, [
+            "com.test.browser": 1,
+            "com.test.editor": 2,
+        ])
+    }
+
+    @MainActor
+    func testFailedManualActivationDoesNotRecordTarget() {
+        let world = FakeBrowserLauncherWorld(runningApplication: nil, hasOpenWindows: nil)
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .serviceKey
+
+        XCTAssertTrue(coordinator.select(
+            PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: [])),
+            state: state
+        ))
+
+        XCTAssertTrue(stats.dailyStats.isEmpty)
+    }
+
+    @MainActor
+    func testLinkAndFileRoutingDoNotRecordManualTargets() throws {
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: FakeBrowserLauncherWorld().dependencies())
+        )
+        coordinator.statsManager = stats
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+
+        for target in [
+            try XCTUnwrap(URL(string: "https://example.com/path")),
+            URL(fileURLWithPath: "/tmp/example.txt"),
+        ] {
+            let state = AppState()
+            state.setPendingOpen(displayURLs: [target], launchURLs: [target])
+            state.isPickerVisible = true
+            state.pickerInvocationSource = .linkRouting
+
+            XCTAssertTrue(coordinator.select(PickerItem(app: app), state: state))
+        }
+
+        XCTAssertTrue(stats.dailyStats.isEmpty)
+    }
+
+    @MainActor
+    func testManualAppSelectionDoesNotIncrementRoutingUsage() async {
+        let runningApp = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        let state = AppState()
+        state.isPickerVisible = true
+        state.pickerInvocationSource = .serviceKey
+        let originalCount = state.appUsage["com.test.Editor"]?.count
+
+        XCTAssertTrue(coordinator.select(
+            PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: [])),
+            state: state
+        ))
+        try? await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertEqual(state.appUsage["com.test.Editor"]?.count, originalCount)
+    }
+
+    @MainActor
     func testPickerSelectionLaunchesChosenAppForLinksAndFiles() throws {
         let app = makeApp(id: "com.test.Editor", urlSchemes: [])
         let targets = [
@@ -265,6 +370,11 @@ final class BrowserLauncherTests: XCTestCase {
     }
 }
 
+private final class BrowserLauncherStatsStorage: StatsStoring {
+    func save(_: [DailyStats]) {}
+    func load() -> [DailyStats] { [] }
+}
+
 @MainActor
 private final class FakeBrowserLauncherWorld {
     struct OpenedURLs {
@@ -283,6 +393,7 @@ private final class FakeBrowserLauncherWorld {
     var openedURLs: [OpenedURLs] = []
     var reopenEvents: [String] = []
     var executableRuns: [ExecutableRun] = []
+    var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
     init(runningApplication: FakeRunningApplication? = nil, hasOpenWindows: Bool? = nil) {
@@ -292,7 +403,7 @@ private final class FakeBrowserLauncherWorld {
 
     func dependencies() -> BrowserLauncher.Dependencies {
         BrowserLauncher.Dependencies(
-            activateWindowTarget: { _ in false },
+            activateWindowTarget: { [weak self] _ in self?.activateWindowTargetResult == true },
             runningApplication: { [weak self] _ in self?.runningApplication },
             hasOpenWindows: { [weak self] _ in self?.hasOpenWindows },
             openURLs: { [weak self] urls, appURL, configuration, completion in

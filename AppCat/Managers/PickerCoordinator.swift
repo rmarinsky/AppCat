@@ -174,9 +174,6 @@ final class PickerCoordinator {
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: app.id)
             }
-            deferPostSelectionWork {
-                state.recordAppUsage(app.id)
-            }
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
