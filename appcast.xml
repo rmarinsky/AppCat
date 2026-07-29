@@ -112,5 +112,17 @@
       length="4157566"
       type="application/octet-stream" />
   </item>
+      <item>
+    <title>Version 2.2.0</title>
+    <pubDate>Wed, 29 Jul 2026 15:08:45 +0000</pubDate>
+    <sparkle:version>113</sparkle:version>
+    <sparkle:shortVersionString>2.2.0</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+      url="https://github.com/rmarinsky/AppCat/releases/download/v2.2.0/AppCat-2.2.0.dmg"
+      sparkle:edSignature="SFwigKZz/+wM65rPoJ2LzhslZvULqE6jE67GYTgwsYX7o1xD//y670OFe66cputIyeWWETvG6BYtKQsk19TIDQ=="
+      length="4160934"
+      type="application/octet-stream" />
+  </item>
   </channel>
 </rss>
