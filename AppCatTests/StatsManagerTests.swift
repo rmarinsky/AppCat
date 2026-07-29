@@ -32,13 +32,14 @@ final class StatsManagerTests: XCTestCase {
             hour: 12
         ).date!
 
-        manager.recordManualPickerSwitch(at: date)
-        manager.recordManualPickerSwitch(at: date)
+        manager.recordManualPickerSwitch(targetID: "Com.Test.Editor", at: date)
+        manager.recordManualPickerSwitch(targetID: "com.test.editor", at: date)
 
         let entry = manager.dailyStats.first
         XCTAssertEqual(manager.dailyStats.count, 1)
         XCTAssertEqual(entry?.day, DailyStats.dayKey(for: date))
         XCTAssertEqual(entry?.manualPickerSwitchCount, 2)
+        XCTAssertEqual(entry?.manualPickerTargetCounts, ["com.test.editor": 2])
         XCTAssertEqual(entry?.secondsSaved, 2)
         XCTAssertEqual(manager.manualPickerSwitchCountTotal, 2)
         XCTAssertEqual(manager.secondsSavedTotal, 2)

@@ -64,7 +64,7 @@ final class StatsManager {
         if firstUseDate == nil { firstUseDate = entry.date }
     }
 
-    func recordManualPickerSwitch(at date: Date = Date()) {
+    func recordManualPickerSwitch(targetID: String, at date: Date = Date()) {
         let key = DailyStats.dayKey(for: date)
         var entry: DailyStats
         if let idx = dailyStats.firstIndex(where: { $0.day == key }) {
@@ -75,6 +75,7 @@ final class StatsManager {
         }
 
         entry.manualPickerSwitchCount += 1
+        entry.manualPickerTargetCounts[targetID.lowercased(), default: 0] += 1
         entry.secondsSaved += Int(TimeSavedConstants.manualPickerSwitch)
         dailyStats.append(entry)
 

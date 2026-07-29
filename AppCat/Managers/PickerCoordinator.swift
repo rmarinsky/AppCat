@@ -129,7 +129,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch()
+                statsManager?.recordManualPickerSwitch(targetID: browser.id)
             }
             return
         }
@@ -172,7 +172,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch()
+                statsManager?.recordManualPickerSwitch(targetID: app.id)
             }
             deferPostSelectionWork {
                 state.recordAppUsage(app.id)
