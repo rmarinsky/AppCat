@@ -87,6 +87,30 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testManualPickerUsageSnapshotRefreshesOnlyForNextSession() {
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        stats.recordManualPickerSwitch(targetID: "com.test.editor")
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: FakeBrowserLauncherWorld().dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        state.pickerInvocationSource = .serviceKey
+
+        coordinator.showPicker(state: state)
+        XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 1])
+
+        stats.recordManualPickerSwitch(targetID: "com.test.editor")
+        XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 1])
+
+        coordinator.dismissPicker(state: state)
+        state.pickerInvocationSource = .serviceKey
+        coordinator.showPicker(state: state)
+        XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 2])
+        coordinator.dismissPicker(state: state)
+    }
+
+    @MainActor
     func testManualAppSelectionDoesNotIncrementRoutingUsage() async {
         let runningApp = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)

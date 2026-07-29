@@ -1482,7 +1482,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testManualPickerGroupsWindowedBeforeWindowlessAndTagsThem() {
+    func testManualPickerIntermixesWindowlessAppsByFrequencyAndTagsThem() {
         let windowedApp = makeApp(id: "test.win", displayName: "Windowed")
         let idleApp = makeApp(id: "test.idle", displayName: "Idle")
         let windows = [AppWindowTarget(bundleID: windowedApp.id, title: "Project", index: 0)]
@@ -1495,14 +1495,15 @@ final class SmokeTests: XCTestCase {
             appUsage: [:],
             runningBundleIDs: [windowedApp.id, idleApp.id],
             windowsByAppID: [windowedApp.id: windows],
+            manualPickerTargetCounts: [idleApp.id: 10, windowedApp.id: 1],
             regularBundleIDs: [windowedApp.id, idleApp.id]
         )
 
-        XCTAssertEqual(items.map(\.id), ["app:test.win", "app:test.idle"])
-        XCTAssertTrue(items[0].hasOpenWindows)
-        XCTAssertFalse(items[0].isBackgroundRunning)
-        XCTAssertFalse(items[1].hasOpenWindows)
-        XCTAssertTrue(items[1].isBackgroundRunning)
+        XCTAssertEqual(items.map(\.id), ["app:test.idle", "app:test.win"])
+        XCTAssertFalse(items[0].hasOpenWindows)
+        XCTAssertTrue(items[0].isBackgroundRunning)
+        XCTAssertTrue(items[1].hasOpenWindows)
+        XCTAssertFalse(items[1].isBackgroundRunning)
     }
 
     @MainActor
@@ -1527,7 +1528,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testManualPickerSortsByActivationRecencyThenFrequency() {
+    func testManualPickerSortsByRecentPickerFrequencyThenName() {
         let a = makeApp(id: "test.a", displayName: "A")
         let b = makeApp(id: "test.b", displayName: "B")
         let c = makeApp(id: "test.c", displayName: "C")
@@ -1543,16 +1544,56 @@ final class SmokeTests: XCTestCase {
             appUsage: [:],
             runningBundleIDs: [a.id, b.id, c.id],
             windowsByAppID: [a.id: window(a.id), b.id: window(b.id), c.id: window(c.id)],
-            activations: [
-                a.id: AppUsage(count: 5, lastUsed: Date(timeIntervalSince1970: 9000)),
-                b.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 1000)),
-                c.id: AppUsage(count: 10, lastUsed: Date(timeIntervalSince1970: 2000)),
-            ],
+            manualPickerTargetCounts: [a.id: 5, b.id: 10, c.id: 10],
             regularBundleIDs: [a.id, b.id, c.id]
         )
 
-        // recency desc first (a newest), then count desc (c before b when both are older).
-        XCTAssertEqual(items.map(\.id), ["app:test.a", "app:test.c", "app:test.b"])
+        XCTAssertEqual(items.map(\.id), ["app:test.b", "app:test.c", "app:test.a"])
+    }
+
+    @MainActor
+    func testManualPickerKeepsWindowsOfRankedAppTogether() {
+        let editor = makeApp(id: "test.editor", displayName: "Editor")
+        let browser = makeApp(id: "test.browser", displayName: "Browser")
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [browser, editor],
+            appUsage: [:],
+            runningBundleIDs: [browser.id, editor.id],
+            windowsByAppID: [
+                editor.id: [
+                    AppWindowTarget(bundleID: editor.id, title: "Editor One", index: 0),
+                    AppWindowTarget(bundleID: editor.id, title: "Editor Two", index: 1),
+                ],
+                browser.id: [AppWindowTarget(bundleID: browser.id, title: "Browser", index: 0)],
+            ],
+            manualPickerTargetCounts: [editor.id: 5, browser.id: 2],
+            regularBundleIDs: [browser.id, editor.id]
+        )
+
+        XCTAssertEqual(items.map(\.displayName), ["Editor One", "Editor Two", "Browser"])
+    }
+
+    @MainActor
+    func testHistoricalTargetsDoNotCreateOrRestorePickerItems() {
+        let shown = makeApp(id: "test.shown", displayName: "Shown")
+        let hidden = makeApp(id: "test.hidden", displayName: "Hidden")
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: [shown, hidden],
+            appUsage: [:],
+            runningBundleIDs: [shown.id, hidden.id],
+            windowsByAppID: [:],
+            manualPickerTargetCounts: ["test.stopped": 100, hidden.id: 90, shown.id: 1],
+            regularBundleIDs: [shown.id, hidden.id],
+            hiddenAppIDs: [hidden.id]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.shown"])
     }
 
     @MainActor

@@ -1,19 +1,11 @@
 import Foundation
 
-/// Unified file-backed store for `[String: AppUsage]` dictionaries. Two shared instances
-/// cover the two independent usage signals: `AppUsageFileStore.usage` for file-routing frequency
-/// (counts how often AppCat opens a URL in a given app) and `AppUsageFileStore.activations` for
-/// system-activation frequency (counts how often an app becomes frontmost — the switcher's sort signal).
+/// File-backed routing frequency: how often AppCat opens a URL in a given app.
 final class AppUsageFileStore {
     static let usage = AppUsageFileStore(
         file: ConfigDirectory.appUsage,
         queueLabel: "ua.com.rmarinsky.appcat.appusage-io"
     )
-    static let activations = AppUsageFileStore(
-        file: ConfigDirectory.appActivations,
-        queueLabel: "ua.com.rmarinsky.appcat.appactivations-io"
-    )
-
     private let file: URL
     private let ioQueue: DispatchQueue
 

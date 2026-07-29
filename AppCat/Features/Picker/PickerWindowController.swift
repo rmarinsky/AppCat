@@ -558,7 +558,7 @@ final class PickerWindowController: NSObject {
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
-            activations: appState.appActivations,
+            manualPickerTargetCounts: appState.manualPickerTargetCounts,
             regularBundleIDs: appState.regularAppBundleIDs,
             runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,

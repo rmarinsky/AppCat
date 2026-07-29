@@ -26,6 +26,9 @@ final class PickerCoordinator {
     }
 
     func showPicker(state: AppState) {
+        if state.isManualPickerPresentation, !state.isPickerVisible {
+            state.manualPickerTargetCounts = statsManager?.recentManualPickerTargetCounts() ?? [:]
+        }
         if pickerController == nil {
             pickerController = PickerWindowController(appState: state, coordinator: self)
         }

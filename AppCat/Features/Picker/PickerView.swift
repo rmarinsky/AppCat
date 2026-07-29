@@ -206,7 +206,7 @@ struct PickerItem: Identifiable {
         appUsage: [String: AppUsage],
         runningBundleIDs providedRunningBundleIDs: Set<String>? = nil,
         windowsByAppID providedWindowsByAppID: [String: [AppWindowTarget]]? = nil,
-        activations: [String: AppUsage] = [:],
+        manualPickerTargetCounts: [String: Int] = [:],
         regularBundleIDs: Set<String>? = nil,
         runningAppsByBundleID: [String: InstalledApp] = [:],
         showWindowlessApps: Bool = true,
@@ -229,7 +229,7 @@ struct PickerItem: Identifiable {
                 runningBundleIDs: runningBundleIDs,
                 regularBundleIDs: regularBundleIDs,
                 windowsByAppID: windowsByAppID,
-                activations: activations,
+                manualPickerTargetCounts: manualPickerTargetCounts,
                 runningAppsByBundleID: runningAppsByBundleID.filter { !hiddenAppIDs.contains($0.key) },
                 showWindowlessApps: showWindowlessApps,
                 showBackgroundApps: showBackgroundApps
@@ -276,7 +276,7 @@ struct PickerItem: Identifiable {
         runningBundleIDs: Set<String>,
         regularBundleIDs: Set<String>?,
         windowsByAppID: [String: [AppWindowTarget]],
-        activations: [String: AppUsage],
+        manualPickerTargetCounts: [String: Int],
         runningAppsByBundleID: [String: InstalledApp],
         showWindowlessApps: Bool,
         showBackgroundApps: Bool
@@ -361,22 +361,22 @@ struct PickerItem: Identifiable {
             ))
         }
 
-        /// Most-recent first, usage count as tiebreak, then name for a stable order among never-used apps.
+        /// Recent picker frequency first, then name and id for deterministic ties.
         func before(_ x: Entry, _ y: Entry) -> Bool {
-            let rx = activations[x.id], ry = activations[y.id]
-            let dx = rx?.lastUsed ?? .distantPast, dy = ry?.lastUsed ?? .distantPast
-            if dx != dy { return dx > dy }
-            let cx = rx?.count ?? 0, cy = ry?.count ?? 0
+            let cx = manualPickerTargetCounts[x.id.lowercased()] ?? 0
+            let cy = manualPickerTargetCounts[y.id.lowercased()] ?? 0
             if cx != cy { return cx > cy }
-            return x.name.localizedCaseInsensitiveCompare(y.name) == .orderedAscending
+            let nameOrder = x.name.localizedCaseInsensitiveCompare(y.name)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            return x.id.localizedCaseInsensitiveCompare(y.id) == .orderedAscending
         }
 
-        let windowed = entries.filter(\.hasWindows).sorted(by: before)
-        let windowless = showWindowlessApps ? entries.filter { !$0.hasWindows }.sorted(by: before) : []
-
-        let windowedItems = windowed.flatMap(\.items).map { tagged($0, hasOpenWindows: true, isBackground: false) }
-        let windowlessItems = windowless.flatMap(\.items).map { tagged($0, hasOpenWindows: false, isBackground: true) }
-        return dedupedForDisplay(windowedItems + windowlessItems)
+        let visibleEntries = showWindowlessApps ? entries : entries.filter(\.hasWindows)
+        return dedupedForDisplay(visibleEntries.sorted(by: before).flatMap { entry in
+            entry.items.map {
+                tagged($0, hasOpenWindows: entry.hasWindows, isBackground: !entry.hasWindows)
+            }
+        })
     }
 
     /// Safety net: never render two switcher tiles that read identically (see `switcherDedupeKey`).
@@ -684,7 +684,7 @@ struct PickerView: View {
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
-            activations: appState.appActivations,
+            manualPickerTargetCounts: appState.manualPickerTargetCounts,
             regularBundleIDs: appState.regularAppBundleIDs,
             runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
