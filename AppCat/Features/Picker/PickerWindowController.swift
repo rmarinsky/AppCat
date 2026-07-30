@@ -204,7 +204,10 @@ final class PickerWindowController: NSObject {
 
         buildPanelIfNeeded(size: targetSize)
 
-        guard let panel else { return }
+        guard let panel else {
+            appState.isPickerPresentationPending = false
+            return
+        }
         PickerPanelInteractionPolicy.apply(to: panel)
         resizePanelIfNeeded(panel, to: targetSize)
         // A pre-warmed or reused panel may carry stale layer state, so re-apply on every show.
@@ -233,8 +236,18 @@ final class PickerWindowController: NSObject {
         }
     }
 
+    /// Re-assert fullscreen-safe policy, position under the cursor, and z-order (hold-⌥Tab steps).
+    func reassertVisibility() {
+        guard !isClosing, appState.isPickerSessionActive, let panel else { return }
+        PickerPanelInteractionPolicy.apply(to: panel)
+        let screen = screenNearCursor()
+        resizePanelIfNeeded(panel, to: panelSize(for: screen))
+        positionPanel(panel, on: screen)
+        panel.orderFrontRegardless()
+    }
+
     private func presentPanelAfterDeactivation() {
-        guard !isClosing, appState.isPickerVisible, let panel else { return }
+        guard !isClosing, appState.isPickerSessionActive, let panel else { return }
         guard !NSApp.isActive else {
             // LaunchServices can briefly reactivate AppCat during the settling interval. Re-arm
             // the deactivation wait instead of abandoning a visible picker session with no panel.
@@ -245,6 +258,8 @@ final class PickerWindowController: NSObject {
 
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
         panel.orderFrontRegardless()
+        appState.isPickerVisible = true
+        appState.isPickerPresentationPending = false
         focusPanel(panel)
 
         installMonitors()
@@ -253,7 +268,7 @@ final class PickerWindowController: NSObject {
     }
 
     private func waitForApplicationDeactivationBeforePresenting() {
-        guard !isClosing, appState.isPickerVisible else { return }
+        guard !isClosing, appState.isPickerSessionActive else { return }
         installPresentationDeactivationObserver()
         NSApp.deactivate()
         if !NSApp.isActive {
@@ -309,6 +324,7 @@ final class PickerWindowController: NSObject {
         ignoreDismissUntil = .distantPast
         clearTypeAheadBuffer()
         appState.isPickerVisible = false
+        appState.isPickerPresentationPending = false
         appState.clearPendingOpen()
         appState.pickerInvocationSource = .linkRouting
         appState.pickerItemsSnapshot = []
@@ -616,7 +632,7 @@ final class PickerWindowController: NSObject {
     /// is on screen. Skips churn when the visible list is unchanged; otherwise keeps the user's
     /// focused tile by remapping the focus index by item id, then re-fits the panel.
     func refreshSnapshotForVisibleSession() {
-        guard appState.isPickerVisible,
+        guard appState.isPickerSessionActive,
               appState.pickerInvocationSource.refreshesLiveSnapshot,
               !isClosing
         else { return }
@@ -647,15 +663,19 @@ final class PickerWindowController: NSObject {
     }
 
     func moveFocusForVisibleSession(delta: Int) {
-        guard appState.isPickerVisible else { return }
+        guard appState.isPickerSessionActive else { return }
         clearTypeAheadBuffer()
         moveFocusWrapping(delta, itemCount: itemCountForFocusNavigation())
     }
 
     func openFocusedItemForVisibleSession() {
-        guard appState.isPickerVisible else { return }
+        guard appState.isPickerSessionActive else { return }
         let items = pickerItemsForCurrentSession()
-        guard items.indices.contains(appState.focusedBrowserIndex) else { return }
+        guard items.indices.contains(appState.focusedBrowserIndex) else {
+            // Hold Option-release (and toggle confirm) must not leave an empty/OOB session stuck.
+            coordinator.dismissPicker(state: appState)
+            return
+        }
         coordinator.select(items[appState.focusedBrowserIndex], state: appState, source: .pickerHotkey)
     }
 

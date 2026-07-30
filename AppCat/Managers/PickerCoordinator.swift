@@ -26,22 +26,23 @@ final class PickerCoordinator {
     }
 
     func showPicker(state: AppState) {
-        if state.isManualPickerPresentation, !state.isPickerVisible {
+        if state.isManualPickerPresentation, !state.isPickerSessionActive {
             state.manualPickerTargetCounts = statsManager?.recentManualPickerTargetCounts() ?? [:]
         }
         if pickerController == nil {
             pickerController = PickerWindowController(appState: state, coordinator: self)
         }
-        // Mark visible before ordering front: the SwiftUI content's onAppear gates its focus/
-        // snapshot seeding on this flag (to stay inert during pre-warm) and can fire mid-show().
-        state.isPickerVisible = true
+        // Mark presentation pending before ordering front. `isPickerVisible` flips true only after
+        // a successful orderFront so Dock reopen is not blocked during the deactivation wait.
+        // Snapshot/focus seeding happens inside show() and does not depend on isPickerVisible.
+        state.isPickerPresentationPending = true
         pickerController?.show()
     }
 
     /// Build the picker panel + SwiftUI hierarchy ahead of time (ordered out) so the first real
     /// presentation doesn't pay window/view-graph construction on the click-to-picker path.
     func prewarmPicker(state: AppState) {
-        guard pickerController == nil, !state.isPickerVisible else { return }
+        guard pickerController == nil, !state.isPickerSessionActive else { return }
         pickerController = PickerWindowController(appState: state, coordinator: self)
         pickerController?.prewarm()
     }
@@ -51,14 +52,25 @@ final class PickerCoordinator {
         pickerController?.refreshSnapshotForVisibleSession()
     }
 
+    /// Re-assert fullscreen-safe policy, position, and z-order without rebuilding the session.
+    func reassertPickerVisibility(state: AppState) {
+        guard state.isPickerSessionActive else { return }
+        pickerController?.reassertVisibility()
+    }
+
     func moveFocus(delta: Int, state: AppState) {
-        guard state.isPickerVisible else { return }
+        guard state.isPickerSessionActive else { return }
         pickerController?.moveFocusForVisibleSession(delta: delta)
     }
 
     func openFocusedItem(state: AppState) {
-        guard state.isPickerVisible else { return }
-        pickerController?.openFocusedItemForVisibleSession()
+        guard state.isPickerSessionActive else { return }
+        guard let pickerController else {
+            // No panel backing the session — clear stuck empty/OOB state.
+            dismissPicker(state: state)
+            return
+        }
+        pickerController.openFocusedItemForVisibleSession()
     }
 
     func dismissPicker(state: AppState) {
@@ -68,6 +80,7 @@ final class PickerCoordinator {
         // otherwise block main-window opens and Dock-icon reopen forever. Double-clear is
         // idempotent for the controller-backed path.
         state.isPickerVisible = false
+        state.isPickerPresentationPending = false
         state.clearPendingOpen()
         state.pickerInvocationSource = .linkRouting
         state.pickerItemsSnapshot = []
@@ -92,7 +105,7 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) -> Bool {
-        guard state.isPickerVisible else { return false }
+        guard state.isPickerSessionActive else { return false }
 
         if let app = item.app {
             openURL(

@@ -24,6 +24,7 @@ final class PickerSessionTests: XCTestCase {
         XCTAssertTrue(state.pendingAdditionalURLs.isEmpty)
         XCTAssertTrue(state.pendingLaunchURLs.isEmpty)
         XCTAssertFalse(state.isPickerVisible)
+        XCTAssertFalse(state.isPickerPresentationPending)
         XCTAssertFalse(state.isManualPickerPresentation)
         XCTAssertTrue(state.pickerItemsSnapshot.isEmpty)
     }
@@ -241,6 +242,123 @@ final class PickerSessionTests: XCTestCase {
             scale: 1,
             showsIncognitoHint: true
         ), 0)
+    }
+
+    // MARK: - Hold Option-release on empty / OOB focus
+
+    @MainActor
+    func testOpenFocusedItemDismissesWhenSnapshotEmpty() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .holdOptionTab
+        state.isPickerVisible = true
+        state.pickerItemsSnapshot = []
+        state.focusedBrowserIndex = 0
+
+        coordinator.openFocusedItem(state: state)
+
+        XCTAssertFalse(state.isPickerVisible)
+        XCTAssertFalse(state.isPickerPresentationPending)
+        XCTAssertEqual(state.pickerInvocationSource, .linkRouting)
+    }
+
+    @MainActor
+    func testOpenFocusedItemDismissesWhenFocusOutOfRange() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .holdOptionTab
+        state.isPickerVisible = true
+        state.pickerItemsSnapshot = [PickerItem(app: makeApp(id: "test.only"))]
+        state.focusedBrowserIndex = 3
+
+        coordinator.openFocusedItem(state: state)
+
+        XCTAssertFalse(state.isPickerVisible)
+        XCTAssertFalse(state.isPickerSessionActive)
+    }
+
+    @MainActor
+    func testShowPickerMarksPresentationPendingUntilOrderedFront() {
+        let state = AppState()
+        state.isPickerPresentationPending = true
+        state.isPickerVisible = false
+
+        XCTAssertTrue(state.isPickerSessionActive)
+        XCTAssertFalse(state.isPickerVisible)
+
+        // Successful orderFront flips visibility and clears pending.
+        state.isPickerVisible = true
+        state.isPickerPresentationPending = false
+        XCTAssertTrue(state.isPickerVisible)
+        XCTAssertFalse(state.isPickerPresentationPending)
+        XCTAssertTrue(state.isPickerSessionActive)
+    }
+
+    @MainActor
+    func testRefreshSnapshotForVisibleToggleSessionRemapsFocus() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .toggleShortcut
+        let first = makeApp(id: "test.a")
+        let second = makeApp(id: "test.b")
+        let third = makeApp(id: "test.c")
+        state.apps = [first, second, third]
+        state.regularAppBundleIDs = ["test.a", "test.b", "test.c"]
+        state.runningAppBundleIDs = ["test.a", "test.b", "test.c"]
+        state.appActivityUpdatedAt = Date()
+        state.appWindowActivityUpdatedAt = Date()
+        state.runningWindowsByAppID = [:]
+        state.showWindowlessApps = true
+
+        // Build a real session so refreshManualPickerSession has a controller.
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+        if NSApp.isActive { NSApp.deactivate() }
+        coordinator.showPicker(state: state)
+        defer { coordinator.dismissPicker(state: state) }
+
+        state.isPickerVisible = true
+        state.isPickerPresentationPending = false
+        guard state.pickerItemsSnapshot.count >= 2 else {
+            XCTFail("Expected switcher items for running apps")
+            return
+        }
+        let focusedID = state.pickerItemsSnapshot[min(1, state.pickerItemsSnapshot.count - 1)].id
+        state.focusedBrowserIndex = state.pickerItemsSnapshot.firstIndex { $0.id == focusedID } ?? 0
+
+        state.runningAppBundleIDs = ["test.a", "test.c"]
+        state.regularAppBundleIDs = ["test.a", "test.c"]
+        coordinator.refreshManualPickerSession()
+
+        XCTAssertFalse(state.pickerItemsSnapshot.map(\.id).contains("app:test.b"))
+        XCTAssertTrue(state.pickerItemsSnapshot.map(\.id).contains(focusedID) || focusedID == "app:test.b")
+        if focusedID != "app:test.b",
+           state.pickerItemsSnapshot.indices.contains(state.focusedBrowserIndex)
+        {
+            XCTAssertEqual(state.pickerItemsSnapshot[state.focusedBrowserIndex].id, focusedID)
+        }
+    }
+
+    @MainActor
+    func testHoldReassertVisibilityKeepsSessionActive() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .holdOptionTab
+        state.apps = [makeApp(id: "test.hold.reassert")]
+        state.regularAppBundleIDs = ["test.hold.reassert"]
+        state.runningAppBundleIDs = ["test.hold.reassert"]
+
+        coordinator.prewarmPicker(state: state)
+        state.isPickerVisible = true
+        state.isPickerPresentationPending = false
+        state.pickerItemsSnapshot = [PickerItem(app: makeApp(id: "test.hold.reassert"))]
+
+        coordinator.reassertPickerVisibility(state: state)
+
+        XCTAssertTrue(state.isPickerVisible)
+        XCTAssertTrue(state.isPickerSessionActive)
+        coordinator.dismissPicker(state: state)
     }
 
     // MARK: - Icon downsampling

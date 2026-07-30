@@ -24,5 +24,14 @@ final class TapSequenceCounterTests: XCTestCase {
         XCTAssertFalse(counter.registerTap(at: 10.8, requiredCount: 2, interval: 0.45))
         XCTAssertEqual(counter.count, 1)
     }
+
+    func testTapSequenceReportsInProgressWithinInterval() {
+        var counter = TapSequenceCounter()
+
+        XCTAssertFalse(counter.isSequenceInProgress(at: 10, interval: 0.45))
+        XCTAssertFalse(counter.registerTap(at: 10, requiredCount: 2, interval: 0.45))
+        XCTAssertTrue(counter.isSequenceInProgress(at: 10.2, interval: 0.45))
+        XCTAssertFalse(counter.isSequenceInProgress(at: 10.8, interval: 0.45))
+    }
 }
 

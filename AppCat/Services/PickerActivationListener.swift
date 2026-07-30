@@ -16,6 +16,8 @@ final class PickerActivationListener {
     private var serviceTapCounter = TapSequenceCounter()
     private var holdSessionActive = false
     private var settings: PickerActivationSettings = .defaultValue
+    /// When true, hold/service callbacks run inline (unit tests). Production taps stay async.
+    private var deliversCallbacksSynchronouslyForTesting = false
 
     deinit {
         stop()
@@ -23,11 +25,19 @@ final class PickerActivationListener {
 
     func refresh(settings: PickerActivationSettings) {
         self.settings = settings
+        deliversCallbacksSynchronouslyForTesting = false
         if settings.needsEventTap {
             start()
         } else {
             stop()
         }
+    }
+
+    /// Unit tests drive `handle` directly without installing a session event tap.
+    func configureForDirectHandleTesting(settings: PickerActivationSettings) {
+        stop()
+        self.settings = settings
+        deliversCallbacksSynchronouslyForTesting = true
     }
 
     func start() {
@@ -116,7 +126,7 @@ final class PickerActivationListener {
 
         holdSessionActive = true
         let delta = flags.contains(.maskShift) ? -1 : 1
-        DispatchQueue.main.async { [onHoldStep] in
+        emitCallback { [onHoldStep] in
             onHoldStep?(delta)
         }
         return true
@@ -125,8 +135,16 @@ final class PickerActivationListener {
     private func handleHoldFlagsChanged(_ flags: CGEventFlags) {
         guard holdSessionActive, !flags.contains(.maskAlternate) else { return }
         holdSessionActive = false
-        DispatchQueue.main.async { [onHoldRelease] in
+        emitCallback { [onHoldRelease] in
             onHoldRelease?()
+        }
+    }
+
+    private func emitCallback(_ body: @escaping () -> Void) {
+        if deliversCallbacksSynchronouslyForTesting {
+            body()
+        } else {
+            DispatchQueue.main.async(execute: body)
         }
     }
 
@@ -145,19 +163,27 @@ final class PickerActivationListener {
     }
 
     private func registerServiceTap(event: CGEvent) -> Bool {
-        guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return true }
+        // Pass autorepeat through so holding Escape/Caps Lock is not stolen while idle.
+        guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return false }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let interval = settings.serviceTapInterval
+        let inProgress = serviceTapCounter.isSequenceInProgress(at: now, interval: interval)
 
         let didComplete = serviceTapCounter.registerTap(
-            at: ProcessInfo.processInfo.systemUptime,
+            at: now,
             requiredCount: settings.serviceTapCount.rawValue,
-            interval: settings.serviceTapInterval
+            interval: interval
         )
         if didComplete {
-            DispatchQueue.main.async { [onServiceKeyTrigger] in
+            emitCallback { [onServiceKeyTrigger] in
                 onServiceKeyTrigger?()
             }
+            return true
         }
-        return true
+        // Cold first tap of a multi-tap sequence: count it but pass the key through.
+        // Follow-ups within the interval (and any tap during an active hold) are swallowed.
+        return inProgress || holdSessionActive
     }
 }
 

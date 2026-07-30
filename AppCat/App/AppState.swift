@@ -18,6 +18,9 @@ final class AppState {
     var apps: [InstalledApp] = []
     var lastOpenedURL: String?
     var isPickerVisible: Bool = false
+    /// True after `showPicker` starts and before the panel is ordered front (deactivation wait).
+    /// Dock reopen and scheduled main-window opens key off `isPickerVisible` only.
+    var isPickerPresentationPending: Bool = false
     var isDefaultBrowser: Bool = false
     var isDefaultWebFileHandler: Bool = false
     var isSettingDefaultBrowser: Bool = false
@@ -70,6 +73,11 @@ final class AppState {
 
     var isManualPickerPresentation: Bool {
         pickerInvocationSource.isManualPresentation
+    }
+
+    /// Session started (possibly still waiting to order front) or already on screen.
+    var isPickerSessionActive: Bool {
+        isPickerVisible || isPickerPresentationPending
     }
 
     var showsPickerIncognitoHint: Bool {

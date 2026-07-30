@@ -19,6 +19,9 @@ final class AppActivityMonitor {
     /// may be stale (e.g. a freshly installed app was just started for the first time).
     var onAppListChanged: (@MainActor () -> Void)?
 
+    /// Fired when a live window snapshot lands while a toggle/service picker session can consume it.
+    var onManualPickerNeedsRefresh: (@MainActor () -> Void)?
+
     init(appState: AppState) {
         self.appState = appState
     }
@@ -172,10 +175,12 @@ final class AppActivityMonitor {
     }
 
     private func scheduleWindowRefresh(after delay: TimeInterval) {
-        // The picker renders from a snapshot seeded at show time, not from live
-        // `runningWindowsByAppID`, so there is no consumer for a refresh while it is visible —
-        // skip it to avoid churn during picker interaction.
-        if appState?.isPickerVisible == true { return }
+        // Hold/link sessions freeze their snapshot; toggle/service keep consuming live refreshes.
+        if appState?.isPickerSessionActive == true,
+           appState?.pickerInvocationSource.refreshesLiveSnapshot != true
+        {
+            return
+        }
 
         windowRefreshTask?.cancel()
         windowRefreshTask = Task { @MainActor [weak self] in
@@ -214,6 +219,11 @@ final class AppActivityMonitor {
                 appState.runningWindowsByAppID = windows
                 appState.appWindowActivityUpdatedAt = Date()
                 self.windowEnumerationTask = nil
+                if appState.isPickerSessionActive,
+                   appState.pickerInvocationSource.refreshesLiveSnapshot
+                {
+                    self.onManualPickerNeedsRefresh?()
+                }
                 completion?()
             }
         }
