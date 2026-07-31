@@ -97,19 +97,30 @@ struct ShortcutsSettingsView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 220)
                 }
+            }
+            if appState.pickerActivationSettings.needsEventTap,
+               !PickerActivationPermission.hasInputMonitoring
+            {
                 divider
-                shortcutRow(
-                    String(localized: "Input Monitoring"),
-                    subtitle: String(localized: "Required for hold-to-switch and service-key taps.")
-                ) {
-                    Button(String(localized: "Open Settings")) {
+                permissionBanner(
+                    title: String(localized: "Input Monitoring"),
+                    subtitle: String(localized: "Required for hold-to-switch and service-key taps."),
+                    action: {
                         PickerActivationPermission.requestInputMonitoring()
                         PickerActivationPermission.openInputMonitoringSettings()
                         appState.refreshPickerActivationSettings()
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+                )
+            }
+            if !PickerActivationPermission.hasAccessibility {
+                divider
+                permissionBanner(
+                    title: String(localized: "Accessibility"),
+                    subtitle: String(localized: "Grant Accessibility to see open windows and projects in the switcher."),
+                    action: {
+                        PickerActivationPermission.openAccessibilitySettings()
+                    }
+                )
             }
             divider
             shortcutRow(String(localized: "Re-open last picker")) {
@@ -164,10 +175,40 @@ struct ShortcutsSettingsView: View {
     }
 
     private func requestInputMonitoringIfNeeded() {
-        guard appState.pickerActivationMode == .holdOptionTab || appState.pickerServiceKey != .off else {
+        guard appState.pickerActivationSettings.needsEventTap else {
             return
         }
         PickerActivationPermission.requestInputMonitoring()
+    }
+
+    private func permissionBanner(
+        title: String,
+        subtitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 12))
+                .foregroundStyle(Color("BrandAccentDeep"))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button(String(localized: "Open Settings"), action: action)
+                .font(.system(size: 11))
+                .buttonStyle(.plain)
+                .foregroundStyle(Color("BrandAccentDeep"))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity)
+        .background(Color("BrandTintSoft"))
     }
 
     private func shortcutRow(

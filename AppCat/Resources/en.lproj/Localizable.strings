@@ -333,6 +333,8 @@
 "Rescan open windows" = "Rescan open windows";
 "Search apps or file formats" = "Search apps or file formats";
 "Grant Accessibility to see open windows & projects." = "Grant Accessibility to see open windows & projects.";
+"Grant Accessibility to see open windows and projects in the switcher." = "Grant Accessibility to see open windows and projects in the switcher.";
+"Accessibility" = "Accessibility";
 "windows" = "windows";
 "used" = "used";
 "Edit formats" = "Edit formats";

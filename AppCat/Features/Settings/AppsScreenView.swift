@@ -177,9 +177,7 @@ struct AppsScreenView: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Button(String(localized: "Open Settings")) {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                    NSWorkspace.shared.open(url)
-                }
+                PickerActivationPermission.openAccessibilitySettings()
             }
             .font(.system(size: 11))
             .buttonStyle(.plain)

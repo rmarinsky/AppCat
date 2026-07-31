@@ -333,6 +333,8 @@
 "Rescan open windows" = "Пересканувати відкриті вікна";
 "Search apps or file formats" = "Пошук застосунків або форматів файлів";
 "Grant Accessibility to see open windows & projects." = "Надайте Accessibility-доступ, щоб бачити відкриті вікна і проєкти.";
+"Grant Accessibility to see open windows and projects in the switcher." = "Надайте Accessibility-доступ, щоб бачити відкриті вікна і проєкти у перемикачі.";
+"Accessibility" = "Accessibility";
 "windows" = "вікон";
 "used" = "використано";
 "Edit formats" = "Редагувати формати";

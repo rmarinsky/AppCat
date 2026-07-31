@@ -581,7 +581,7 @@ final class SmokeTests: XCTestCase {
         listener.onHoldRelease = {
             release.fulfill()
         }
-        listener.refresh(settings: PickerActivationSettings(
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
             mode: .holdOptionTab,
             serviceKey: .off,
             serviceTapCount: .two,
@@ -606,6 +606,69 @@ final class SmokeTests: XCTestCase {
         _ = listener.handle(type: .flagsChanged, event: optionUp)
 
         wait(for: [step, release], timeout: 1)
+    }
+
+    func testServiceKeyColdFirstEscapePassesThroughForMultiTap() throws {
+        let listener = PickerActivationListener()
+        var triggered = false
+        listener.onServiceKeyTrigger = { triggered = true }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .escape,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45
+        ))
+        defer { listener.stop() }
+
+        let escape = try XCTUnwrap(CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 53,
+            keyDown: true
+        ))
+        // Cold first tap: counted but not swallowed.
+        XCTAssertNotNil(listener.handle(type: .keyDown, event: escape))
+        XCTAssertFalse(triggered)
+
+        // Second tap within the sequence: swallowed and triggers.
+        let trigger = expectation(description: "Service key completed")
+        listener.onServiceKeyTrigger = { trigger.fulfill() }
+        XCTAssertNil(listener.handle(type: .keyDown, event: escape))
+        wait(for: [trigger], timeout: 1)
+    }
+
+    func testServiceKeyAutorepeatPassesThrough() throws {
+        let listener = PickerActivationListener()
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .escape,
+            serviceTapCount: .one,
+            serviceTapInterval: 0.45
+        ))
+        defer { listener.stop() }
+
+        let escape = try XCTUnwrap(CGEvent(
+            keyboardEventSource: nil,
+            virtualKey: 53,
+            keyDown: true
+        ))
+        escape.setIntegerValueField(.keyboardEventAutorepeat, value: 1)
+        XCTAssertNotNil(listener.handle(type: .keyDown, event: escape))
+    }
+
+    @MainActor
+    func testPickerPresentationPendingDoesNotBlockReopenPolicy() {
+        // Dock reopen keys off isPickerVisible only — pending presentation must not block it.
+        XCTAssertTrue(
+            PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+                isPickerVisible: false,
+                isMainWindowVisibleOnActiveSpace: true
+            )
+        )
+        let state = AppState()
+        state.isPickerPresentationPending = true
+        state.isPickerVisible = false
+        XCTAssertTrue(state.isPickerSessionActive)
+        XCTAssertFalse(state.isPickerVisible)
     }
 
     func testPickerSurfaceUsesSharedAdaptiveNeutralTint() throws {

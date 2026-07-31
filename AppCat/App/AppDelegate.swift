@@ -86,6 +86,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.appManager.refreshAppsInBackground(into: self.appState)
         }
+        appActivityMonitor.onManualPickerNeedsRefresh = { [weak self] in
+            self?.pickerCoordinator.refreshManualPickerSession()
+        }
         pickerCoordinator.historyManager = historyManager
         pickerCoordinator.suggestionsManager = suggestionsManager
         pickerCoordinator.statsManager = statsManager
@@ -229,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Show the manual app/window switcher.
     private func openPickerManually(source: PickerInvocationSource) {
         switch PickerManualActivationPolicy.action(
-            isPickerVisible: appState.isPickerVisible,
+            isPickerVisible: appState.isPickerSessionActive,
             isPresentationPending: pendingManualPickerPresentationID != nil
         ) {
         case .confirmFocusedItem:
@@ -248,8 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cycleManualPicker(delta: Int) {
         guard appState.pendingURL == nil else { return }
-        if !appState.isPickerVisible {
+        if !appState.isPickerSessionActive {
             presentManualPicker(source: .holdOptionTab)
+        } else if appState.pickerInvocationSource == .holdOptionTab {
+            pickerCoordinator.reassertPickerVisibility(state: appState)
         }
         guard appState.pickerInvocationSource == .holdOptionTab else { return }
         pickerCoordinator.moveFocus(delta: delta, state: appState)
@@ -257,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openFocusedManualPickerItem() {
         guard appState.pickerInvocationSource.opensFocusedItemOnOptionRelease(
-            isPickerVisible: appState.isPickerVisible
+            isPickerVisible: appState.isPickerSessionActive
         ) else { return }
         pickerCoordinator.openFocusedItem(state: appState)
     }
