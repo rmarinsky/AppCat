@@ -251,6 +251,7 @@ final class PickerSessionTests: XCTestCase {
         let state = AppState()
         let coordinator = PickerCoordinator()
         state.pickerInvocationSource = .holdOptionTab
+        coordinator.prewarmPicker(state: state)
         state.isPickerVisible = true
         state.pickerItemsSnapshot = []
         state.focusedBrowserIndex = 0
@@ -267,6 +268,7 @@ final class PickerSessionTests: XCTestCase {
         let state = AppState()
         let coordinator = PickerCoordinator()
         state.pickerInvocationSource = .holdOptionTab
+        coordinator.prewarmPicker(state: state)
         state.isPickerVisible = true
         state.pickerItemsSnapshot = [PickerItem(app: makeApp(id: "test.only"))]
         state.focusedBrowserIndex = 3
