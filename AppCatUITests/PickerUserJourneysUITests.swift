@@ -49,7 +49,7 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
-    func testHoldPickerOpensAppWithNumberKey() {
+    func testHoldPickerIgnoresNumberKeyWithoutTakingFocus() {
         launch(scenario: "hold-picker")
         let firstApp = app.buttons["picker.item.app:ui.hold.0"]
 
@@ -57,7 +57,7 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertEqual(firstApp.value as? String, "1")
         XCTAssertTrue(waitForAppCatToDeactivate())
         postRawKey(keyCode: 18)
-        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(firstApp.waitForExistence(timeout: 1))
     }
 
     func testHoldPickerOpensClickedApp() {
