@@ -1878,6 +1878,64 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(profiles.map(\.displayName), ["Personal", "Work"])
     }
 
+    @MainActor
+    func testBackgroundPollCannotStrandPickerSnapshotCompletion() async {
+        let firstEnumerationStarted = expectation(description: "picker enumeration started")
+        let pickerCompletion = expectation(description: "picker completion delivered")
+        let releaseFirstEnumeration = DispatchSemaphore(value: 0)
+        let enumerationCount = LockedCounter()
+
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            windowPollInterval: 1_000_000,
+            enumerateWindows: {
+                let current = enumerationCount.increment()
+                if current == 1 {
+                    firstEnumerationStarted.fulfill()
+                    releaseFirstEnumeration.wait()
+                }
+                return [:]
+            }
+        )
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {
+            pickerCompletion.fulfill()
+        }
+
+        await fulfillment(of: [firstEnumerationStarted], timeout: 1)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        releaseFirstEnumeration.signal()
+        await fulfillment(of: [pickerCompletion], timeout: 1)
+        monitor.stop()
+
+        XCTAssertEqual(enumerationCount.value, 1)
+        XCTAssertNotNil(state.appWindowActivityUpdatedAt)
+    }
+
+    @MainActor
+    func testStopPreventsInFlightSnapshotPublication() async {
+        let enumerationStarted = expectation(description: "enumeration started")
+        let releaseEnumeration = DispatchSemaphore(value: 0)
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            enumerateWindows: {
+                enumerationStarted.fulfill()
+                releaseEnumeration.wait()
+                return [:]
+            }
+        )
+
+        monitor.refreshWindowsForPickerPresentation {}
+        await fulfillment(of: [enumerationStarted], timeout: 1)
+        monitor.stop()
+        releaseEnumeration.signal()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertNil(state.appWindowActivityUpdatedAt)
+    }
+
     private func assertOpenMode(
         _ expected: BrowserLauncher.OpenMode,
         modifiers: NSEvent.ModifierFlags,
@@ -1969,5 +2027,21 @@ final class SmokeTests: XCTestCase {
             .appendingPathComponent("AppCatTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        lock.withLock { storage }
+    }
+
+    func increment() -> Int {
+        lock.withLock {
+            storage += 1
+            return storage
+        }
     }
 }

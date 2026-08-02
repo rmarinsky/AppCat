@@ -289,8 +289,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if appState.cachedWindowsByAppID == nil {
-            // Hold-⌥Tab must appear immediately after the chord. Pay this synchronous cold-start
-            // cost only before the background cache has ever landed; subsequent holds stay cached.
+            // Hold-⌥Tab must appear immediately after the chord. Warm the next snapshot off-main
+            // instead of blocking the first presentation on synchronous Accessibility IPC.
             appActivityMonitor.refreshWindowSnapshotForPicker()
         }
         pickerCoordinator.showPicker(state: appState)
