@@ -6,7 +6,7 @@ enum FileShortcutResolver {
 
     static func resolve(
         _ url: URL,
-        readData: (URL) throws -> Data = { try Data(contentsOf: $0) }
+        readData: (URL) throws -> Data = { try readShortcutData($0) }
     ) -> URL {
         guard url.isFileURL else { return url }
 
@@ -14,61 +14,51 @@ enum FileShortcutResolver {
               fileSize <= maxShortcutBytes
         else { return url }
 
-        switch url.pathExtension.lowercased() {
-        case "webloc", "inetloc":
-            return resolvePropertyListShortcut(url, readData: readData) ?? url
-        case "url":
-            return resolveInternetShortcut(url, readData: readData) ?? url
-        default:
+        let pathExtension = url.pathExtension.lowercased()
+        guard ["webloc", "inetloc", "url"].contains(pathExtension) else { return url }
+
+        do {
+            let data = try readData(url)
+            guard data.count <= maxShortcutBytes else { return url }
+            switch pathExtension {
+            case "webloc", "inetloc":
+                return try resolvePropertyListShortcut(data) ?? url
+            default:
+                return resolveInternetShortcut(data) ?? url
+            }
+        } catch {
+            Log.app.debug("Failed to resolve shortcut \(url.path): \(error.localizedDescription)")
             return url
         }
     }
 
-    private static func resolvePropertyListShortcut(
-        _ url: URL,
-        readData: (URL) throws -> Data
-    ) -> URL? {
-        do {
-            let data = try readData(url)
-            let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
-            guard let dictionary = plist as? [String: Any],
-                  let urlString = dictionary["URL"] as? String,
-                  let resolvedURL = URL(string: urlString)
-            else {
-                return nil
-            }
-            return resolvedURL
-        } catch {
-            Log.app.debug("Failed to resolve shortcut \(url.path): \(error.localizedDescription)")
-            return nil
-        }
+    private static func readShortcutData(_ url: URL) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        return try handle.read(upToCount: maxShortcutBytes + 1) ?? Data()
     }
 
-    private static func resolveInternetShortcut(
-        _ url: URL,
-        readData: (URL) throws -> Data
-    ) -> URL? {
-        do {
-            let data = try readData(url)
-            guard let contents = String(data: data, encoding: .utf8)
-                ?? String(data: data, encoding: .isoLatin1)
-                ?? String(data: data, encoding: .windowsCP1252)
-            else {
-                return nil
-            }
+    private static func resolvePropertyListShortcut(_ data: Data) throws -> URL? {
+        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        guard let dictionary = plist as? [String: Any],
+              let urlString = dictionary["URL"] as? String
+        else { return nil }
+        return URL(string: urlString)
+    }
 
-            for line in contents.components(separatedBy: .newlines) {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.lowercased().hasPrefix("url=") else { continue }
+    private static func resolveInternetShortcut(_ data: Data) -> URL? {
+        guard let contents = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1)
+            ?? String(data: data, encoding: .windowsCP1252)
+        else { return nil }
 
-                let value = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let resolvedURL = URL(string: value) else { return nil }
-                return resolvedURL
-            }
-            return nil
-        } catch {
-            Log.app.debug("Failed to resolve internet shortcut \(url.path): \(error.localizedDescription)")
-            return nil
+        for line in contents.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.lowercased().hasPrefix("url=") else { continue }
+
+            let value = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return URL(string: value)
         }
+        return nil
     }
 }
