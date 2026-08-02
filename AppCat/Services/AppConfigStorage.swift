@@ -5,6 +5,11 @@ final class AppConfigStorage {
     static let shared = AppConfigStorage()
 
     private let fileManager = FileManager.default
+    private let fileURL: URL
+
+    init(fileURL: URL = ConfigDirectory.apps) {
+        self.fileURL = fileURL
+    }
 
     func save(_ apps: [InstalledApp]) {
         var seen = Set<String>()
@@ -14,23 +19,23 @@ final class AppConfigStorage {
         }
         do {
             let data = try JSONEncoder().encode(configs)
-            try data.write(to: ConfigDirectory.apps, options: .atomic)
+            try data.write(to: fileURL, options: .atomic)
             Log.settings.debug("Saved \(configs.count) app configs")
         } catch {
             Log.settings.error("Failed to save app configs: \(error.localizedDescription)")
         }
     }
 
-    func load() -> [AppConfig]? {
-        guard fileManager.fileExists(atPath: ConfigDirectory.apps.path) else { return nil }
+    func load() -> ConfigLoadResult<[AppConfig]> {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return .missing }
         do {
-            let data = try Data(contentsOf: ConfigDirectory.apps)
+            let data = try Data(contentsOf: fileURL)
             let configs = try JSONDecoder().decode([AppConfig].self, from: data)
             Log.settings.debug("Loaded \(configs.count) app configs")
-            return configs
+            return .loaded(configs)
         } catch {
             Log.settings.error("Failed to load app configs: \(error.localizedDescription)")
-            return nil
+            return .failed(error)
         }
     }
 }

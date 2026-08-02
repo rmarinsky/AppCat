@@ -3,6 +3,38 @@ import Foundation
 import XCTest
 
 final class AppConfigTests: XCTestCase {
+    @MainActor
+    func testBrowserRefreshPreservesMalformedExistingConfig() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("browsers.json")
+        let malformed = Data("not valid JSON".utf8)
+        try malformed.write(to: fileURL)
+
+        let state = AppState()
+        BrowserManager(configStorage: BrowserConfigStorage(fileURL: fileURL)).refreshBrowsers(into: state)
+
+        XCTAssertEqual(try Data(contentsOf: fileURL), malformed)
+    }
+
+    @MainActor
+    func testAppRefreshPreservesMalformedExistingConfig() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("apps.json")
+        let malformed = Data("not valid JSON".utf8)
+        try malformed.write(to: fileURL)
+
+        let state = AppState()
+        AppManager(configStorage: AppConfigStorage(fileURL: fileURL)).refreshApps(into: state)
+
+        XCTAssertEqual(try Data(contentsOf: fileURL), malformed)
+    }
+
     func testKnownUniversalEditorsKeepRegistryDefaults() {
         let editorIDs = [
             "com.sublimetext.4",

@@ -4,6 +4,11 @@ import os
 @MainActor
 final class AppManager {
     private let appDetector = AppDetector()
+    private let configStorage: AppConfigStorage
+
+    init(configStorage: AppConfigStorage = .shared) {
+        self.configStorage = configStorage
+    }
 
     func refreshApps(into state: AppState) {
         let browserIDs = Set(state.browsers.map(\.id))
@@ -26,7 +31,19 @@ final class AppManager {
     }
 
     private func applyDetected(_ detected: [InstalledApp], into state: AppState) {
-        let savedConfigs = AppConfigStorage.shared.load()
+        let savedConfigs: [AppConfig]?
+        let canPersist: Bool
+        switch configStorage.load() {
+        case .missing:
+            savedConfigs = nil
+            canPersist = true
+        case let .loaded(configs):
+            savedConfigs = configs
+            canPersist = true
+        case .failed:
+            savedConfigs = nil
+            canPersist = false
+        }
 
         if let savedConfigs {
             state.apps = mergeDetectedWithSaved(
@@ -50,10 +67,12 @@ final class AppManager {
             state.apps = detected
         }
 
-        save(state.apps)
+        if canPersist {
+            save(state.apps)
+        }
     }
 
     func save(_ apps: [InstalledApp]) {
-        AppConfigStorage.shared.save(apps)
+        configStorage.save(apps)
     }
 }
