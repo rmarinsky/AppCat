@@ -3,6 +3,19 @@ import XCTest
 
 @MainActor
 final class StatsManagerTests: XCTestCase {
+    func testStatsFlushWaitsForQueuedSave() {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stats-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let storage = StatsStorage(fileURL: fileURL)
+        let entries = [DailyStats(day: "2026-08-02", pickerClickCount: 1)]
+
+        storage.save(entries)
+        storage.flush()
+
+        XCTAssertEqual(storage.load(), entries)
+    }
+
     func testDailyStatsLegacyDecodeDefaultsManualPickerSwitchCountToZero() throws {
         let data = """
         {

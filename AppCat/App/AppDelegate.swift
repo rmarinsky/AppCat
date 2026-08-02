@@ -159,6 +159,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         pickerActivationListener.stop()
         appActivityMonitor.stop()
+        HistoryStorage.shared.flush()
+        StatsStorage.shared.flush()
+        AppUsageFileStore.usage.flush()
     }
 
     func openMainWindow() {
