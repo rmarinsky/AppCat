@@ -77,7 +77,7 @@ final class AppConfigTests: XCTestCase {
         try malformed.write(to: fileURL)
 
         let state = AppState()
-        AppManager(configStorage: AppConfigStorage(fileURL: fileURL)).refreshApps(into: state)
+        AppManager(configStorage: AppConfigStorage(fileURL: fileURL), detectApps: { [] }).refreshApps(into: state)
 
         XCTAssertEqual(try Data(contentsOf: fileURL), malformed)
     }

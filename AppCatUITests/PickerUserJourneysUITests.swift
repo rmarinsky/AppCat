@@ -48,7 +48,7 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertEqual(firstApp.value as? String, "1")
         XCTAssertTrue(waitForAppCatToDeactivate())
         postRawKey(keyCode: 18)
-        XCTAssertTrue(firstApp.waitForExistence(timeout: 1))
+        XCTAssertFalse(firstApp.waitForNonExistence(timeout: 1))
     }
 
     func testHoldPickerOpensClickedApp() {
