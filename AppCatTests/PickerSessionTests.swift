@@ -4,6 +4,19 @@ import XCTest
 
 final class PickerSessionTests: XCTestCase {
     @MainActor
+    func testRefreshingPickerPermissionsPublishesNewValues() {
+        let state = AppState()
+
+        state.refreshPickerPermissions(inputMonitoring: false, accessibility: false)
+        XCTAssertFalse(state.hasInputMonitoringPermission)
+        XCTAssertFalse(state.hasAccessibilityPermission)
+
+        state.refreshPickerPermissions(inputMonitoring: true, accessibility: true)
+        XCTAssertTrue(state.hasInputMonitoringPermission)
+        XCTAssertTrue(state.hasAccessibilityPermission)
+    }
+
+    @MainActor
     func testPrewarmedPickerCoordinatorIsReleased() {
         weak var releasedCoordinator: PickerCoordinator?
 

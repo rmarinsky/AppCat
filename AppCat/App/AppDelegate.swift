@@ -141,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_: Notification) {
+        appState.refreshPickerPermissions()
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
         if PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
             isPickerVisible: appState.isPickerVisible,

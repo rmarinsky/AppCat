@@ -99,7 +99,7 @@ struct ShortcutsSettingsView: View {
                 }
             }
             if appState.pickerActivationSettings.needsEventTap,
-               !PickerActivationPermission.hasInputMonitoring
+               !appState.hasInputMonitoringPermission
             {
                 divider
                 permissionBanner(
@@ -108,11 +108,12 @@ struct ShortcutsSettingsView: View {
                     action: {
                         PickerActivationPermission.requestInputMonitoring()
                         PickerActivationPermission.openInputMonitoringSettings()
+                        appState.refreshPickerPermissions()
                         appState.refreshPickerActivationSettings()
                     }
                 )
             }
-            if !PickerActivationPermission.hasAccessibility {
+            if !appState.hasAccessibilityPermission {
                 divider
                 permissionBanner(
                     title: String(localized: "Accessibility"),

@@ -45,6 +45,8 @@ final class AppState {
     var pickerServiceKey: PickerServiceKey = .off
     var pickerServiceTapCount: PickerServiceTapCount = .two
     var pickerServiceTapInterval: TimeInterval = PickerActivationSettings.defaultValue.serviceTapInterval
+    var hasInputMonitoringPermission = PickerActivationPermission.hasInputMonitoring
+    var hasAccessibilityPermission = PickerActivationPermission.hasAccessibility
     var hiddenPickerAppIDs: Set<String> = []
     var pickerItemsSnapshot: [PickerItem] = []
     var pickerInvocationSource: PickerInvocationSource = .linkRouting
@@ -254,6 +256,14 @@ final class AppState {
 
     func refreshPickerActivationSettings() {
         notifyPickerActivationSettingsChanged()
+    }
+
+    func refreshPickerPermissions(
+        inputMonitoring: Bool = PickerActivationPermission.hasInputMonitoring,
+        accessibility: Bool = PickerActivationPermission.hasAccessibility
+    ) {
+        hasInputMonitoringPermission = inputMonitoring
+        hasAccessibilityPermission = accessibility
     }
 
     private func notifyPickerActivationSettingsChanged() {
