@@ -1,0 +1,1491 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AppCat — аудит стабільності та продуктивності</title>
+  <style>
+    :root {
+      --ink: #f7f3ee;
+      --muted: #aaa39b;
+      --dim: #77716a;
+      --surface: #1c1c1e;
+      --surface-deep: #101011;
+      --line: rgba(255, 255, 255, 0.14);
+      --line-strong: rgba(255, 255, 255, 0.26);
+      --accent: #ff9742;
+      --accent-deep: #f0782e;
+      --accent-soft: rgba(255, 151, 66, 0.16);
+      --danger: #ff6b61;
+      --danger-soft: rgba(255, 107, 97, 0.14);
+      --success: #30d158;
+      --success-soft: rgba(48, 209, 88, 0.13);
+      --blue: #69a7ff;
+      --shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #080809;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    a {
+      font: inherit;
+    }
+
+    .deck-shell {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(255, 151, 66, 0.09), transparent 30%),
+        radial-gradient(circle at 84% 85%, rgba(105, 167, 255, 0.06), transparent 26%),
+        #080809;
+    }
+
+    .stage {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .deck {
+      position: absolute;
+      inset: 0;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 3.2vh;
+      padding: 5.2vh 5.4vw 3.6vh;
+      opacity: 0;
+      transform: translateX(2.4%);
+      pointer-events: none;
+      transition: opacity 260ms ease, transform 360ms cubic-bezier(.2, .8, .2, 1);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 42%),
+        var(--surface);
+    }
+
+    .slide::after {
+      content: "";
+      position: absolute;
+      width: 31vw;
+      height: 31vw;
+      border-radius: 50%;
+      right: -19vw;
+      bottom: -22vw;
+      background: radial-gradient(circle, rgba(255, 151, 66, 0.09), transparent 68%);
+      pointer-events: none;
+    }
+
+    .slide.is-active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+      z-index: 2;
+    }
+
+    .slide.is-before {
+      transform: translateX(-2.4%);
+    }
+
+    .slide[data-tone="danger"] {
+      background:
+        linear-gradient(112deg, rgba(255, 107, 97, 0.075), transparent 42%),
+        var(--surface);
+    }
+
+    .slide[data-tone="safe"] {
+      background:
+        linear-gradient(112deg, rgba(48, 209, 88, 0.055), transparent 42%),
+        var(--surface);
+    }
+
+    .slide[data-tone="accent"] {
+      background:
+        linear-gradient(112deg, rgba(255, 151, 66, 0.09), transparent 45%),
+        var(--surface);
+    }
+
+    .slide-header {
+      min-width: 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 1.3vh;
+      color: var(--accent);
+      font-size: clamp(11px, 0.82vw, 16px);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 9.6em;
+      margin-bottom: 2.3vh;
+      font-size: clamp(48px, 5.1vw, 92px);
+      line-height: 0.96;
+      letter-spacing: -0.055em;
+      font-weight: 720;
+    }
+
+    h2 {
+      max-width: 19em;
+      margin-bottom: 0;
+      font-size: clamp(32px, 3.15vw, 58px);
+      line-height: 1.04;
+      letter-spacing: -0.042em;
+      font-weight: 690;
+    }
+
+    h3 {
+      margin-bottom: 1vh;
+      font-size: clamp(18px, 1.45vw, 28px);
+      line-height: 1.15;
+      font-weight: 680;
+    }
+
+    p,
+    li {
+      font-size: clamp(16px, 1.28vw, 25px);
+      line-height: 1.38;
+    }
+
+    .lede {
+      max-width: 38em;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: clamp(18px, 1.48vw, 29px);
+      line-height: 1.35;
+    }
+
+    .accent {
+      color: var(--accent);
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    .success {
+      color: var(--success);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .mono {
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      letter-spacing: -0.03em;
+    }
+
+    .slide-body {
+      min-height: 0;
+      display: grid;
+      align-items: center;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 5.2vw;
+      align-items: center;
+    }
+
+    .split-wide {
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+    }
+
+    .three-up {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: stretch;
+    }
+
+    .three-up > * {
+      min-width: 0;
+      padding: 0 2.4vw;
+      border-left: 1px solid var(--line);
+    }
+
+    .three-up > :first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .three-up > :last-child {
+      padding-right: 0;
+    }
+
+    .big-number {
+      margin: 0;
+      font-size: clamp(58px, 6.8vw, 128px);
+      line-height: 0.86;
+      letter-spacing: -0.07em;
+      font-weight: 740;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-label {
+      margin: 1.6vh 0 0;
+      color: var(--muted);
+      font-size: clamp(14px, 1.05vw, 21px);
+      line-height: 1.35;
+    }
+
+    .hairline {
+      width: 100%;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .callout {
+      padding: 2.1vh 0 0 1.4vw;
+      border-left: 3px solid var(--accent);
+    }
+
+    .callout.danger-line {
+      border-color: var(--danger);
+    }
+
+    .callout.safe-line {
+      border-color: var(--success);
+    }
+
+    .callout p:last-child {
+      margin-bottom: 0;
+    }
+
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 1vw;
+      width: 100%;
+    }
+
+    .flow-step {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 2.2vh 1.35vw;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 0.9vh;
+      color: var(--ink);
+      font-size: clamp(15px, 1.16vw, 23px);
+      line-height: 1.2;
+    }
+
+    .flow-step span {
+      display: block;
+      color: var(--muted);
+      font-size: clamp(12px, 0.9vw, 18px);
+      line-height: 1.35;
+    }
+
+    .flow-step.is-danger {
+      background: var(--danger-soft);
+      border-top-color: var(--danger);
+    }
+
+    .flow-step.is-accent {
+      background: var(--accent-soft);
+      border-top-color: var(--accent);
+    }
+
+    .flow-step.is-safe {
+      background: var(--success-soft);
+      border-top-color: var(--success);
+    }
+
+    .flow-arrow {
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      color: var(--dim);
+      font-size: clamp(18px, 1.7vw, 32px);
+    }
+
+    .code-strip {
+      display: grid;
+      gap: 1.1vh;
+      padding: 2.4vh 1.8vw;
+      background: #111112;
+      border: 1px solid var(--line);
+      border-radius: 1.1vw;
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: clamp(13px, 1vw, 20px);
+      line-height: 1.45;
+    }
+
+    .code-line {
+      display: flex;
+      gap: 1.1vw;
+      align-items: baseline;
+    }
+
+    .code-line .ln {
+      flex: 0 0 2.1em;
+      color: #5e5e63;
+      text-align: right;
+      user-select: none;
+    }
+
+    .evidence-list,
+    .priority-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .evidence-list li {
+      display: grid;
+      grid-template-columns: 2.8em 1fr;
+      gap: 1.1vw;
+      padding: 1.5vh 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .evidence-list li:last-child {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .evidence-list .index {
+      color: var(--accent);
+      font-family: "SFMono-Regular", Menlo, monospace;
+      font-size: 0.82em;
+    }
+
+    .pulse-chart {
+      position: relative;
+      height: 28vh;
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      align-items: end;
+      gap: 0.55vw;
+      padding: 2vh 0 3vh;
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .pulse-chart::before,
+    .pulse-chart::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .pulse-chart::before {
+      top: 25%;
+    }
+
+    .pulse-chart::after {
+      top: 55%;
+    }
+
+    .pulse-bar {
+      position: relative;
+      min-height: 2px;
+      height: max(2px, calc(var(--value) * 2.5vh));
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px 3px 0 0;
+    }
+
+    .pulse-bar.is-spike {
+      background: linear-gradient(to top, var(--accent-deep), var(--accent));
+    }
+
+    .pulse-bar b {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.8vh);
+      transform: translateX(-50%);
+      color: var(--ink);
+      font-size: clamp(10px, 0.78vw, 15px);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .chart-axis {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1vh;
+      color: var(--dim);
+      font-size: clamp(11px, 0.8vw, 16px);
+    }
+
+    .memory-line {
+      position: relative;
+      height: 20vh;
+      margin: 1vh 0 2vh;
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .memory-line::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 45%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--success), #67e880);
+      transform: rotate(-0.25deg);
+      transform-origin: center;
+      box-shadow: 0 0 18px rgba(48, 209, 88, 0.2);
+    }
+
+    .memory-line .dot {
+      position: absolute;
+      top: calc(45% - 5px);
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 5px rgba(48, 209, 88, 0.11);
+    }
+
+    .memory-line .dot:nth-child(1) { left: 4%; }
+    .memory-line .dot:nth-child(2) { left: 48%; top: calc(43% - 5px); }
+    .memory-line .dot:nth-child(3) { right: 4%; top: calc(46% - 5px); }
+
+    .memory-line .range {
+      position: absolute;
+      left: 0;
+      top: calc(45% + 2vh);
+      color: var(--success);
+      font-size: clamp(15px, 1.1vw, 22px);
+      font-weight: 650;
+    }
+
+    .verdict {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.7vw;
+      padding: 0.8vh 1vw;
+      background: var(--success-soft);
+      border: 1px solid rgba(48, 209, 88, 0.38);
+      border-radius: 999px;
+      color: #7aef91;
+      font-size: clamp(13px, 0.94vw, 19px);
+      font-weight: 650;
+    }
+
+    .verdict::before {
+      content: "";
+      width: 0.55em;
+      height: 0.55em;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    .priority-list {
+      counter-reset: priorities;
+    }
+
+    .priority-list li {
+      counter-increment: priorities;
+      display: grid;
+      grid-template-columns: 3.2em 1fr auto;
+      gap: 1.2vw;
+      align-items: baseline;
+      padding: 1.6vh 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .priority-list li::before {
+      content: "0" counter(priorities);
+      color: var(--accent);
+      font-family: "SFMono-Regular", Menlo, monospace;
+      font-size: clamp(14px, 1vw, 20px);
+    }
+
+    .priority-list strong {
+      font-size: clamp(17px, 1.32vw, 26px);
+      line-height: 1.2;
+    }
+
+    .priority-list span {
+      color: var(--muted);
+      font-size: clamp(12px, 0.9vw, 18px);
+      text-align: right;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(210px, 0.35fr);
+      gap: 6vw;
+      align-items: center;
+    }
+
+    .hero-mark {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 2vh;
+    }
+
+    .hero-mark::before {
+      content: "";
+      position: absolute;
+      inset: -16%;
+      z-index: -1;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 151, 66, 0.16), transparent 68%);
+      filter: blur(1px);
+    }
+
+    .app-icon {
+      width: min(14vw, 230px);
+      aspect-ratio: 1;
+      border-radius: 22%;
+      filter: drop-shadow(0 2.4vh 3.2vh rgba(0, 0, 0, 0.38));
+    }
+
+    .hero-mark small {
+      color: var(--muted);
+      font-size: clamp(12px, 0.9vw, 18px);
+      letter-spacing: 0.04em;
+    }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8vw 1.8vw;
+      margin-top: 3.1vh;
+      color: var(--muted);
+      font-size: clamp(13px, 1vw, 20px);
+    }
+
+    .status-row span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55em;
+    }
+
+    .status-row span::before {
+      content: "";
+      width: 0.42em;
+      height: 0.42em;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 2vw;
+      padding-right: 15vw;
+      color: var(--dim);
+      font-size: clamp(10px, 0.72vw, 14px);
+      letter-spacing: 0.04em;
+    }
+
+    .slide-footer strong {
+      color: var(--muted);
+      font-weight: 620;
+    }
+
+    .slide-notes {
+      display: none;
+    }
+
+    .deck-progress {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .deck-progress span {
+      display: block;
+      height: 100%;
+      width: 8.333%;
+      background: var(--accent);
+      transition: width 300ms ease;
+    }
+
+    .deck-controls {
+      position: absolute;
+      z-index: 30;
+      right: 1.3vw;
+      bottom: 1.3vh;
+      display: flex;
+      align-items: center;
+      gap: 0.55vw;
+      padding: 0.45vh 0.45vw;
+      border-radius: 999px;
+      background: rgba(8, 8, 9, 0.66);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      backdrop-filter: blur(16px);
+      opacity: 0.56;
+      transition: opacity 160ms ease;
+    }
+
+    .deck-controls:hover,
+    .deck-controls:focus-within {
+      opacity: 1;
+    }
+
+    .deck-controls button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.45vh 0.72vw;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: clamp(10px, 0.72vw, 14px);
+    }
+
+    .deck-controls button:hover,
+    .deck-controls button:focus-visible,
+    .deck-controls button[aria-pressed="true"] {
+      outline: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--ink);
+    }
+
+    .deck-controls .counter {
+      min-width: 4.8em;
+      color: var(--muted);
+      text-align: center;
+      font-family: "SFMono-Regular", Menlo, monospace;
+      font-size: clamp(10px, 0.7vw, 14px);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .presenter-notes {
+      position: absolute;
+      z-index: 25;
+      top: 0;
+      right: 0;
+      width: 37%;
+      height: 100%;
+      padding: 4.5vh 2.4vw 8vh;
+      overflow: auto;
+      transform: translateX(102%);
+      transition: transform 240ms ease;
+      background: rgba(10, 10, 11, 0.94);
+      border-left: 1px solid var(--line);
+      backdrop-filter: blur(22px);
+    }
+
+    .presenter-notes.is-open {
+      transform: translateX(0);
+    }
+
+    .presenter-notes h2 {
+      margin-bottom: 2vh;
+      font-size: clamp(22px, 1.8vw, 34px);
+    }
+
+    .presenter-notes p,
+    .presenter-notes li,
+    .presenter-notes a {
+      font-size: clamp(12px, 0.86vw, 17px);
+      line-height: 1.5;
+    }
+
+    .presenter-notes a {
+      color: var(--accent);
+    }
+
+    .presenter-notes ul {
+      padding-left: 1.25em;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-aspect-ratio: 4 / 3) {
+      .deck-controls {
+        right: 2vw;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .slide,
+      .deck-progress span,
+      .presenter-notes {
+        transition: none;
+      }
+    }
+
+    @media print {
+      @page {
+        size: 13.333in 7.5in;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: auto;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .deck-shell,
+      .stage,
+      .deck {
+        display: block;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .stage::before,
+      .deck-controls,
+      .deck-progress,
+      .presenter-notes {
+        display: none !important;
+      }
+
+      .slide,
+      .slide.is-active,
+      .slide.is-before {
+        position: relative;
+        display: grid;
+        width: 13.333in;
+        height: 7.5in;
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+        page-break-after: always;
+        break-after: page;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-shell">
+    <div class="stage" id="stage" aria-label="Презентація аудиту AppCat">
+      <main class="deck" id="deck">
+        <section class="slide is-active" id="slide-1" aria-labelledby="title-1" data-tone="accent">
+          <header class="slide-header">
+            <p class="eyebrow">AppCat · runtime audit</p>
+          </header>
+          <div class="slide-body hero-grid">
+            <div>
+              <h1 id="title-1">Стабільність без фонового податку</h1>
+              <p class="lede">Пам’ять стабільна. Але три P1-ризики підривають довіру, а idle polling регулярно витрачає CPU.</p>
+              <div class="status-row" aria-label="Ключові результати">
+                <span>3 × P1</span>
+                <span>233 / 233 тести</span>
+                <span>101–102 MB стабільно</span>
+              </div>
+            </div>
+            <div class="hero-mark">
+              <img class="app-icon" src="../AppCat/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128@2x.png" alt="Іконка AppCat — білий кіт на помаранчевому фоні">
+              <small>2 серпня 2026</small>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>AppCat</strong>
+            <span>Аудит correctness · CPU · memory</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#executive-summary">AppCat runtime audit — Executive summary</a></li>
+              <li>Іконка: локальний AppCat AppIcon asset.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-2" aria-labelledby="title-2">
+          <header class="slide-header">
+            <p class="eyebrow">Метод</p>
+            <h2 id="title-2">Це не припущення зі static review</h2>
+          </header>
+          <div class="slide-body three-up">
+            <div>
+              <p class="big-number accent">160</p>
+              <h3>файлів у корпусі</h3>
+              <p class="metric-label">Lifecycle, picker, AX/CG, storage, network, caches.</p>
+            </div>
+            <div>
+              <p class="big-number">233</p>
+              <h3>тести пройдено</h3>
+              <p class="metric-label">0 failed · 0 skipped. Xcode analyzer — без diagnostics.</p>
+            </div>
+            <div>
+              <p class="big-number success">LIVE</p>
+              <h3>runtime evidence</h3>
+              <p class="metric-label"><span class="mono">top</span>, <span class="mono">sample</span>, <span class="mono">ps</span>, <span class="mono">leaks</span> на DEV-процесі.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Обмеження</strong>
+            <span>Символи збігаються з кодом, але runtime bundle не містить exact SHA</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#scope-and-method">Audit — Scope and method</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#clean-checks-and-existing-safeguards">Audit — Clean checks</a></li>
+              <li><a href="../graphify-out/GRAPH_REPORT.md#corpus-check">Graphify corpus check</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-3" aria-labelledby="title-3" data-tone="danger">
+          <header class="slide-header">
+            <p class="eyebrow">P1 · picker race</p>
+            <h2 id="title-3">Фоновий refresh може вкрасти показ picker</h2>
+          </header>
+          <div class="slide-body">
+            <div class="flow" aria-label="Послідовність гонки показу picker">
+              <div class="flow-step">
+                <strong>Shortcut</strong>
+                <span>Створює pending presentation</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-accent">
+                <strong>User snapshot</strong>
+                <span>Чекає AX enumeration</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-danger">
+                <strong>5s poll</strong>
+                <span>Змінює request ID</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-danger">
+                <strong>Completion відкинуто</strong>
+                <span>Picker не з’являється</span>
+              </div>
+            </div>
+            <div class="split" style="margin-top: 4.2vh;">
+              <div class="callout danger-line">
+                <h3>Що бачить користувач</h3>
+                <p class="lede">Перше натискання — нічого. Друге лише очищає stuck state. Показ може вимагати третього.</p>
+              </div>
+              <div>
+                <p class="big-number danger">×3</p>
+                <p class="metric-label">натискання замість одного</p>
+              </div>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Root cause</strong>
+            <span>Один generation token обслуговує user і utility requests</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-01--p1-background-refresh-can-strand-a-manual-picker-presentation">Audit F-01</a></li>
+              <li><a href="../AppCat/App/AppDelegate.swift">AppDelegate.swift</a></li>
+              <li><a href="../AppCat/Services/AppActivityMonitor.swift">AppActivityMonitor.swift</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-4" aria-labelledby="title-4" data-tone="safe">
+          <header class="slide-header">
+            <p class="eyebrow">Вузьке виправлення</p>
+            <h2 id="title-4">Один snapshot owner. Жодного загубленого completion</h2>
+          </header>
+          <div class="slide-body split split-wide">
+            <ol class="evidence-list">
+              <li><span class="index">01</span><span><strong>Single-flight enumeration</strong><br><span class="muted">Нова utility-робота не запускає паралельний AX pass.</span></span></li>
+              <li><span class="index">02</span><span><strong>User demand має пріоритет</strong><br><span class="muted">Picker request не можна supersede фоновим poll.</span></span></li>
+              <li><span class="index">03</span><span><strong>Completion вирішується рівно раз</strong><br><span class="muted">Навіть cancellation має визначений результат.</span></span></li>
+            </ol>
+            <div>
+              <p class="eyebrow">Definition of done</p>
+              <p class="big-number success">1×</p>
+              <p class="lede">Picker з’являється після першого activation.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Test seam</strong>
+            <span>Blocking fake enumerator + deterministic interleaving</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-01--p1-background-refresh-can-strand-a-manual-picker-presentation">Audit F-01 — fix direction and validation</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-03--p2-cancellation-does-not-stop-ax-enumeration-so-refreshes-overlap">Audit F-03</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-5" aria-labelledby="title-5" data-tone="danger">
+          <header class="slide-header">
+            <p class="eyebrow">P1 · data loss</p>
+            <h2 id="title-5">Пошкоджений config зараз може стерти налаштування</h2>
+          </header>
+          <div class="slide-body">
+            <div class="flow" aria-label="Шлях перезапису пошкодженого config">
+              <div class="flow-step">
+                <strong>Config існує</strong>
+                <span>Hotkeys · order · visibility</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-danger">
+                <strong>Decode error</strong>
+                <span><span class="mono">load() → nil</span></span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step">
+                <strong>“First launch”</strong>
+                <span>Detected defaults</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-danger">
+                <strong><span class="mono">save()</span></strong>
+                <span>Оригінал перезаписано</span>
+              </div>
+            </div>
+            <div class="split" style="margin-top: 4vh;">
+              <div>
+                <p class="lede">Missing file і unreadable file мають однаковий результат: <span class="mono danger">nil</span>.</p>
+              </div>
+              <div class="callout danger-line">
+                <h3>Ризик</h3>
+                <p>Тиха, незворотна втрата user-owned configuration.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Під загрозою</strong>
+            <span>Hotkeys · порядок · visibility · profiles · custom formats</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-13--p1-config-decode-failure-is-treated-as-first-launch-and-overwrites-user-settings">Audit F-13</a></li>
+              <li><a href="../AppCat/Services/BrowserConfigStorage.swift">BrowserConfigStorage.swift</a></li>
+              <li><a href="../AppCat/Services/AppConfigStorage.swift">AppConfigStorage.swift</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-6" aria-labelledby="title-6" data-tone="safe">
+          <header class="slide-header">
+            <p class="eyebrow">Відновлення без руйнування</p>
+            <h2 id="title-6">Помилка читання — це не дозвіл перезаписати файл</h2>
+          </header>
+          <div class="slide-body split">
+            <div class="code-strip" aria-label="Запропонований результат завантаження config">
+              <div class="code-line"><span class="ln">01</span><span><span class="accent">enum</span> ConfigLoadResult {</span></div>
+              <div class="code-line"><span class="ln">02</span><span>&nbsp;&nbsp;<span class="success">case</span> missing</span></div>
+              <div class="code-line"><span class="ln">03</span><span>&nbsp;&nbsp;<span class="success">case</span> loaded(Config)</span></div>
+              <div class="code-line"><span class="ln">04</span><span>&nbsp;&nbsp;<span class="danger">case</span> failed(Error)</span></div>
+              <div class="code-line"><span class="ln">05</span><span>}</span></div>
+            </div>
+            <div>
+              <div class="callout safe-line">
+                <h3><span class="mono">.missing</span></h3>
+                <p>Лише тут можна seed + save defaults.</p>
+              </div>
+              <div class="hairline" style="margin: 2.4vh 0;"></div>
+              <div class="callout danger-line">
+                <h3><span class="mono">.failed</span></h3>
+                <p>Зберегти або quarantine файл. Reset — тільки явно.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Без migration framework</strong>
+            <span>Три стани на storage boundary достатні</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-13--p1-config-decode-failure-is-treated-as-first-launch-and-overwrites-user-settings">Audit F-13 — smallest fix direction</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-7" aria-labelledby="title-7" data-tone="danger">
+          <header class="slide-header">
+            <p class="eyebrow">P1 · network side effect</p>
+            <h2 id="title-7">AppCat робить GET ще до вибору користувача</h2>
+          </header>
+          <div class="slide-body">
+            <div class="flow" aria-label="Поточний небезпечний мережевий маршрут">
+              <div class="flow-step">
+                <strong>Incoming HTTPS</strong>
+                <span>URL передано AppCat</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step is-danger">
+                <strong>Automatic GET</strong>
+                <span>До вибору destination</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-step">
+                <strong>Cancel picker</strong>
+                <span>Користувач нічого не відкрив</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">≠</div>
+              <div class="flow-step is-danger">
+                <strong>Side effect уже стався</strong>
+                <span>Login · unsubscribe · approval</span>
+              </div>
+            </div>
+            <div class="split" style="margin-top: 4.3vh;">
+              <div class="callout danger-line">
+                <h3>Byte cap цього не виправить</h3>
+                <p class="lede">Навіть 1 байт відповіді означає, що endpoint уже викликано.</p>
+              </div>
+              <div>
+                <p class="big-number danger">GET</p>
+                <p class="metric-label">перед user intent</p>
+              </div>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Додатково</strong>
+            <span>Range advisory; data(for:) може буферизувати всю response body</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-09--p1-pre-choice-metadata-get-can-trigger-external-side-effects-response-bytes-are-also-unbounded">Audit F-09</a></li>
+              <li><a href="../AppCat/Managers/LinkMetadataManager.swift">LinkMetadataManager.swift</a></li>
+              <li><a href="https://developer.apple.com/documentation/foundation/urlsession">Apple URLSession</a></li>
+              <li><a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-14">RFC 9110 §14</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-8" aria-labelledby="title-8" data-tone="safe">
+          <header class="slide-header">
+            <p class="eyebrow">Безпечний маршрут</p>
+            <h2 id="title-8">Спершу рішення. Мережа — лише коли вона справді потрібна</h2>
+          </header>
+          <div class="slide-body split split-wide">
+            <div>
+              <div class="flow" aria-label="Запропонований безпечний маршрут URL">
+                <div class="flow-step is-safe">
+                  <strong>Incoming URL</strong>
+                  <span>Показати host без request</span>
+                </div>
+                <div class="flow-arrow" aria-hidden="true">→</div>
+                <div class="flow-step is-safe">
+                  <strong>User choice</strong>
+                  <span>Browser або app</span>
+                </div>
+                <div class="flow-arrow" aria-hidden="true">→</div>
+                <div class="flow-step is-safe">
+                  <strong>Open once</strong>
+                  <span>Без metadata prefetch</span>
+                </div>
+              </div>
+              <p class="lede" style="margin-top: 4vh;">Title enrichment не вартий дублювання одноразового чи tokenized URL.</p>
+            </div>
+            <div class="callout safe-line">
+              <h3>Якщо enrichment залишиться</h3>
+              <p>Лише explicit user action, ephemeral session, incremental bytes і hard cap.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Найпростіше рішення</strong>
+            <span>Видалити автоматичне dereference destination URL</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-09--p1-pre-choice-metadata-get-can-trigger-external-side-effects-response-bytes-are-also-unbounded">Audit F-09 — smallest fix direction</a></li>
+              <li><a href="https://developer.apple.com/documentation/foundation/urlsessionconfiguration/ephemeral">Apple URLSessionConfiguration.ephemeral</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-9" aria-labelledby="title-9" data-tone="accent">
+          <header class="slide-header">
+            <p class="eyebrow">Measured idle CPU</p>
+            <h2 id="title-9">Кожні п’ять секунд AppCat повторює дорогий refresh</h2>
+          </header>
+          <div class="slide-body split split-wide">
+            <div>
+              <div class="pulse-chart" role="img" aria-label="15-секундний CPU sample: три піки 8.7, 8.1 і 8.8 відсотка приблизно кожні п’ять секунд">
+                <span class="pulse-bar" style="--value:.1"></span>
+                <span class="pulse-bar" style="--value:.05"></span>
+                <span class="pulse-bar" style="--value:.12"></span>
+                <span class="pulse-bar" style="--value:.08"></span>
+                <span class="pulse-bar is-spike" style="--value:8.7"><b>8.7%</b></span>
+                <span class="pulse-bar" style="--value:.1"></span>
+                <span class="pulse-bar" style="--value:.04"></span>
+                <span class="pulse-bar" style="--value:.13"></span>
+                <span class="pulse-bar" style="--value:.06"></span>
+                <span class="pulse-bar is-spike" style="--value:8.1"><b>8.1%</b></span>
+                <span class="pulse-bar" style="--value:.08"></span>
+                <span class="pulse-bar" style="--value:.15"></span>
+                <span class="pulse-bar" style="--value:.05"></span>
+                <span class="pulse-bar" style="--value:.09"></span>
+                <span class="pulse-bar is-spike" style="--value:8.8"><b>8.8%</b></span>
+              </div>
+              <div class="chart-axis"><span>0s</span><span>5s</span><span>10s</span><span>15s</span></div>
+            </div>
+            <div>
+              <p class="big-number accent">5s</p>
+              <p class="lede">На main actor перебудовується список apps та завантажуються icons.</p>
+              <div class="hairline" style="margin: 2.4vh 0;"></div>
+              <p class="lede">Паралельно запускається повний AX/CG window scan. Cancellation не зупиняє sync IPC.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Між піками</strong>
+            <span>0–0.2% CPU · це recurring tax, а не runaway spin</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#cpu-and-thread-behavior">Audit — CPU and thread behavior</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-02--p2-idle-polling-reloads-every-running-app-icon-on-the-main-actor">Audit F-02</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-03--p2-cancellation-does-not-stop-ax-enumeration-so-refreshes-overlap">Audit F-03</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-10" aria-labelledby="title-10" data-tone="safe">
+          <header class="slide-header">
+            <p class="eyebrow">Memory verdict</p>
+            <h2 id="title-10">Витоку AppCat не знайдено. Не варто лікувати фантом</h2>
+          </header>
+          <div class="slide-body split split-wide">
+            <div>
+              <div class="memory-line" role="img" aria-label="Memory footprint залишався стабільним біля 101–102 мегабайт">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                <span class="range">101–102 MB</span>
+              </div>
+              <span class="verdict">AppCat-owned runaway leak не підтверджено</span>
+            </div>
+            <div>
+              <p class="big-number success">17.8K</p>
+              <p class="metric-label">leaked bytes — лише Apple Link/AppIntents XPC cycles, без AppCat frames</p>
+              <div class="hairline" style="margin: 2.5vh 0;"></div>
+              <p class="lede">Є bounded picker cycle та зайві full-resolution icons. Це optimization, не доказ runaway leak.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Capture-scoped conclusion</strong>
+            <span>Peak 158.5 MB · point-in-time scan не доводить довгострокову стабільність</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#heap-behavior">Audit — Heap behavior</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#r-02--p3-one-bounded-arc-cycle-retains-the-picker-controllercoordinator-pair">Audit R-02</a></li>
+              <li><a href="../AppCat/Services/AppIconLoader.swift">AppIconLoader.swift</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-11" aria-labelledby="title-11">
+          <header class="slide-header">
+            <p class="eyebrow">Друга хвиля</p>
+            <h2 id="title-11">Зелені тести не покривають дані, exit і реальний WindowServer</h2>
+          </header>
+          <div class="slide-body three-up">
+            <div>
+              <p class="eyebrow">P2 · data integrity</p>
+              <h3>Failed launch рахується як success</h3>
+              <p class="metric-label">History, stats, suggestions і usage оновлюються до підтвердження open.</p>
+            </div>
+            <div>
+              <p class="eyebrow">P2 · main actor</p>
+              <h3>Shortcut file читається повністю</h3>
+              <p class="metric-label">Великий <span class="mono">.webloc</span> / <span class="mono">.url</span> може зависити routing.</p>
+            </div>
+            <div>
+              <p class="eyebrow">Test gaps</p>
+              <h3>Немає системного доказу</h3>
+              <p class="metric-label">Interleaving, immediate quit, Accessibility IPC, fullscreen visibility.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Що додати</strong>
+            <span>Deterministic fakes + одна native fullscreen runtime fixture</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-10--p2-shortcut-parsing-reads-arbitrary-files-in-full-on-the-main-actor">Audit F-10</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#f-11--p2-failed-launches-can-still-be-recorded-as-successful-behavior">Audit F-11</a></li>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#clean-checks-and-existing-safeguards">Audit — test boundaries</a></li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="slide" id="slide-12" aria-labelledby="title-12" data-tone="accent">
+          <header class="slide-header">
+            <p class="eyebrow">Рекомендований порядок</p>
+            <h2 id="title-12">Спочатку довіра. Потім виміряна ефективність</h2>
+          </header>
+          <div class="slide-body split split-wide">
+            <ol class="priority-list">
+              <li><strong>Не перезаписувати invalid config</strong><span>F-13</span></li>
+              <li><strong>Зробити snapshot single-flight</strong><span>F-01 + F-03</span></li>
+              <li><strong>Повторно використовувати незмінні icons</strong><span>F-02</span></li>
+              <li><strong>Прибрати pre-choice metadata GET</strong><span>F-09</span></li>
+            </ol>
+            <div class="callout safe-line">
+              <h3>Критерій готовності</h3>
+              <p>Picker — з першого разу.<br>Налаштування — без тихої втрати.<br>Idle — без 5s CPU pulse.</p>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <strong>Без переписування</strong>
+            <span>Жодної нової dependency · зміни у наявних seams</span>
+          </footer>
+          <aside class="slide-notes">
+            <h2>Джерела</h2>
+            <p><strong>[Sources]</strong></p>
+            <ul>
+              <li><a href="appcat-runtime-audit-2026-08-02.md#recommended-order">Audit — Recommended order</a></li>
+            </ul>
+          </aside>
+        </section>
+      </main>
+
+      <div class="deck-progress" aria-hidden="true"><span id="progress-bar"></span></div>
+
+      <nav class="deck-controls" aria-label="Керування презентацією">
+        <button type="button" id="notes-toggle" aria-pressed="false" aria-label="Показати нотатки доповідача">N</button>
+        <button type="button" id="fullscreen-toggle" aria-label="Увімкнути повноекранний режим">F</button>
+        <button type="button" id="previous-slide" aria-label="Попередній слайд">←</button>
+        <span class="counter" id="slide-counter" aria-live="polite">01 / 12</span>
+        <button type="button" id="next-slide" aria-label="Наступний слайд">→</button>
+      </nav>
+
+      <aside class="presenter-notes" id="presenter-notes" aria-hidden="true" aria-label="Нотатки доповідача"></aside>
+      <div class="sr-only" aria-live="polite" id="slide-announcer"></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const stage = document.getElementById('stage');
+      const slides = Array.from(document.querySelectorAll('.slide'));
+      const progressBar = document.getElementById('progress-bar');
+      const counter = document.getElementById('slide-counter');
+      const announcer = document.getElementById('slide-announcer');
+      const notesPanel = document.getElementById('presenter-notes');
+      const notesToggle = document.getElementById('notes-toggle');
+      const fullscreenToggle = document.getElementById('fullscreen-toggle');
+      const previousButton = document.getElementById('previous-slide');
+      const nextButton = document.getElementById('next-slide');
+      let current = 0;
+      let touchStartX = null;
+
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const pad = value => String(value).padStart(2, '0');
+
+      function notesAreOpen() {
+        return notesPanel.classList.contains('is-open');
+      }
+
+      function updateNotes() {
+        const source = slides[current].querySelector('.slide-notes');
+        notesPanel.innerHTML = source ? source.innerHTML : '<h2>Нотаток немає</h2>';
+      }
+
+      function showSlide(index, { updateHash = true } = {}) {
+        const next = clamp(index, 0, slides.length - 1);
+        current = next;
+
+        slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle('is-active', slideIndex === current);
+          slide.classList.toggle('is-before', slideIndex < current);
+          slide.setAttribute('aria-hidden', slideIndex === current ? 'false' : 'true');
+        });
+
+        const title = slides[current].querySelector('h1, h2')?.textContent?.trim() || `Слайд ${current + 1}`;
+        counter.textContent = `${pad(current + 1)} / ${pad(slides.length)}`;
+        progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
+        announcer.textContent = `${current + 1} з ${slides.length}: ${title}`;
+        updateNotes();
+
+        if (updateHash) {
+          history.replaceState(null, '', `#slide-${current + 1}`);
+        }
+      }
+
+      function next() {
+        showSlide(current + 1);
+      }
+
+      function previous() {
+        showSlide(current - 1);
+      }
+
+      function toggleNotes() {
+        const open = !notesAreOpen();
+        notesPanel.classList.toggle('is-open', open);
+        notesPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        notesToggle.setAttribute('aria-pressed', open ? 'true' : 'false');
+        if (open) updateNotes();
+      }
+
+      async function toggleFullscreen() {
+        try {
+          if (!document.fullscreenElement) {
+            await stage.requestFullscreen();
+          } else {
+            await document.exitFullscreen();
+          }
+        } catch (_) {
+          // Fullscreen can be denied in embedded previews; slide navigation remains available.
+        }
+      }
+
+      previousButton.addEventListener('click', event => {
+        event.stopPropagation();
+        previous();
+      });
+
+      nextButton.addEventListener('click', event => {
+        event.stopPropagation();
+        next();
+      });
+
+      notesToggle.addEventListener('click', event => {
+        event.stopPropagation();
+        toggleNotes();
+      });
+
+      fullscreenToggle.addEventListener('click', event => {
+        event.stopPropagation();
+        toggleFullscreen();
+      });
+
+      stage.addEventListener('click', event => {
+        if (notesAreOpen() || event.target.closest('button, a')) return;
+        const rect = stage.getBoundingClientRect();
+        if (event.clientX < rect.left + rect.width * 0.34) previous();
+        else next();
+      });
+
+      stage.addEventListener('touchstart', event => {
+        touchStartX = event.changedTouches[0]?.clientX ?? null;
+      }, { passive: true });
+
+      stage.addEventListener('touchend', event => {
+        if (touchStartX === null) return;
+        const endX = event.changedTouches[0]?.clientX ?? touchStartX;
+        const distance = endX - touchStartX;
+        touchStartX = null;
+        if (Math.abs(distance) < 42) return;
+        if (distance < 0) next();
+        else previous();
+      }, { passive: true });
+
+      document.addEventListener('keydown', event => {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        const key = event.key;
+
+        if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ') {
+          event.preventDefault();
+          next();
+        } else if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp' || key === 'Backspace') {
+          event.preventDefault();
+          previous();
+        } else if (key === 'Home') {
+          event.preventDefault();
+          showSlide(0);
+        } else if (key === 'End') {
+          event.preventDefault();
+          showSlide(slides.length - 1);
+        } else if (key.toLowerCase() === 'n') {
+          event.preventDefault();
+          toggleNotes();
+        } else if (key.toLowerCase() === 'f') {
+          event.preventDefault();
+          toggleFullscreen();
+        } else if (key === 'Escape' && notesAreOpen()) {
+          toggleNotes();
+        }
+      });
+
+      window.addEventListener('hashchange', () => {
+        const match = window.location.hash.match(/^#slide-(\d+)$/);
+        if (!match) return;
+        const requested = clamp(Number(match[1]) - 1, 0, slides.length - 1);
+        if (requested !== current) showSlide(requested, { updateHash: false });
+      });
+
+      const hashMatch = window.location.hash.match(/^#slide-(\d+)$/);
+      if (hashMatch) current = clamp(Number(hashMatch[1]) - 1, 0, slides.length - 1);
+      showSlide(current, { updateHash: false });
+    })();
+  </script>
+</body>
+</html>
