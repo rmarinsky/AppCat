@@ -3,6 +3,76 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testFailedBrowserOpenDoesNotRecordRoutingStats() async throws {
+        let world = FakeBrowserLauncherWorld()
+        world.openErrors = [BrowserLauncherTestError.failed]
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        let url = try XCTUnwrap(URL(string: "https://example.com/one-time"))
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        state.isPickerVisible = true
+
+        XCTAssertTrue(coordinator.select(PickerItem(browser: makeBrowser()), state: state))
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertTrue(stats.dailyStats.isEmpty)
+    }
+
+    @MainActor
+    func testSuccessfulBrowserOpenRecordsRoutingStatsOnCompletion() throws {
+        let world = FakeBrowserLauncherWorld()
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        coordinator.statsManager = stats
+        let state = AppState()
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        state.isPickerVisible = true
+
+        XCTAssertTrue(coordinator.select(PickerItem(browser: makeBrowser()), state: state))
+
+        XCTAssertEqual(stats.totalOpenCount, 1)
+    }
+
+    @MainActor
+    func testNativeAppCandidatesReportOneSuccessAfterFallback() throws {
+        let world = FakeBrowserLauncherWorld()
+        world.openErrors = [BrowserLauncherTestError.failed, nil]
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd/Product"))
+        var results: [Bool] = []
+
+        launcher.open(url: url, with: makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])) {
+            results.append($0)
+        }
+
+        XCTAssertEqual(world.openedURLs.count, 2)
+        XCTAssertEqual(results, [true])
+    }
+
+    @MainActor
+    func testNativeAppCandidatesReportOneFailureWhenAllFail() throws {
+        let world = FakeBrowserLauncherWorld()
+        world.openErrors = Array(repeating: BrowserLauncherTestError.failed, count: 3)
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd/Product"))
+        var results: [Bool] = []
+
+        launcher.open(url: url, with: makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])) {
+            results.append($0)
+        }
+
+        XCTAssertEqual(world.openedURLs.count, 3)
+        XCTAssertEqual(results, [false])
+    }
+
+    @MainActor
     func testSuccessfulManualSelectionsRecordAppAndBrowserTargets() {
         let runningApp = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
@@ -104,7 +174,8 @@ final class BrowserLauncherTests: XCTestCase {
             XCTAssertTrue(coordinator.select(PickerItem(app: app), state: state))
         }
 
-        XCTAssertTrue(stats.dailyStats.isEmpty)
+        XCTAssertEqual(stats.manualPickerSwitchCountTotal, 0)
+        XCTAssertEqual(stats.totalOpenCount, 2)
     }
 
     @MainActor
@@ -438,6 +509,7 @@ private final class FakeBrowserLauncherWorld {
     var openedURLs: [OpenedURLs] = []
     var reopenEvents: [String] = []
     var executableRuns: [ExecutableRun] = []
+    var openErrors: [Error?] = []
     var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
@@ -453,7 +525,8 @@ private final class FakeBrowserLauncherWorld {
             hasOpenWindows: { [weak self] _ in self?.hasOpenWindows },
             openURLs: { [weak self] urls, appURL, configuration, completion in
                 self?.openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
-                completion(nil, nil)
+                let error = self?.openErrors.isEmpty == false ? self?.openErrors.removeFirst() : nil
+                completion(nil, error ?? nil)
             },
             sendReopenEvent: { [weak self] _, displayName in
                 self?.reopenEvents.append(displayName)
@@ -474,6 +547,10 @@ private final class FakeBrowserLauncherWorld {
             actions.forEach { $0() }
         }
     }
+}
+
+private enum BrowserLauncherTestError: Error {
+    case failed
 }
 
 @MainActor
