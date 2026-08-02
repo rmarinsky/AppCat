@@ -411,7 +411,7 @@ All displayed roots were Apple `NSXPCConnection`/`com.apple.linkd.autoShortcut`/
 
 - `xcodebuild analyze -project AppCat.xcodeproj -scheme 'AppCat DEV' -destination 'platform=macOS' -quiet` exited 0 with no analyzer diagnostics.
 - Pre-remediation baseline: **233 passed, 0 failed, 0 skipped** in the captured `.xcresult` at `efc13fe`.
-- Current PR verification: **256 headless unit tests passed, 0 failed**; the `AppCat UI Tests` target compiled with `build-for-testing` and was not launched interactively.
+- Current PR verification: **257 headless unit tests passed, 0 failed**; the `AppCat UI Tests` target compiled with `build-for-testing` and was not launched interactively.
 - `PickerActivationListener.stop()` disables its event tap and removes its run-loop source: [`AppCat/Services/PickerActivationListener.swift:75-86`](../AppCat/Services/PickerActivationListener.swift#L75).
 - `PickerWindowController.close()` removes global/local mouse and key monitors; the scroll bridge also removes its monitor on removal/deinit: [`AppCat/Features/Picker/PickerWindowController.swift:320-405`](../AppCat/Features/Picker/PickerWindowController.swift#L320), [`AppCat/Features/Picker/PickerView.swift:930-969`](../AppCat/Features/Picker/PickerView.swift#L930).
 - Workspace notification tokens are removed in `AppActivityMonitor.stop()`: [`AppCat/Services/AppActivityMonitor.swift:38-42`](../AppCat/Services/AppActivityMonitor.swift#L38).
