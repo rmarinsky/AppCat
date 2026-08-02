@@ -73,7 +73,6 @@
 		985F1F85E41F7F9D9029037D /* HistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9BDCA2DC2F26FC56A0A460 /* HistoryEntry.swift */; };
 		997BA84E8F08F283CC982BD9 /* FileShortcutResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12A368F6C4C340E238D2A4FA /* FileShortcutResolverTests.swift */; };
 		9C8E508489927E6A75415081 /* RulesStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDBF25009319EE80A298436 /* RulesStorage.swift */; };
-		9DC47DA30DAE0C6BB2982643 /* LinkMetadataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BD17F3AFFA2A5B7D6F3037 /* LinkMetadataManager.swift */; };
 		9DEC4C4C9446E1551D51F889 /* URLRuleMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053E8BC3AD00901B8AF0124F /* URLRuleMatcher.swift */; };
 		9ED02D83EC300DE09FFEB87D /* BrowserDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9DDCCCDDB29AE84CA0177A /* BrowserDefinition.swift */; };
 		A35544AAB9907529B0C2F682 /* StatsStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A43C930036BA9025EAFD0D1 /* StatsStorage.swift */; };
@@ -169,7 +168,6 @@
 		2AFE65C9B8FFB83B1BA8D00B /* URLUnwrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLUnwrapper.swift; sourceTree = "<group>"; };
 		2C71962648DB3AEB569650CD /* MainWindowSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowSection.swift; sourceTree = "<group>"; };
 		2DBE5A9C2038EDECF79FE21F /* HandoffPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffPresentation.swift; sourceTree = "<group>"; };
-		31BD17F3AFFA2A5B7D6F3037 /* LinkMetadataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkMetadataManager.swift; sourceTree = "<group>"; };
 		3319B976E1135AC2129101F1 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		34F0332F1C7EAE389D318421 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		3A420579CB52239345491FAD /* PickerActivationListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerActivationListener.swift; sourceTree = "<group>"; };
@@ -290,7 +288,6 @@
 				FBF495C036EDF6DACCFCC9AA /* DefaultBrowserManager.swift */,
 				29879E6C0A0D1CA56C9ECEFB /* FaviconManager.swift */,
 				E8D4821EF374AAD3B3CEC4C4 /* HistoryManager.swift */,
-				31BD17F3AFFA2A5B7D6F3037 /* LinkMetadataManager.swift */,
 				96F92B7867C5CC74652AA8B2 /* PickerCoordinator.swift */,
 				BF389B1FE7F0E8414509B0E9 /* StatsManager.swift */,
 				20F2AE4F92362502E6C1178F /* SuggestionsManager.swift */,
@@ -741,7 +738,6 @@
 				8F54A3EB25F49EFBD3E63EA4 /* InstalledApp.swift in Sources */,
 				A7E8FB66F80FD70F0558FA32 /* InstalledBrowser.swift in Sources */,
 				84B8319D7F76374126AA1763 /* KeyCodeMap.swift in Sources */,
-				9DC47DA30DAE0C6BB2982643 /* LinkMetadataManager.swift in Sources */,
 				084A50BDB9A947D057CB0C0E /* Logger.swift in Sources */,
 				4595959628F0A884725F4895 /* MainWindowActivation.swift in Sources */,
 				05B9E6CEBBBF9A5BACB1968B /* MainWindowController.swift in Sources */,

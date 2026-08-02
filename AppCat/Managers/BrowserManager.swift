@@ -5,10 +5,27 @@ import os
 final class BrowserManager {
     private let browserDetector = BrowserDetector()
     private let profileDetector = ProfileDetector()
+    private let configStorage: BrowserConfigStorage
+
+    init(configStorage: BrowserConfigStorage = .shared) {
+        self.configStorage = configStorage
+    }
 
     func refreshBrowsers(into state: AppState) {
         let detected = browserDetector.detectBrowsers()
-        let savedConfigs = BrowserConfigStorage.shared.load()
+        let savedConfigs: [BrowserConfig]?
+        let canPersist: Bool
+        switch configStorage.load() {
+        case .missing:
+            savedConfigs = nil
+            canPersist = true
+        case let .loaded(configs):
+            savedConfigs = configs
+            canPersist = true
+        case .failed:
+            savedConfigs = nil
+            canPersist = false
+        }
 
         if let savedConfigs {
             state.browsers = mergeDetectedWithSaved(
@@ -54,10 +71,12 @@ final class BrowserManager {
             }
         }
 
-        save(state.browsers)
+        if canPersist {
+            save(state.browsers)
+        }
     }
 
     func save(_ browsers: [InstalledBrowser]) {
-        BrowserConfigStorage.shared.save(browsers)
+        configStorage.save(browsers)
     }
 }

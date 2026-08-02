@@ -277,17 +277,18 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerInvocationSourceDefinesSessionInteractionPolicy() {
-        let expectations: [(PickerInvocationSource, Bool, Bool, Bool)] = [
-            (.linkRouting, false, false, false),
-            (.toggleShortcut, true, false, true),
-            (.serviceKey, true, false, true),
-            (.holdOptionTab, true, true, false),
+        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool)] = [
+            (.linkRouting, false, false, false, true),
+            (.toggleShortcut, true, false, true, true),
+            (.serviceKey, true, false, true, true),
+            (.holdOptionTab, true, true, false, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, refreshesSnapshot) in expectations {
+        for (source, isManual, isHoldToSwitch, refreshesSnapshot, requiresKeyboardFocus) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
+            XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
         }
     }
 
@@ -422,6 +423,7 @@ final class SmokeTests: XCTestCase {
         // During the presentation grace period, always refocus regardless of pointer position.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: true,
                 isPointerInsidePanel: false
             ),
@@ -431,6 +433,7 @@ final class SmokeTests: XCTestCase {
         // tear the picker down out from under an in-flight click — refocus to reclaim key + active.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
                 isPointerInsidePanel: true
             ),
@@ -439,10 +442,19 @@ final class SmokeTests: XCTestCase {
         // Pointer outside the panel and past the grace period: a genuine click-away, so dismiss.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
                 isPointerInsidePanel: false
             ),
             .dismiss
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: false,
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false
+            ),
+            .ignore
         )
     }
 
@@ -1029,6 +1041,29 @@ final class SmokeTests: XCTestCase {
         }
 
         XCTAssertTrue(WindowEnumerator.filteredWindowCandidates(candidates).isEmpty)
+    }
+
+    func testAXWindowRoleFilterRejectsFinderDesktopElement() {
+        XCTAssertFalse(WindowEnumerator.isApplicationWindowRole(kAXScrollAreaRole as String))
+        XCTAssertTrue(WindowEnumerator.isApplicationWindowRole(kAXWindowRole as String))
+    }
+
+    func testCoreGraphicsSnapshotLoadsOnlyOncePerEnumerationPass() {
+        var loadCount = 0
+        var snapshot = WindowEnumerator.CoreGraphicsSnapshot()
+
+        let first = snapshot.windowInfo {
+            loadCount += 1
+            return [["window": 1]]
+        }
+        let second = snapshot.windowInfo {
+            loadCount += 1
+            return []
+        }
+
+        XCTAssertEqual(first.count, 1)
+        XCTAssertEqual(second.count, 1)
+        XCTAssertEqual(loadCount, 1)
     }
 
     func testWindowFilterRejectsInvalidCoreGraphicsCandidates() {
@@ -1878,6 +1913,140 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(profiles.map(\.displayName), ["Personal", "Work"])
     }
 
+    @MainActor
+    func testBackgroundPollCannotStrandPickerSnapshotCompletion() async {
+        let firstEnumerationStarted = expectation(description: "picker enumeration started")
+        let pickerCompletion = expectation(description: "picker completion delivered")
+        let releaseFirstEnumeration = DispatchSemaphore(value: 0)
+        let enumerationCount = LockedCounter()
+
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            windowPollInterval: 1_000_000,
+            enumerateWindows: {
+                let current = enumerationCount.increment()
+                if current == 1 {
+                    firstEnumerationStarted.fulfill()
+                    releaseFirstEnumeration.wait()
+                }
+                return [:]
+            }
+        )
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {
+            pickerCompletion.fulfill()
+        }
+
+        await fulfillment(of: [firstEnumerationStarted], timeout: 1)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(enumerationCount.value, 1)
+        releaseFirstEnumeration.signal()
+        await fulfillment(of: [pickerCompletion], timeout: 1)
+        monitor.stop()
+
+        XCTAssertNotNil(state.appWindowActivityUpdatedAt)
+    }
+
+    @MainActor
+    func testStopPreventsInFlightSnapshotPublication() async {
+        let enumerationStarted = expectation(description: "enumeration started")
+        let releaseEnumeration = DispatchSemaphore(value: 0)
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            enumerateWindows: {
+                enumerationStarted.fulfill()
+                releaseEnumeration.wait()
+                return [:]
+            }
+        )
+
+        monitor.refreshWindowsForPickerPresentation {}
+        await fulfillment(of: [enumerationStarted], timeout: 1)
+        monitor.stop()
+        releaseEnumeration.signal()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertNil(state.appWindowActivityUpdatedAt)
+    }
+
+    @MainActor
+    func testRestartRejectsSnapshotFromPreviousMonitorLifecycle() async {
+        let firstEnumerationStarted = expectation(description: "first enumeration started")
+        let firstEnumerationReturned = expectation(description: "first enumeration returned")
+        let secondEnumerationCompleted = expectation(description: "second enumeration completed")
+        let releaseFirstEnumeration = DispatchSemaphore(value: 0)
+        let enumerationCount = LockedCounter()
+        let oldWindows = [
+            "test.old": [AppWindowTarget(bundleID: "test.old", title: "Old", index: 0)],
+        ]
+        let newWindows = [
+            "test.new": [AppWindowTarget(bundleID: "test.new", title: "New", index: 0)],
+        ]
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            enumerateWindows: {
+                if enumerationCount.increment() == 1 {
+                    firstEnumerationStarted.fulfill()
+                    releaseFirstEnumeration.wait()
+                    firstEnumerationReturned.fulfill()
+                    return oldWindows
+                }
+                return newWindows
+            }
+        )
+
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {}
+        await fulfillment(of: [firstEnumerationStarted], timeout: 1)
+        monitor.stop()
+
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {
+            secondEnumerationCompleted.fulfill()
+        }
+        await fulfillment(of: [secondEnumerationCompleted], timeout: 1)
+        XCTAssertEqual(state.runningWindowsByAppID, newWindows)
+
+        releaseFirstEnumeration.signal()
+        await fulfillment(of: [firstEnumerationReturned], timeout: 1)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        monitor.stop()
+
+        XCTAssertEqual(state.runningWindowsByAppID, newWindows)
+    }
+
+    func testUnchangedRunningAppReusesCachedIconWithoutReloading() {
+        let cachedIcon = NSImage(size: NSSize(width: 16, height: 16))
+        var app = makeApp(id: "test.running")
+        app.icon = cachedIcon
+        var reloadCount = 0
+
+        let icon = RunningAppIconPolicy.icon(
+            previous: app,
+            appURL: app.appURL,
+            reload: {
+                reloadCount += 1
+                return NSImage(size: NSSize(width: 32, height: 32))
+            }
+        )
+
+        XCTAssertTrue(icon === cachedIcon)
+        XCTAssertEqual(reloadCount, 0)
+    }
+
+    func testFaviconDomainUsesURLHostWithoutDereferencingDestination() {
+        XCTAssertEqual(
+            FaviconManager.domain(
+                forURLString: "https://one-time.example.test/consume-token",
+                fallbackDomain: "fallback.example.test"
+            ),
+            "one-time.example.test"
+        )
+    }
+
     private func assertOpenMode(
         _ expected: BrowserLauncher.OpenMode,
         modifiers: NSEvent.ModifierFlags,
@@ -1969,5 +2138,21 @@ final class SmokeTests: XCTestCase {
             .appendingPathComponent("AppCatTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        lock.withLock { storage }
+    }
+
+    func increment() -> Int {
+        lock.withLock {
+            storage += 1
+            return storage
+        }
     }
 }

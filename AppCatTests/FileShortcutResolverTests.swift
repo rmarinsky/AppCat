@@ -41,6 +41,48 @@ final class FileShortcutResolverTests: XCTestCase {
         XCTAssertEqual(FileShortcutResolver.resolve(fileURL), fileURL)
     }
 
+    func testOversizedShortcutFallsBackWithoutReadingBody() throws {
+        let shortcutURL = try makeTempFile(name: "large.url")
+        try Data(count: 1_048_577).write(to: shortcutURL)
+        var readCount = 0
+
+        let resolved = FileShortcutResolver.resolve(shortcutURL, readData: { _ in
+            readCount += 1
+            return Data()
+        })
+
+        XCTAssertEqual(resolved, shortcutURL)
+        XCTAssertEqual(readCount, 0)
+    }
+
+    func testInjectedOversizedBodyFallsBackToOriginalFileURL() throws {
+        let shortcutURL = try makeTempFile(name: "reported-small.url")
+        try Data().write(to: shortcutURL)
+        let prefix = try XCTUnwrap("URL=https://example.com\n".data(using: .utf8))
+        let oversizedBody = prefix + Data(count: 1_048_577 - prefix.count)
+        var readCount = 0
+
+        let resolved = FileShortcutResolver.resolve(shortcutURL, readData: { _ in
+            readCount += 1
+            return oversizedBody
+        })
+
+        XCTAssertEqual(resolved, shortcutURL)
+        XCTAssertEqual(readCount, 1)
+    }
+
+    func testShortcutAtSizeLimitStillResolves() throws {
+        let shortcutURL = try makeTempFile(name: "boundary.url")
+        try Data().write(to: shortcutURL)
+        let prefix = try XCTUnwrap("URL=https://example.com/boundary\n".data(using: .utf8))
+        let boundaryBody = prefix + Data(count: 1_048_576 - prefix.count)
+
+        XCTAssertEqual(
+            FileShortcutResolver.resolve(shortcutURL, readData: { _ in boundaryBody }).absoluteString,
+            "https://example.com/boundary"
+        )
+    }
+
     private func makeTempFile(name: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("AppCatTests-\(UUID().uuidString)", isDirectory: true)

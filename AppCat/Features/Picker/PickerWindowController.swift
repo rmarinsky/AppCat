@@ -40,6 +40,7 @@ final class PickerHostingView<Content: View>: NSHostingView<Content> {
 }
 
 enum PickerPanelKeyResignAction: Equatable {
+    case ignore
     case refocus
     case dismiss
 }
@@ -92,10 +93,12 @@ enum PickerPanelInteractionPolicy {
     /// is outside the panel. While the pointer is over the panel (or during the presentation grace
     /// period) refocus instead, which reclaims key + active so mouse events keep hitting the picker.
     static func keyResignAction(
+        requiresKeyboardFocus: Bool,
         isInDismissGracePeriod: Bool,
         isPointerInsidePanel: Bool
     ) -> PickerPanelKeyResignAction {
-        (isInDismissGracePeriod || isPointerInsidePanel) ? .refocus : .dismiss
+        guard requiresKeyboardFocus else { return .ignore }
+        return (isInDismissGracePeriod || isPointerInsidePanel) ? .refocus : .dismiss
     }
 
     static func apply(to panel: NSPanel) {
@@ -137,7 +140,7 @@ enum PickerPanelPositioning {
 final class PickerWindowController: NSObject {
     private var panel: NSPanel?
     private let appState: AppState
-    private let coordinator: PickerCoordinator
+    private unowned let coordinator: PickerCoordinator
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var keyMonitor: Any?
@@ -173,7 +176,7 @@ final class PickerWindowController: NSObject {
         let hostingView = PickerHostingView(
             rootView: PickerView()
                 .environment(appState)
-                .environment(\.pickerCoordinator, coordinator)
+                .environment(\.pickerCoordinator, WeakPickerCoordinatorReference(coordinator))
         )
         hostingView.identifier = PickerPanelViewID.hosting
         hostingView.autoresizingMask = [.width, .height]
@@ -260,7 +263,11 @@ final class PickerWindowController: NSObject {
         panel.orderFrontRegardless()
         appState.isPickerVisible = true
         appState.isPickerPresentationPending = false
-        focusPanel(panel)
+        if appState.pickerInvocationSource.requiresKeyboardFocus {
+            focusPanel(panel)
+        } else {
+            panel.resignKey()
+        }
 
         installMonitors()
 
@@ -643,10 +650,6 @@ final class PickerWindowController: NSObject {
         refreshPickerItemsSnapshot()
         let newItems = appState.pickerItemsSnapshot
 
-        guard !newItems.isEmpty else {
-            appState.pickerItemsSnapshot = oldItems
-            return
-        }
         guard newItems.map(\.id) != oldItems.map(\.id) else { return }
 
         appState.focusedBrowserIndex = Self.remappedFocusIndex(
@@ -1088,9 +1091,12 @@ extension PickerWindowController: NSWindowDelegate {
 
             let pointerInside = self.panel.map { $0.frame.contains(NSEvent.mouseLocation) } ?? false
             switch PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: self.appState.pickerInvocationSource.requiresKeyboardFocus,
                 isInDismissGracePeriod: self.isInDismissGracePeriod,
                 isPointerInsidePanel: pointerInside
             ) {
+            case .ignore:
+                break
             case .refocus:
                 if let panel = self.panel {
                     panel.orderFrontRegardless()

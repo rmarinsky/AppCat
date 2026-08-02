@@ -141,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_: Notification) {
+        appState.refreshPickerPermissions()
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
         if PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
             isPickerVisible: appState.isPickerVisible,
@@ -159,6 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         pickerActivationListener.stop()
         appActivityMonitor.stop()
+        HistoryStorage.shared.flush()
+        StatsStorage.shared.flush()
+        AppUsageFileStore.usage.flush()
     }
 
     func openMainWindow() {
@@ -289,8 +293,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if appState.cachedWindowsByAppID == nil {
-            // Hold-⌥Tab must appear immediately after the chord. Pay this synchronous cold-start
-            // cost only before the background cache has ever landed; subsequent holds stay cached.
+            // Hold-⌥Tab must appear immediately after the chord. Warm the next snapshot off-main
+            // instead of blocking the first presentation on synchronous Accessibility IPC.
             appActivityMonitor.refreshWindowSnapshotForPicker()
         }
         pickerCoordinator.showPicker(state: appState)
@@ -333,7 +337,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         appState.pickerInvocationSource = .linkRouting
         appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
-        fetchTitle(for: url)
 
         if rawURLs.count > 1 {
             Log.app.info("Received \(rawURLs.count) URL(s); primary: \(url.absoluteString)")
@@ -384,17 +387,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return (displayURL, launchURL)
-    }
-
-    // MARK: - Title Fetching
-
-    private func fetchTitle(for url: URL) {
-        Task {
-            let metadata = await LinkMetadataManager.shared.metadata(for: url)
-            guard let title = metadata.title else { return }
-            if self.appState.pendingURL == url {
-                self.appState.pendingURLTitle = title
-            }
-        }
     }
 }

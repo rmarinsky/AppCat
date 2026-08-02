@@ -1,5 +1,11 @@
 import Foundation
 
+enum ConfigLoadResult<Value> {
+    case missing
+    case loaded(Value)
+    case failed(Error)
+}
+
 enum ConfigDirectory {
     private static let fileManager = FileManager.default
 

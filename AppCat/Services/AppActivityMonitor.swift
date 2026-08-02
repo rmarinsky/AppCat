@@ -1,18 +1,34 @@
 import AppKit
 
+enum RunningAppIconPolicy {
+    static func icon(
+        previous: InstalledApp?,
+        appURL: URL,
+        reload: () -> NSImage?
+    ) -> NSImage? {
+        if previous?.appURL == appURL, let cached = previous?.icon {
+            return cached
+        }
+        return reload()
+    }
+}
+
 @MainActor
 final class AppActivityMonitor {
     private weak var appState: AppState?
     private var observers: [NSObjectProtocol] = []
     private var windowRefreshTask: Task<Void, Never>?
     private var windowEnumerationTask: Task<Void, Never>?
-    private var windowSnapshotRequestID = 0
+    private var pendingWindowSnapshotCompletions: [@MainActor () -> Void] = []
     private var windowPollingTask: Task<Void, Never>?
     private var appListRefreshTask: Task<Void, Never>?
+    private var isStopped = false
+    private var lifecycleGeneration = 0
     private let workspaceNotificationCenter = NSWorkspace.shared.notificationCenter
     private let windowRefreshDebounce: TimeInterval = 0.25
     // Backstop poll; real changes arrive via workspace notifications, so this can be coarse.
-    private let windowPollInterval: UInt64 = 5_000_000_000
+    private let windowPollInterval: UInt64
+    private let enumerateWindows: @Sendable () -> [String: [AppWindowTarget]]
     /// Coalesces installed-app rescans triggered by app launch/termination bursts.
     private let appListRefreshDebounce: UInt64 = 2_000_000_000
     /// Fired (debounced) when a running app launches or terminates — the installed-app list
@@ -22,12 +38,21 @@ final class AppActivityMonitor {
     /// Fired when a live window snapshot lands while a toggle/service picker session can consume it.
     var onManualPickerNeedsRefresh: (@MainActor () -> Void)?
 
-    init(appState: AppState) {
+    init(
+        appState: AppState,
+        windowPollInterval: UInt64 = 5_000_000_000,
+        enumerateWindows: @escaping @Sendable () -> [String: [AppWindowTarget]] = {
+            WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
+        }
+    ) {
         self.appState = appState
+        self.windowPollInterval = windowPollInterval
+        self.enumerateWindows = enumerateWindows
     }
 
     func start() {
         guard observers.isEmpty else { return }
+        isStopped = false
 
         refreshRunningApplications()
         scheduleWindowRefresh(after: 0.15)
@@ -36,6 +61,8 @@ final class AppActivityMonitor {
     }
 
     func stop() {
+        isStopped = true
+        lifecycleGeneration &+= 1
         for observer in observers {
             workspaceNotificationCenter.removeObserver(observer)
         }
@@ -44,6 +71,7 @@ final class AppActivityMonitor {
         windowRefreshTask = nil
         windowEnumerationTask?.cancel()
         windowEnumerationTask = nil
+        pendingWindowSnapshotCompletions.removeAll()
         windowPollingTask?.cancel()
         windowPollingTask = nil
         appListRefreshTask?.cancel()
@@ -64,7 +92,11 @@ final class AppActivityMonitor {
                 else { return nil }
 
                 let fallbackName = appURL.deletingPathExtension().lastPathComponent
-                let icon = application.icon ?? NSWorkspace.shared.icon(forFile: appURL.path)
+                let icon = RunningAppIconPolicy.icon(
+                    previous: appState.runningAppsByBundleID[bundleID],
+                    appURL: appURL,
+                    reload: { application.icon ?? NSWorkspace.shared.icon(forFile: appURL.path) }
+                )
                 return (
                     bundleID,
                     InstalledApp(
@@ -94,13 +126,7 @@ final class AppActivityMonitor {
     }
 
     func refreshWindowSnapshotForPicker() {
-        guard let appState else { return }
-
-        windowSnapshotRequestID += 1
-        windowEnumerationTask?.cancel()
-        windowEnumerationTask = nil
-        appState.runningWindowsByAppID = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
-        appState.appWindowActivityUpdatedAt = Date()
+        requestWindowSnapshot(priority: .userInitiated)
     }
 
     /// Fetch the authoritative window list off the main actor before showing a toggle/service
@@ -168,6 +194,7 @@ final class AppActivityMonitor {
         windowPollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: pollInterval)
+                guard !Task.isCancelled else { return }
                 self?.refreshRunningApplications()
                 self?.scheduleWindowRefresh(after: 0)
             }
@@ -200,31 +227,36 @@ final class AppActivityMonitor {
         priority: TaskPriority,
         completion: (@MainActor () -> Void)? = nil
     ) {
-        guard appState != nil else { return }
+        guard !isStopped, appState != nil else { return }
+        if let completion {
+            pendingWindowSnapshotCompletions.append(completion)
+        }
+        guard windowEnumerationTask == nil else { return }
+        let enumerateWindows = self.enumerateWindows
+        let generation = lifecycleGeneration
 
-        windowSnapshotRequestID += 1
-        let requestID = windowSnapshotRequestID
-        windowEnumerationTask?.cancel()
-
-        // AX enumeration is pure cross-process IPC; run it off the main actor so an unresponsive
-        // target app cannot stall the main thread. The request id also prevents an older detached
-        // pass from overwriting a newer picker snapshot if cancellation arrives too late.
+        // AX enumeration is synchronous cross-process IPC. Keep exactly one pass in flight;
+        // cancellation cannot stop that IPC, so replacement tasks only create overlap.
         windowEnumerationTask = Task.detached(priority: priority) { [weak self] in
-            let windows = WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
+            let windows = enumerateWindows()
             await MainActor.run { [weak self] in
-                guard let self,
-                      self.windowSnapshotRequestID == requestID,
-                      let appState = self.appState
-                else { return }
+                guard let self else { return }
+                guard self.lifecycleGeneration == generation else { return }
+                self.windowEnumerationTask = nil
+                guard !self.isStopped, let appState = self.appState else {
+                    self.pendingWindowSnapshotCompletions.removeAll()
+                    return
+                }
                 appState.runningWindowsByAppID = windows
                 appState.appWindowActivityUpdatedAt = Date()
-                self.windowEnumerationTask = nil
+                let completions = self.pendingWindowSnapshotCompletions
+                self.pendingWindowSnapshotCompletions.removeAll()
                 if appState.isPickerSessionActive,
                    appState.pickerInvocationSource.refreshesLiveSnapshot
                 {
                     self.onManualPickerNeedsRefresh?()
                 }
-                completion?()
+                completions.forEach { $0() }
             }
         }
     }

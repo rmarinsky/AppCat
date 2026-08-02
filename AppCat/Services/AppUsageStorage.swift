@@ -9,9 +9,13 @@ final class AppUsageFileStore {
     private let file: URL
     private let ioQueue: DispatchQueue
 
-    private init(file: URL, queueLabel: String) {
+    init(file: URL, queueLabel: String) {
         self.file = file
         self.ioQueue = DispatchQueue(label: queueLabel, qos: .utility)
+    }
+
+    func flush() {
+        ioQueue.sync {}
     }
 
     func save(_ stats: [String: AppUsage]) {

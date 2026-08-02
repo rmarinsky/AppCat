@@ -156,22 +156,29 @@ final class PickerCoordinator {
         // Launch the original/wrapped URL(s) so Slack click tracking, Teams Safe Links security
         // scanning, OIDC handshakes, etc. still see the click. The normalized URL is only used
         // internally for rule matching, history, and suggestions.
-        browserLauncher.open(urls: pendingOpen.launchURLs, with: browser, mode: mode, profile: profile)
-        deferHandoffOverlay(
-            .init(
-                icon: browser.icon,
-                destinationName: profile.map { "\(browser.displayName) · \($0.displayName)" } ?? browser.displayName,
-                reason: HandoffReason(source: source)
-            ),
-            state: state
-        )
-        recordBrowserOpen(
-            pendingOpen,
-            browser: browser,
-            profile: profile,
-            source: source,
-            state: state
-        )
+        browserLauncher.open(
+            urls: pendingOpen.launchURLs,
+            with: browser,
+            mode: mode,
+            profile: profile
+        ) { [weak self] succeeded in
+            guard succeeded, let self else { return }
+            self.recordBrowserOpen(
+                pendingOpen,
+                browser: browser,
+                profile: profile,
+                source: source,
+                state: state
+            )
+            self.deferHandoffOverlay(
+                .init(
+                    icon: browser.icon,
+                    destinationName: profile.map { "\(browser.displayName) · \($0.displayName)" } ?? browser.displayName,
+                    reason: HandoffReason(source: source)
+                ),
+                state: state
+            )
+        }
     }
 
     func openURL(
@@ -196,14 +203,26 @@ final class PickerCoordinator {
         #if DEBUG
             if UITestRuntime.isEnabled { return }
         #endif
-        for launchURL in pendingOpen.launchURLs {
-            browserLauncher.open(url: launchURL, with: app)
+        browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in
+            guard let self else { return }
+            let successfulIndices = results.indices.filter {
+                results[$0]
+                    && pendingOpen.displayURLs.indices.contains($0)
+                    && pendingOpen.launchURLs.indices.contains($0)
+            }
+            guard !successfulIndices.isEmpty else { return }
+            let successfulOpen = PendingOpenSnapshot(
+                url: pendingOpen.url,
+                displayURLs: successfulIndices.map { pendingOpen.displayURLs[$0] },
+                launchURLs: successfulIndices.map { pendingOpen.launchURLs[$0] },
+                title: pendingOpen.title
+            )
+            self.recordAppOpen(successfulOpen, app: app, source: source, state: state)
+            self.deferHandoffOverlay(
+                .init(icon: app.icon, destinationName: app.displayName, reason: HandoffReason(source: source)),
+                state: state
+            )
         }
-        deferHandoffOverlay(
-            .init(icon: app.icon, destinationName: app.displayName, reason: HandoffReason(source: source)),
-            state: state
-        )
-        recordAppOpen(pendingOpen, app: app, source: source, state: state)
     }
 
     func reopenURL(_ urlString: String, state: AppState) {
@@ -236,32 +255,30 @@ final class PickerCoordinator {
         source: OpenSource,
         state: AppState
     ) {
-        deferPostSelectionWork {
-            let entryIDs = self.historyManager?.record(
-                urls: pendingOpen.displayURLs,
-                title: pendingOpen.title,
-                appName: browser.displayName,
-                profileName: profile?.displayName,
-                browserID: browser.id,
-                profileDirectoryName: profile?.directoryName,
-                targetType: .browser,
-                sourceRuleID: source.ruleID,
+        let entryIDs = historyManager?.record(
+            urls: pendingOpen.displayURLs,
+            title: pendingOpen.title,
+            appName: browser.displayName,
+            profileName: profile?.displayName,
+            browserID: browser.id,
+            profileDirectoryName: profile?.directoryName,
+            targetType: .browser,
+            sourceRuleID: source.ruleID,
+            state: state
+        ) ?? []
+        statsManager?.record(source, profileTargeted: profile != nil)
+        for (index, entryID) in entryIDs.enumerated() {
+            guard pendingOpen.launchURLs.indices.contains(index),
+                  pendingOpen.displayURLs.indices.contains(index)
+            else { continue }
+            resolveFinalURL(
+                forEntry: entryID,
+                sourceURL: pendingOpen.launchURLs[index],
+                displayURL: pendingOpen.displayURLs[index],
                 state: state
-            ) ?? []
-            self.statsManager?.record(source, profileTargeted: profile != nil)
-            for (index, entryID) in entryIDs.enumerated() {
-                guard pendingOpen.launchURLs.indices.contains(index),
-                      pendingOpen.displayURLs.indices.contains(index)
-                else { continue }
-                self.resolveFinalURL(
-                    forEntry: entryID,
-                    sourceURL: pendingOpen.launchURLs[index],
-                    displayURL: pendingOpen.displayURLs[index],
-                    state: state
-                )
-            }
-            self.suggestionsManager?.recompute(state: state)
+            )
         }
+        deferSuggestionRecompute(state: state)
     }
 
     private func recordAppOpen(
@@ -270,39 +287,37 @@ final class PickerCoordinator {
         source: OpenSource,
         state: AppState
     ) {
-        deferPostSelectionWork {
-            state.recordAppUsage(app.id)
-            let entryIDs = self.historyManager?.record(
-                urls: pendingOpen.displayURLs,
-                title: pendingOpen.title,
-                appName: app.displayName,
-                profileName: nil,
-                browserID: app.id,
-                profileDirectoryName: nil,
-                targetType: .app,
-                sourceRuleID: source.ruleID,
+        state.recordAppUsage(app.id)
+        let entryIDs = historyManager?.record(
+            urls: pendingOpen.displayURLs,
+            title: pendingOpen.title,
+            appName: app.displayName,
+            profileName: nil,
+            browserID: app.id,
+            profileDirectoryName: nil,
+            targetType: .app,
+            sourceRuleID: source.ruleID,
+            state: state
+        ) ?? []
+        statsManager?.record(source)
+        for (index, entryID) in entryIDs.enumerated() {
+            guard pendingOpen.launchURLs.indices.contains(index),
+                  pendingOpen.displayURLs.indices.contains(index)
+            else { continue }
+            resolveFinalURL(
+                forEntry: entryID,
+                sourceURL: pendingOpen.launchURLs[index],
+                displayURL: pendingOpen.displayURLs[index],
                 state: state
-            ) ?? []
-            self.statsManager?.record(source)
-            for (index, entryID) in entryIDs.enumerated() {
-                guard pendingOpen.launchURLs.indices.contains(index),
-                      pendingOpen.displayURLs.indices.contains(index)
-                else { continue }
-                self.resolveFinalURL(
-                    forEntry: entryID,
-                    sourceURL: pendingOpen.launchURLs[index],
-                    displayURL: pendingOpen.displayURLs[index],
-                    state: state
-                )
-            }
-            self.suggestionsManager?.recompute(state: state)
+            )
         }
+        deferSuggestionRecompute(state: state)
     }
 
-    private func deferPostSelectionWork(_ work: @escaping @MainActor () -> Void) {
+    private func deferSuggestionRecompute(state: AppState) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 750_000_000)
-            work()
+            await Task.yield()
+            self.suggestionsManager?.recompute(state: state)
         }
     }
 

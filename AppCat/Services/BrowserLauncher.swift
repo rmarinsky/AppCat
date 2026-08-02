@@ -26,6 +26,7 @@ final class BrowserLauncher {
         var activateWindowTarget: @MainActor (AppWindowTarget) -> Bool
         var runningApplication: @MainActor (String) -> BrowserLauncherRunningApplication?
         var hasOpenWindows: @MainActor (String) -> Bool?
+        var activateApplicationWindow: @MainActor (String) -> Bool?
         var openURLs: @MainActor ([URL], URL, NSWorkspace.OpenConfiguration, @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
         var sendReopenEvent: @MainActor (BrowserLauncherRunningApplication, String) -> Void
         var runExecutable: @MainActor (String, [String]) throws -> Void
@@ -35,6 +36,7 @@ final class BrowserLauncher {
             activateWindowTarget: { WindowEnumerator.activate($0) },
             runningApplication: { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first },
             hasOpenWindows: { WindowEnumerator.hasOpenWindows(bundleID: $0) },
+            activateApplicationWindow: { WindowEnumerator.activateApplicationWindow(bundleID: $0) },
             openURLs: { urls, appURL, configuration, completion in
                 NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: configuration) { app, error in
                     Task { @MainActor in completion(app, error) }
@@ -76,25 +78,40 @@ final class BrowserLauncher {
         self.dependencies = dependencies
     }
 
-    func open(url: URL, with browser: InstalledBrowser, mode: OpenMode = .normal, profile: BrowserProfile? = nil) {
-        open(urls: [url], with: browser, mode: mode, profile: profile)
+    func open(
+        url: URL,
+        with browser: InstalledBrowser,
+        mode: OpenMode = .normal,
+        profile: BrowserProfile? = nil,
+        completion: @escaping @MainActor (Bool) -> Void = { _ in }
+    ) {
+        open(urls: [url], with: browser, mode: mode, profile: profile, completion: completion)
     }
 
-    func open(urls: [URL], with browser: InstalledBrowser, mode: OpenMode = .normal, profile: BrowserProfile? = nil) {
-        guard !urls.isEmpty else { return }
+    func open(
+        urls: [URL],
+        with browser: InstalledBrowser,
+        mode: OpenMode = .normal,
+        profile: BrowserProfile? = nil,
+        completion: @escaping @MainActor (Bool) -> Void = { _ in }
+    ) {
+        guard !urls.isEmpty else {
+            completion(false)
+            return
+        }
 
         if let profile {
-            openWithProfile(urls: urls, browser: browser, profile: profile, mode: mode)
+            openWithProfile(urls: urls, browser: browser, profile: profile, mode: mode, completion: completion)
             return
         }
 
         switch mode {
         case .normal:
-            openNormal(urls: urls, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false, completion: completion)
         case .background:
-            openNormal(urls: urls, browser: browser, inBackground: true)
+            openNormal(urls: urls, browser: browser, inBackground: true, completion: completion)
         case .privateMode:
-            openPrivate(urls: urls, browser: browser)
+            openPrivate(urls: urls, browser: browser, completion: completion)
         }
     }
 
@@ -130,11 +147,12 @@ final class BrowserLauncher {
         )
     }
 
-    private func openNormal(url: URL, browser: InstalledBrowser, inBackground: Bool) {
-        openNormal(urls: [url], browser: browser, inBackground: inBackground)
-    }
-
-    private func openNormal(urls: [URL], browser: InstalledBrowser, inBackground: Bool) {
+    private func openNormal(
+        urls: [URL],
+        browser: InstalledBrowser,
+        inBackground: Bool,
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = !inBackground
 
@@ -146,20 +164,26 @@ final class BrowserLauncher {
             guard let self else { return }
             if let error {
                 Log.browser.error("Failed to open \(urls.count) URL(s) with \(browser.displayName): \(error.localizedDescription)")
+                completion(false)
             } else {
                 let mode = inBackground ? "background" : "foreground"
                 Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in \(mode)")
                 if !inBackground {
                     activateBrowserIfWindowlessAfterOpen(browser, openedApp: openedApp)
                 }
+                completion(true)
             }
         }
     }
 
-    private func openPrivate(urls: [URL], browser: InstalledBrowser) {
+    private func openPrivate(
+        urls: [URL],
+        browser: InstalledBrowser,
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
         guard let args = browser.privateModeArgs else {
             // Fallback to normal open if no private mode support
-            openNormal(urls: urls, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false, completion: completion)
             return
         }
 
@@ -172,14 +196,21 @@ final class BrowserLauncher {
             try dependencies.runExecutable(executablePath, args + urls.map(\.absoluteString))
             Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) in private mode")
             activateRunningApp(bundleID: browser.id)
+            completion(true)
         } catch {
             Log.browser.error("Failed to open private mode for \(browser.displayName): \(error.localizedDescription)")
             // Fallback to normal open
-            openNormal(urls: urls, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false, completion: completion)
         }
     }
 
-    private func openWithProfile(urls: [URL], browser: InstalledBrowser, profile: BrowserProfile, mode: OpenMode) {
+    private func openWithProfile(
+        urls: [URL],
+        browser: InstalledBrowser,
+        profile: BrowserProfile,
+        mode: OpenMode,
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
         let executablePath = browser.appURL
             .appendingPathComponent("Contents/MacOS")
             .appendingPathComponent(executableName(for: browser))
@@ -208,34 +239,86 @@ final class BrowserLauncher {
             try dependencies.runExecutable(executablePath, args)
             Log.browser.info("Opened \(urls.count) URL(s) with \(browser.displayName) profile '\(profile.displayName)'")
             activateRunningApp(bundleID: browser.id)
+            completion(true)
         } catch {
             Log.browser.error("Failed to open with profile for \(browser.displayName): \(error.localizedDescription)")
-            openNormal(urls: urls, browser: browser, inBackground: false)
+            openNormal(urls: urls, browser: browser, inBackground: false, completion: completion)
         }
     }
 
     // MARK: - Open in native app
 
-    func open(url: URL, with app: InstalledApp) {
-        openCandidateURLs(Self.candidateURLs(for: url, app: app)[...], originalURL: url, app: app)
+    func open(
+        url: URL,
+        with app: InstalledApp,
+        completion: @escaping @MainActor (Bool) -> Void = { _ in }
+    ) {
+        openCandidateURLs(
+            Self.candidateURLs(for: url, app: app)[...],
+            originalURL: url,
+            app: app,
+            completion: completion
+        )
     }
 
-    private func openCandidateURLs(_ urls: ArraySlice<URL>, originalURL: URL, app: InstalledApp) {
-        guard let url = urls.first else {
-            Log.apps.warning("Could not open \(originalURL) with \(app.displayName); activating selected app as fallback")
-            activate(app: app)
+    func open(
+        urls: [URL],
+        with app: InstalledApp,
+        completion: @escaping @MainActor ([Bool]) -> Void = { _ in }
+    ) {
+        guard !urls.isEmpty else {
+            completion([])
             return
         }
 
-        openWithSelectedApp(url, app: app) { [weak self] _ in
-            self?.openCandidateURLs(urls.dropFirst(), originalURL: originalURL, app: app)
+        var results = Array(repeating: false, count: urls.count)
+        var remaining = urls.count
+        for (index, url) in urls.enumerated() {
+            open(url: url, with: app) { succeeded in
+                results[index] = succeeded
+                remaining -= 1
+                if remaining == 0 {
+                    completion(results)
+                }
+            }
+        }
+    }
+
+    private func openCandidateURLs(
+        _ urls: ArraySlice<URL>,
+        originalURL: URL,
+        app: InstalledApp,
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
+        guard let url = urls.first else {
+            Log.apps.warning("Could not open \(originalURL) with \(app.displayName); activating selected app as fallback")
+            activate(app: app)
+            completion(false)
+            return
+        }
+
+        openWithSelectedApp(url, app: app) { [weak self] succeeded in
+            guard let self else {
+                completion(false)
+                return
+            }
+            if succeeded {
+                completion(true)
+            } else {
+                self.openCandidateURLs(
+                    urls.dropFirst(),
+                    originalURL: originalURL,
+                    app: app,
+                    completion: completion
+                )
+            }
         }
     }
 
     private func openWithSelectedApp(
         _ url: URL,
         app: InstalledApp,
-        onFailure: @escaping @MainActor (Error) -> Void
+        completion: @escaping @MainActor (Bool) -> Void
     ) {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
@@ -247,18 +330,17 @@ final class BrowserLauncher {
         ) { openedApp, error in
             if let error {
                 Log.apps.warning("Failed to open \(url) with \(app.displayName): \(error.localizedDescription)")
-                Task { @MainActor in onFailure(error) }
+                completion(false)
                 return
             }
 
             Log.apps.info("Opened \(url) with \(app.displayName)")
-            Task { @MainActor in
-                if let openedApp {
-                    self.activateRunningApplication(openedApp, displayName: app.displayName)
-                } else {
-                    self.activateRunningApp(bundleID: app.id)
-                }
+            if let openedApp {
+                self.activateRunningApplication(openedApp, displayName: app.displayName)
+            } else {
+                self.activateRunningApp(bundleID: app.id)
             }
+            completion(true)
         }
     }
 
@@ -300,9 +382,13 @@ final class BrowserLauncher {
             return false
         }
 
-        let didActivate = activateRunningApplication(runningApp, displayName: displayName)
-        if let appURL, dependencies.hasOpenWindows(bundleID) == false {
+        let didActivateWindow = dependencies.activateApplicationWindow(bundleID)
+        let didActivate = didActivateWindow == true
+            ? true
+            : activateRunningApplication(runningApp, displayName: displayName)
+        if let appURL, didActivateWindow == false {
             let didReopen = reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
+            scheduleWindowFocusAfterReopen(bundleID: bundleID)
             return didActivate || didReopen
         }
 
@@ -313,6 +399,14 @@ final class BrowserLauncher {
             reopenWindowlessWith: appURL
         )
         return didActivate
+    }
+
+    private func scheduleWindowFocusAfterReopen(bundleID: String) {
+        for delay in [0.15, 0.55] {
+            dependencies.schedule(delay) { [weak self] in
+                _ = self?.dependencies.activateApplicationWindow(bundleID)
+            }
+        }
     }
 
     @discardableResult

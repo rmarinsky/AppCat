@@ -54,7 +54,7 @@ struct AppsScreenView: View {
 
                 searchField
 
-                if !WindowEnumerator.isTrusted {
+                if !appState.hasAccessibilityPermission {
                     accessibilityHint
                 }
 

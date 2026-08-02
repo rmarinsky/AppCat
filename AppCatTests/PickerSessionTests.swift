@@ -3,6 +3,32 @@ import AppKit
 import XCTest
 
 final class PickerSessionTests: XCTestCase {
+    @MainActor
+    func testRefreshingPickerPermissionsPublishesNewValues() {
+        let state = AppState()
+
+        state.refreshPickerPermissions(inputMonitoring: false, accessibility: false)
+        XCTAssertFalse(state.hasInputMonitoringPermission)
+        XCTAssertFalse(state.hasAccessibilityPermission)
+
+        state.refreshPickerPermissions(inputMonitoring: true, accessibility: true)
+        XCTAssertTrue(state.hasInputMonitoringPermission)
+        XCTAssertTrue(state.hasAccessibilityPermission)
+    }
+
+    @MainActor
+    func testPrewarmedPickerCoordinatorIsReleased() {
+        weak var releasedCoordinator: PickerCoordinator?
+
+        autoreleasepool {
+            let coordinator = PickerCoordinator()
+            releasedCoordinator = coordinator
+            coordinator.prewarmPicker(state: AppState())
+        }
+
+        XCTAssertNil(releasedCoordinator)
+    }
+
     // MARK: - Coordinator dismiss clears pending state
 
     /// Auto-routed opens can dismiss before any picker window was ever created; the coordinator
@@ -340,6 +366,38 @@ final class PickerSessionTests: XCTestCase {
         {
             XCTAssertEqual(state.pickerItemsSnapshot[state.focusedBrowserIndex].id, focusedID)
         }
+    }
+
+    @MainActor
+    func testRefreshSnapshotForVisibleToggleSessionPublishesEmptyResult() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .toggleShortcut
+        state.apps = [makeApp(id: "test.closed")]
+        state.regularAppBundleIDs = ["test.closed"]
+        state.runningAppBundleIDs = ["test.closed"]
+        state.appActivityUpdatedAt = Date()
+        state.appWindowActivityUpdatedAt = Date()
+        state.runningWindowsByAppID = [:]
+        state.showWindowlessApps = true
+
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+        if NSApp.isActive { NSApp.deactivate() }
+        coordinator.showPicker(state: state)
+        defer { coordinator.dismissPicker(state: state) }
+
+        state.isPickerVisible = true
+        state.isPickerPresentationPending = false
+        XCTAssertEqual(state.pickerItemsSnapshot.map(\.id), ["app:test.closed"])
+
+        state.runningAppBundleIDs = []
+        state.regularAppBundleIDs = []
+        coordinator.refreshManualPickerSession()
+
+        XCTAssertTrue(state.pickerItemsSnapshot.isEmpty)
+        XCTAssertEqual(state.focusedBrowserIndex, 0)
     }
 
     @MainActor

@@ -5,12 +5,17 @@ import UniformTypeIdentifiers
 @MainActor
 final class HistoryManager {
     private let maxHistoryEntries = 500
+    private let storage: HistoryStorage
+
+    init(storage: HistoryStorage = .shared) {
+        self.storage = storage
+    }
 
     func load(into state: AppState) {
-        var entries = HistoryStorage.shared.load()
+        var entries = storage.load()
         if entries.count > maxHistoryEntries {
             entries = Array(entries.prefix(maxHistoryEntries))
-            HistoryStorage.shared.save(entries)
+            storage.save(entries)
         }
         state.history = entries
     }
@@ -49,7 +54,7 @@ final class HistoryManager {
         if state.history.count > maxHistoryEntries {
             state.history = Array(state.history.prefix(maxHistoryEntries))
         }
-        HistoryStorage.shared.save(state.history)
+        storage.save(state.history)
         log(entry)
         return entry.id
     }
@@ -101,7 +106,7 @@ final class HistoryManager {
         if state.history.count > maxHistoryEntries {
             state.history = Array(state.history.prefix(maxHistoryEntries))
         }
-        HistoryStorage.shared.save(state.history)
+        storage.save(state.history)
         return newEntries.map(\.id)
     }
 
@@ -113,19 +118,19 @@ final class HistoryManager {
         guard state.history[index].url != absolute else { return }
         state.history[index].url = absolute
         state.history[index].domain = finalURL.host ?? absolute
-        HistoryStorage.shared.save(state.history)
+        storage.save(state.history)
         Log.history.debug("Updated history entry \(id.uuidString) to final URL \(absolute)")
     }
 
     func delete(ids: Set<UUID>, state: AppState) {
         state.history.removeAll { ids.contains($0.id) }
-        HistoryStorage.shared.save(state.history)
+        storage.save(state.history)
         Log.history.debug("Deleted \(ids.count) history entries")
     }
 
     func clearAll(state: AppState) {
         state.history.removeAll()
-        HistoryStorage.shared.save(state.history)
+        storage.save(state.history)
         Log.history.debug("Cleared all history")
     }
 

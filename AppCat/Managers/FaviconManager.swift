@@ -51,21 +51,13 @@ actor FaviconManager {
     }
 
     func favicon(forURLString urlString: String, fallbackDomain: String? = nil) async -> NSImage? {
-        let resolvedDomain: String?
-        if let url = URL(string: urlString) {
-            if url.scheme?.lowercased() == "https" {
-                let metadata = await LinkMetadataManager.shared.metadata(for: url)
-                resolvedDomain = metadata.finalHost
-            } else {
-                resolvedDomain = url.host?.lowercased()
-            }
-        } else {
-            resolvedDomain = nil
-        }
-
-        let domain = (resolvedDomain ?? fallbackDomain)?.lowercased()
+        let domain = Self.domain(forURLString: urlString, fallbackDomain: fallbackDomain)
         guard let domain, !domain.isEmpty else { return nil }
         return await favicon(for: domain)
+    }
+
+    nonisolated static func domain(forURLString urlString: String, fallbackDomain: String?) -> String? {
+        (URL(string: urlString)?.host ?? fallbackDomain)?.lowercased()
     }
 
     private func fetchAndCache(domain: String, key: NSString, diskURL: URL) async -> NSImage? {

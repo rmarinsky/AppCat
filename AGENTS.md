@@ -23,9 +23,11 @@ brew install create-dmg      # For release DMG only
 ./generate_project.sh        # Always run first — generates .xcodeproj from project.yml
 open AppCat.xcodeproj    # Select "AppCat DEV" scheme → Run
 
-# Tests (requires a local Apple Development identity for AppCatUITests)
+# Non-interactive tests (default; does not launch AppCatUITests)
 xcodebuild test -project AppCat.xcodeproj -scheme "AppCat DEV" -destination "platform=macOS"
-xcodebuild test -project AppCat.xcodeproj -scheme "AppCat DEV" -destination "platform=macOS" -only-testing:AppCatTests
+
+# Interactive UI journeys (opt-in; requires a local Apple Development identity and controls the desktop)
+xcodebuild test -project AppCat.xcodeproj -scheme "AppCat UI Tests" -destination "platform=macOS"
 
 # Dev install (build + install to /Applications)
 ./scripts/dev-install.sh                          # Fast incremental build/install

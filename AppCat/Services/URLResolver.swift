@@ -5,7 +5,7 @@ import os
 /// the final destination — so history reflects the actual page the user lands on,
 /// not a CDN/redirector intermediary (e.g. office.com → microsoft.com).
 ///
-/// Uses a HEAD request to avoid downloading page bodies, falls back to GET on 405.
+/// Uses a HEAD request to avoid downloading page bodies. Servers that reject HEAD are skipped.
 final class URLResolver: NSObject, Sendable {
     private let session: URLSession
 
@@ -28,8 +28,7 @@ final class URLResolver: NSObject, Sendable {
             return nil
         }
 
-        if let head = await fetch(method: "HEAD", url: url) { return head }
-        return await fetch(method: "GET", url: url)
+        return await fetch(method: "HEAD", url: url)
     }
 
     private func fetch(method: String, url: URL) async -> URL? {
@@ -38,7 +37,7 @@ final class URLResolver: NSObject, Sendable {
         do {
             let (_, response) = try await session.data(for: req)
             guard let http = response as? HTTPURLResponse else { return nil }
-            // Some servers return 405 to HEAD — let the caller retry with GET.
+            // A GET fallback would consume arbitrary response bodies just to enrich history.
             if method == "HEAD", http.statusCode == 405 { return nil }
             return http.url
         } catch {

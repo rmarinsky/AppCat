@@ -7,15 +7,6 @@ final class PickerUserJourneysUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        let environment = ProcessInfo.processInfo.environment
-        let isCI = environment["CI"] == "true"
-        let allowInteractive = environment["APPCAT_RUN_INTERACTIVE_UITESTS"] == "1"
-        if !isCI, !allowInteractive {
-            throw XCTSkip(
-                "Interactive picker UI tests are skipped by default locally. "
-                    + "Set APPCAT_RUN_INTERACTIVE_UITESTS=1 to run them."
-            )
-        }
     }
 
     override func tearDownWithError() throws {
@@ -49,7 +40,7 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
     }
 
-    func testHoldPickerOpensAppWithNumberKey() {
+    func testHoldPickerIgnoresNumberKeyWithoutTakingFocus() {
         launch(scenario: "hold-picker")
         let firstApp = app.buttons["picker.item.app:ui.hold.0"]
 
@@ -57,7 +48,7 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertEqual(firstApp.value as? String, "1")
         XCTAssertTrue(waitForAppCatToDeactivate())
         postRawKey(keyCode: 18)
-        XCTAssertTrue(firstApp.waitForNonExistence(timeout: 2))
+        XCTAssertFalse(firstApp.waitForNonExistence(timeout: 1))
     }
 
     func testHoldPickerOpensClickedApp() {

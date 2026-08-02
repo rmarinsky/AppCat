@@ -2,6 +2,38 @@
 import XCTest
 
 final class HistoryEntryCodableTests: XCTestCase {
+    func testHistoryFlushWaitsForQueuedSave() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("history-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let storage = HistoryStorage(fileURL: fileURL)
+        let entry = HistoryEntry(
+            url: "https://example.com/",
+            domain: "example.com",
+            title: nil,
+            appName: "Safari",
+            profileName: nil
+        )
+
+        storage.save([entry])
+        storage.flush()
+
+        XCTAssertEqual(storage.load().map(\.id), [entry.id])
+    }
+
+    func testAppUsageFlushWaitsForQueuedSave() {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("usage-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let storage = AppUsageFileStore(file: fileURL, queueLabel: "AppCatTests.appusage")
+        let usage = ["com.test.Editor": AppUsage(count: 2, lastUsed: Date(timeIntervalSince1970: 10))]
+
+        storage.save(usage)
+        storage.flush()
+
+        XCTAssertEqual(storage.load(), usage)
+    }
+
     private func encoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601

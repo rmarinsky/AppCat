@@ -9,8 +9,13 @@ final class StatsStorage: StatsStoring {
     static let shared = StatsStorage()
 
     private let fileManager = FileManager.default
+    private let fileURL: URL
     // Serial, off-main; preserves write order. `entries` is a value-type snapshot.
     private let ioQueue = DispatchQueue(label: "ua.com.rmarinsky.appcat.stats-io", qos: .utility)
+
+    init(fileURL: URL = ConfigDirectory.stats) {
+        self.fileURL = fileURL
+    }
 
     func save(_ entries: [DailyStats]) {
         ioQueue.async {
@@ -18,7 +23,7 @@ final class StatsStorage: StatsStoring {
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.sortedKeys]
                 let data = try encoder.encode(entries)
-                try data.write(to: ConfigDirectory.stats, options: .atomic)
+                try data.write(to: self.fileURL, options: .atomic)
                 Log.settings.debug("Saved \(entries.count) daily stats entries")
             } catch {
                 Log.settings.error("Failed to save stats: \(error.localizedDescription)")
@@ -26,10 +31,14 @@ final class StatsStorage: StatsStoring {
         }
     }
 
+    func flush() {
+        ioQueue.sync {}
+    }
+
     func load() -> [DailyStats] {
-        guard fileManager.fileExists(atPath: ConfigDirectory.stats.path) else { return [] }
+        guard fileManager.fileExists(atPath: fileURL.path) else { return [] }
         do {
-            let data = try Data(contentsOf: ConfigDirectory.stats)
+            let data = try Data(contentsOf: fileURL)
             let entries = try JSONDecoder().decode([DailyStats].self, from: data)
             Log.settings.debug("Loaded \(entries.count) daily stats entries")
             return entries

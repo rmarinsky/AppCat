@@ -111,16 +111,24 @@ schemes:
       targets:
         AppCat: all
         AppCatTests: [test]
-        AppCatUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - AppCatTests
-        - AppCatUITests
     archive:
       config: Debug
+
+  AppCat UI Tests:
+    build:
+      targets:
+        AppCat: all
+        AppCatUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - AppCatUITests
 
   AppCat:
     build:

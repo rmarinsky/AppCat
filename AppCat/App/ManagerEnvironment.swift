@@ -18,8 +18,16 @@ private struct DefaultBrowserManagerKey: EnvironmentKey {
     static let defaultValue: DefaultBrowserManager? = nil
 }
 
+final class WeakPickerCoordinatorReference {
+    weak var value: PickerCoordinator?
+
+    init(_ value: PickerCoordinator? = nil) {
+        self.value = value
+    }
+}
+
 private struct PickerCoordinatorKey: EnvironmentKey {
-    static let defaultValue: PickerCoordinator? = nil
+    static let defaultValue = WeakPickerCoordinatorReference()
 }
 
 private struct HistoryManagerKey: EnvironmentKey {
@@ -61,7 +69,7 @@ extension EnvironmentValues {
         set { self[DefaultBrowserManagerKey.self] = newValue }
     }
 
-    var pickerCoordinator: PickerCoordinator? {
+    var pickerCoordinator: WeakPickerCoordinatorReference {
         get { self[PickerCoordinatorKey.self] }
         set { self[PickerCoordinatorKey.self] = newValue }
     }
