@@ -4,7 +4,7 @@ Date: 2026-08-02
 Source reviewed: `fix/picker-audit-followups` at `efc13fe23e41999ab138a9e21835bdfb048f77a7`; its tracked tree is identical to fetched `origin/main` at `8fafb0aad8ff07300968aa13e8738330343f204f`
 Runtime inspected: `/Applications/appcat-dev.app`, PID `97903`, version `1.7.2 (46)`, macOS `26.5.2 (25F84)`
 
-> **Remediation update — PR #37:** the findings and line references below are the pre-fix audit snapshot at `efc13fe`. The current PR branch fixes F-01/F-02/F-03/F-07/F-08/F-09/F-10/F-11/F-13/F-14 and the F-12 focus contract. The report keeps the original trigger/evidence as historical provenance; explicit status lines distinguish remediated findings from remaining audit work.
+> **Remediation update — PR #37:** the findings and line references below are the pre-fix audit snapshot at `efc13fe`. The current PR branch remediates F-01 through F-14; F-06 is resolved by explicitly limiting Core Graphics fallback to the current Space, while F-12's source contract is fixed but still requires the documented live fullscreen check. The original trigger/evidence remains below as historical provenance.
 
 ## Executive summary
 
