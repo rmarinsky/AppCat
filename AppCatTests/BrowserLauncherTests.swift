@@ -43,7 +43,7 @@ final class BrowserLauncherTests: XCTestCase {
     @MainActor
     func testPartialMultiURLAppOpenRecordsOnlySuccessfulURL() throws {
         let world = FakeBrowserLauncherWorld()
-        world.openErrors = [nil, BrowserLauncherTestError.failed]
+        world.openErrors = [BrowserLauncherTestError.failed, nil]
         let stats = StatsManager(storage: BrowserLauncherStatsStorage())
         let coordinator = PickerCoordinator(
             browserLauncher: BrowserLauncher(dependencies: world.dependencies())
@@ -66,11 +66,11 @@ final class BrowserLauncherTests: XCTestCase {
         coordinator.historyManager = HistoryManager(storage: historyStorage)
         coordinator.statsManager = stats
         let state = AppState(appUsageStore: appUsageStore)
-        let openedURL = try XCTUnwrap(URL(string: "https://example.com/opened"))
         let failedURL = try XCTUnwrap(URL(string: "https://example.com/failed"))
+        let openedURL = try XCTUnwrap(URL(string: "https://example.com/opened"))
         state.setPendingOpen(
-            displayURLs: [openedURL, failedURL],
-            launchURLs: [openedURL, failedURL]
+            displayURLs: [failedURL, openedURL],
+            launchURLs: [failedURL, openedURL]
         )
         state.isPickerVisible = true
         let app = makeApp(id: "com.test.Editor", urlSchemes: [])
@@ -562,22 +562,22 @@ private final class FakeBrowserLauncherWorld {
 
     func dependencies() -> BrowserLauncher.Dependencies {
         BrowserLauncher.Dependencies(
-            activateWindowTarget: { [weak self] _ in self?.activateWindowTargetResult == true },
-            runningApplication: { [weak self] _ in self?.runningApplication },
-            hasOpenWindows: { [weak self] _ in self?.hasOpenWindows },
-            openURLs: { [weak self] urls, appURL, configuration, completion in
-                self?.openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
-                let error = self?.openErrors.isEmpty == false ? self?.openErrors.removeFirst() : nil
-                completion(nil, error ?? nil)
+            activateWindowTarget: { [self] _ in activateWindowTargetResult },
+            runningApplication: { [self] _ in runningApplication },
+            hasOpenWindows: { [self] _ in hasOpenWindows },
+            openURLs: { [self] urls, appURL, configuration, completion in
+                openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
+                let error = openErrors.isEmpty ? nil : openErrors.removeFirst()
+                completion(nil, error)
             },
-            sendReopenEvent: { [weak self] _, displayName in
-                self?.reopenEvents.append(displayName)
+            sendReopenEvent: { [self] _, displayName in
+                reopenEvents.append(displayName)
             },
-            runExecutable: { [weak self] path, arguments in
-                self?.executableRuns.append(ExecutableRun(path: path, arguments: arguments))
+            runExecutable: { [self] path, arguments in
+                executableRuns.append(ExecutableRun(path: path, arguments: arguments))
             },
-            schedule: { [weak self] _, action in
-                self?.scheduledActions.append(action)
+            schedule: { [self] _, action in
+                scheduledActions.append(action)
             }
         )
     }
