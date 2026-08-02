@@ -22,6 +22,17 @@ struct AppWindowTarget: Hashable, Identifiable {
 /// `runningWindows()` on a background executor so a slow/unresponsive target app cannot stall the
 /// main thread (and the picker) for up to the AX messaging timeout.
 enum WindowEnumerator {
+    struct CoreGraphicsSnapshot {
+        private var cachedWindowInfo: [[String: Any]]?
+
+        mutating func windowInfo(load: () -> [[String: Any]]) -> [[String: Any]] {
+            if let cachedWindowInfo { return cachedWindowInfo }
+            let windowInfo = load()
+            cachedWindowInfo = windowInfo
+            return windowInfo
+        }
+    }
+
     enum WindowSource {
         case ax
         case coreGraphics
@@ -160,9 +171,17 @@ enum WindowEnumerator {
     static func runningWindows() -> [String: [AppWindowTarget]] {
         guard AXIsProcessTrusted() else { return [:] }
         var result: [String: [AppWindowTarget]] = [:]
+        var coreGraphicsSnapshot = CoreGraphicsSnapshot()
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            guard !Task.isCancelled else { break }
             guard let id = app.bundleIdentifier, id != Bundle.main.bundleIdentifier else { continue }
-            let windows = windows(forPID: app.processIdentifier, bundleID: id)
+            let windows = windows(
+                forPID: app.processIdentifier,
+                bundleID: id,
+                coreGraphicsWindowInfo: {
+                    coreGraphicsSnapshot.windowInfo(load: currentCoreGraphicsWindowInfo)
+                }
+            )
             if !windows.isEmpty { result[id] = windows }
         }
         return result
@@ -176,7 +195,11 @@ enum WindowEnumerator {
         guard AXIsProcessTrusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         else { return [] }
-        return windows(forPID: app.processIdentifier, bundleID: bundleID)
+        return windows(
+            forPID: app.processIdentifier,
+            bundleID: bundleID,
+            coreGraphicsWindowInfo: currentCoreGraphicsWindowInfo
+        )
     }
 
     static func hasOpenWindows(bundleID: String) -> Bool? {
@@ -207,6 +230,7 @@ enum WindowEnumerator {
         }
 
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(axApp, messagingTimeout)
         // Mark the target window as main/focused *before* activating the app so that
         // when forceActivate fires, the system sees this window as the frontmost.
         // Calling forceActivate again immediately after kAXRaiseAction re-activates the
@@ -238,7 +262,11 @@ enum WindowEnumerator {
         return options
     }
 
-    private static func windows(forPID pid: pid_t, bundleID: String) -> [AppWindowTarget] {
+    private static func windows(
+        forPID pid: pid_t,
+        bundleID: String,
+        coreGraphicsWindowInfo: () -> [[String: Any]]
+    ) -> [AppWindowTarget] {
         let axTargets = windowTargets(from: axWindowCandidates(forPID: pid, bundleID: bundleID))
 
         // Apps that draw their UI in embedded web content under-report through `kAXWindowsAttribute`:
@@ -261,8 +289,15 @@ enum WindowEnumerator {
         let merged = mergeWindowTargets(menuTargets, axTargets)
         if !merged.isEmpty { return merged }
 
-        // Last resort for an app with no usable Window menu whose windows are off-Space/empty-titled.
-        return windowTargets(from: cgWindowCandidates(forPID: pid, bundleID: bundleID))
+        guard !Task.isCancelled else { return merged }
+
+        // Last resort for a current-Space app with no usable AX title or Window menu. Cross-Space
+        // discovery intentionally relies on the Window menu to avoid Core Graphics phantom tiles.
+        return windowTargets(from: cgWindowCandidates(
+            forPID: pid,
+            bundleID: bundleID,
+            windowInfo: coreGraphicsWindowInfo()
+        ))
     }
 
     /// Union of two already-filtered target lists, deduped by normalized title, preserving the
@@ -286,6 +321,9 @@ enum WindowEnumerator {
               let windows = ref as? [AXUIElement]
         else { return [] }
 
+        for window in windows {
+            AXUIElementSetMessagingTimeout(window, messagingTimeout)
+        }
         return windows
     }
 
@@ -347,10 +385,11 @@ enum WindowEnumerator {
         return titles[(lastSeparatorIndex + 1)...].filter { !$0.isEmpty }
     }
 
-    private static func cgWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
-        guard let windowInfo = CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        else { return [] }
-
+    private static func cgWindowCandidates(
+        forPID pid: pid_t,
+        bundleID: String,
+        windowInfo: [[String: Any]]
+    ) -> [WindowCandidate] {
         var candidates: [WindowCandidate] = []
 
         for info in windowInfo {
@@ -385,8 +424,10 @@ enum WindowEnumerator {
         forceActivate(app)
 
         guard let menuBar = elementAttribute(axApp, kAXMenuBarAttribute),
-              let menuItem = findWindowMenuItem(in: menuBar, matching: target.title),
-              AXUIElementPerformAction(menuItem, kAXPressAction as CFString) == .success
+              let menuItem = findWindowMenuItem(in: menuBar, matching: target.title)
+        else { return false }
+        AXUIElementSetMessagingTimeout(menuItem, messagingTimeout)
+        guard AXUIElementPerformAction(menuItem, kAXPressAction as CFString) == .success
         else { return false }
 
         // kAXPressAction on a Window menu item handles window focus — no second forceActivate needed.
@@ -421,6 +462,7 @@ enum WindowEnumerator {
     }
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
               let children = childrenRef as? [AXUIElement]
@@ -448,6 +490,7 @@ enum WindowEnumerator {
     }
 
     private static func title(ofMenuItem element: AXUIElement) -> String {
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         var titleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef) == .success
         else { return "" }
@@ -519,7 +562,7 @@ enum WindowEnumerator {
 
     /// Whether a running app draws its UI in embedded web content (Electron/Chromium). Pure bundle
     /// inspection — no AX, no allowlist. WKWebView wrappers (e.g. cmux) share the system framework so
-    /// they aren't caught here; they're handled by the ≤1-window symptom path instead.
+    /// they aren't caught here; an empty AX result still takes the Window-menu symptom path.
     static func isWebContentApp(bundleID: String) -> Bool {
         guard let appURL = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.bundleURL
             ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
@@ -537,6 +580,10 @@ enum WindowEnumerator {
 
     private static func ownerPID(from info: [String: Any]) -> pid_t? {
         (info[kCGWindowOwnerPID as String] as? NSNumber).map { pid_t($0.int32Value) }
+    }
+
+    private static func currentCoreGraphicsWindowInfo() -> [[String: Any]] {
+        CGWindowListCopyWindowInfo([.excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
     }
 
     private static func layer(from info: [String: Any]) -> Int {

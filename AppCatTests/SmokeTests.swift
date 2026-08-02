@@ -1031,6 +1031,24 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(WindowEnumerator.filteredWindowCandidates(candidates).isEmpty)
     }
 
+    func testCoreGraphicsSnapshotLoadsOnlyOncePerEnumerationPass() {
+        var loadCount = 0
+        var snapshot = WindowEnumerator.CoreGraphicsSnapshot()
+
+        let first = snapshot.windowInfo {
+            loadCount += 1
+            return [["window": 1]]
+        }
+        let second = snapshot.windowInfo {
+            loadCount += 1
+            return []
+        }
+
+        XCTAssertEqual(first.count, 1)
+        XCTAssertEqual(second.count, 1)
+        XCTAssertEqual(loadCount, 1)
+    }
+
     func testWindowFilterRejectsInvalidCoreGraphicsCandidates() {
         let invalidCandidates = [
             WindowEnumerator.WindowCandidate(
