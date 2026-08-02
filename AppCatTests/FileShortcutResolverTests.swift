@@ -60,11 +60,15 @@ final class FileShortcutResolverTests: XCTestCase {
         try Data().write(to: shortcutURL)
         let prefix = try XCTUnwrap("URL=https://example.com\n".data(using: .utf8))
         let oversizedBody = prefix + Data(count: 1_048_577 - prefix.count)
+        var readCount = 0
 
-        XCTAssertEqual(
-            FileShortcutResolver.resolve(shortcutURL, readData: { _ in oversizedBody }),
-            shortcutURL
-        )
+        let resolved = FileShortcutResolver.resolve(shortcutURL, readData: { _ in
+            readCount += 1
+            return oversizedBody
+        })
+
+        XCTAssertEqual(resolved, shortcutURL)
+        XCTAssertEqual(readCount, 1)
     }
 
     func testShortcutAtSizeLimitStillResolves() throws {
