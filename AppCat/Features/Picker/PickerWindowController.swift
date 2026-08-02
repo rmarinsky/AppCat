@@ -137,7 +137,7 @@ enum PickerPanelPositioning {
 final class PickerWindowController: NSObject {
     private var panel: NSPanel?
     private let appState: AppState
-    private let coordinator: PickerCoordinator
+    private unowned let coordinator: PickerCoordinator
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
     private var keyMonitor: Any?
@@ -173,7 +173,7 @@ final class PickerWindowController: NSObject {
         let hostingView = PickerHostingView(
             rootView: PickerView()
                 .environment(appState)
-                .environment(\.pickerCoordinator, coordinator)
+                .environment(\.pickerCoordinator, WeakPickerCoordinatorReference(coordinator))
         )
         hostingView.identifier = PickerPanelViewID.hosting
         hostingView.autoresizingMask = [.width, .height]

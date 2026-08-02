@@ -3,6 +3,19 @@ import AppKit
 import XCTest
 
 final class PickerSessionTests: XCTestCase {
+    @MainActor
+    func testPrewarmedPickerCoordinatorIsReleased() {
+        weak var releasedCoordinator: PickerCoordinator?
+
+        autoreleasepool {
+            let coordinator = PickerCoordinator()
+            releasedCoordinator = coordinator
+            coordinator.prewarmPicker(state: AppState())
+        }
+
+        XCTAssertNil(releasedCoordinator)
+    }
+
     // MARK: - Coordinator dismiss clears pending state
 
     /// Auto-routed opens can dismiss before any picker window was ever created; the coordinator

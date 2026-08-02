@@ -21,7 +21,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
             .environment(\.appManager, appManager)
             .environment(\.urlRulesManager, urlRulesManager)
             .environment(\.defaultBrowserManager, defaultBrowserManager)
-            .environment(\.pickerCoordinator, pickerCoordinator)
+            .environment(\.pickerCoordinator, WeakPickerCoordinatorReference(pickerCoordinator))
             .environment(\.historyManager, historyManager)
             .environment(\.suggestionsManager, suggestionsManager)
             .environment(\.statsManager, statsManager)

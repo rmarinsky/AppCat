@@ -665,7 +665,11 @@ enum PickerTypeAheadMatcher {
 
 struct PickerView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.pickerCoordinator) private var pickerCoordinator
+    @Environment(\.pickerCoordinator) private var pickerCoordinatorReference
+
+    private var pickerCoordinator: PickerCoordinator? {
+        pickerCoordinatorReference.value
+    }
 
     private var presentationStyle: PickerPresentationStyle {
         appState.isManualPickerPresentation ? .appSwitcher : .routing
