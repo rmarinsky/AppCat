@@ -277,17 +277,18 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerInvocationSourceDefinesSessionInteractionPolicy() {
-        let expectations: [(PickerInvocationSource, Bool, Bool, Bool)] = [
-            (.linkRouting, false, false, false),
-            (.toggleShortcut, true, false, true),
-            (.serviceKey, true, false, true),
-            (.holdOptionTab, true, true, false),
+        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool)] = [
+            (.linkRouting, false, false, false, true),
+            (.toggleShortcut, true, false, true, true),
+            (.serviceKey, true, false, true, true),
+            (.holdOptionTab, true, true, false, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, refreshesSnapshot) in expectations {
+        for (source, isManual, isHoldToSwitch, refreshesSnapshot, requiresKeyboardFocus) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
+            XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
         }
     }
 
@@ -422,6 +423,7 @@ final class SmokeTests: XCTestCase {
         // During the presentation grace period, always refocus regardless of pointer position.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: true,
                 isPointerInsidePanel: false
             ),
@@ -431,6 +433,7 @@ final class SmokeTests: XCTestCase {
         // tear the picker down out from under an in-flight click — refocus to reclaim key + active.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
                 isPointerInsidePanel: true
             ),
@@ -439,10 +442,19 @@ final class SmokeTests: XCTestCase {
         // Pointer outside the panel and past the grace period: a genuine click-away, so dismiss.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
                 isPointerInsidePanel: false
             ),
             .dismiss
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: false,
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false
+            ),
+            .ignore
         )
     }
 

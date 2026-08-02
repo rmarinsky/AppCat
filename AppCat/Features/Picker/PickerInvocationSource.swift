@@ -16,6 +16,10 @@ enum PickerInvocationSource: Equatable {
         isManualPresentation && !isHoldToSwitch
     }
 
+    var requiresKeyboardFocus: Bool {
+        !isHoldToSwitch
+    }
+
     /// Toggle/service sessions must not paint an old per-window cache and visibly replace it
     /// later. Hold-to-switch deliberately keeps the cached list so its first frame stays instant
     /// and stable while Option remains down.
