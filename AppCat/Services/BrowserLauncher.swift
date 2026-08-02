@@ -26,7 +26,7 @@ final class BrowserLauncher {
         var activateWindowTarget: @MainActor (AppWindowTarget) -> Bool
         var runningApplication: @MainActor (String) -> BrowserLauncherRunningApplication?
         var hasOpenWindows: @MainActor (String) -> Bool?
-        var restoreMinimizedWindows: @MainActor (String) -> Void
+        var restoreMinimizedWindows: @MainActor (String) -> Bool?
         var openURLs: @MainActor ([URL], URL, NSWorkspace.OpenConfiguration, @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
         var sendReopenEvent: @MainActor (BrowserLauncherRunningApplication, String) -> Void
         var runExecutable: @MainActor (String, [String]) throws -> Void
@@ -382,9 +382,9 @@ final class BrowserLauncher {
             return false
         }
 
-        dependencies.restoreMinimizedWindows(bundleID)
+        let hasOpenWindows = dependencies.restoreMinimizedWindows(bundleID)
         let didActivate = activateRunningApplication(runningApp, displayName: displayName)
-        if let appURL, dependencies.hasOpenWindows(bundleID) == false {
+        if let appURL, hasOpenWindows == false {
             let didReopen = reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
             return didActivate || didReopen
         }

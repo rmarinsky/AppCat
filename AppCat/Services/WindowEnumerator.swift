@@ -210,14 +210,17 @@ enum WindowEnumerator {
         return !axWindows(forPID: app.processIdentifier).isEmpty
     }
 
-    static func restoreMinimizedWindows(bundleID: String) {
+    /// Restores minimized AX windows and reports whether the app has any open AX windows.
+    static func restoreMinimizedWindows(bundleID: String) -> Bool? {
         guard AXIsProcessTrusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
-        else { return }
+        else { return nil }
 
-        for window in axWindows(forPID: app.processIdentifier) {
+        let windows = axWindows(forPID: app.processIdentifier)
+        for window in windows {
             restoreIfMinimized(window)
         }
+        return !windows.isEmpty
     }
 
     @discardableResult

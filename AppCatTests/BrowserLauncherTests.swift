@@ -581,6 +581,7 @@ private final class FakeBrowserLauncherWorld {
             hasOpenWindows: { [self] _ in hasOpenWindows },
             restoreMinimizedWindows: { [self] bundleID in
                 restoredMinimizedWindowAppIDs.append(bundleID)
+                return hasOpenWindows
             },
             openURLs: { [self] urls, appURL, configuration, completion in
                 openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
