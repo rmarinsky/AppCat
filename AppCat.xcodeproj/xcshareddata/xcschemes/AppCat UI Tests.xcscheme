@@ -29,9 +29,9 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "5ACB1C0D50EF4B00ADB18564"
-               BuildableName = "AppCatTests.xctest"
-               BlueprintName = "AppCatTests"
+               BlueprintIdentifier = "863BCF6C1B1968D03A0F6EF8"
+               BuildableName = "AppCatUITests.xctest"
+               BlueprintName = "AppCatUITests"
                ReferencedContainer = "container:AppCat.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -58,9 +58,9 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "5ACB1C0D50EF4B00ADB18564"
-               BuildableName = "AppCatTests.xctest"
-               BlueprintName = "AppCatTests"
+               BlueprintIdentifier = "863BCF6C1B1968D03A0F6EF8"
+               BuildableName = "AppCatUITests.xctest"
+               BlueprintName = "AppCatUITests"
                ReferencedContainer = "container:AppCat.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -88,8 +88,6 @@
             ReferencedContainer = "container:AppCat.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -112,7 +110,7 @@
       buildConfiguration = "Debug">
    </AnalyzeAction>
    <ArchiveAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

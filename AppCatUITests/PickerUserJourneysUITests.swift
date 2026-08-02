@@ -7,15 +7,6 @@ final class PickerUserJourneysUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        let environment = ProcessInfo.processInfo.environment
-        let isCI = environment["CI"] == "true"
-        let allowInteractive = environment["APPCAT_RUN_INTERACTIVE_UITESTS"] == "1"
-        if !isCI, !allowInteractive {
-            throw XCTSkip(
-                "Interactive picker UI tests are skipped by default locally. "
-                    + "Set APPCAT_RUN_INTERACTIVE_UITESTS=1 to run them."
-            )
-        }
     }
 
     override func tearDownWithError() throws {
