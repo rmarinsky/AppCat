@@ -23,6 +23,7 @@ final class AppActivityMonitor {
     private var windowPollingTask: Task<Void, Never>?
     private var appListRefreshTask: Task<Void, Never>?
     private var isStopped = false
+    private var lifecycleGeneration = 0
     private let workspaceNotificationCenter = NSWorkspace.shared.notificationCenter
     private let windowRefreshDebounce: TimeInterval = 0.25
     // Backstop poll; real changes arrive via workspace notifications, so this can be coarse.
@@ -61,6 +62,7 @@ final class AppActivityMonitor {
 
     func stop() {
         isStopped = true
+        lifecycleGeneration &+= 1
         for observer in observers {
             workspaceNotificationCenter.removeObserver(observer)
         }
@@ -231,6 +233,7 @@ final class AppActivityMonitor {
         }
         guard windowEnumerationTask == nil else { return }
         let enumerateWindows = self.enumerateWindows
+        let generation = lifecycleGeneration
 
         // AX enumeration is synchronous cross-process IPC. Keep exactly one pass in flight;
         // cancellation cannot stop that IPC, so replacement tasks only create overlap.
@@ -238,6 +241,7 @@ final class AppActivityMonitor {
             let windows = enumerateWindows()
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                guard self.lifecycleGeneration == generation else { return }
                 self.windowEnumerationTask = nil
                 guard !self.isStopped, let appState = self.appState else {
                     self.pendingWindowSnapshotCompletions.removeAll()

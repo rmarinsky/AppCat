@@ -1966,6 +1966,53 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(state.appWindowActivityUpdatedAt)
     }
 
+    @MainActor
+    func testRestartRejectsSnapshotFromPreviousMonitorLifecycle() async {
+        let firstEnumerationStarted = expectation(description: "first enumeration started")
+        let firstEnumerationReturned = expectation(description: "first enumeration returned")
+        let secondEnumerationCompleted = expectation(description: "second enumeration completed")
+        let releaseFirstEnumeration = DispatchSemaphore(value: 0)
+        let enumerationCount = LockedCounter()
+        let oldWindows = [
+            "test.old": [AppWindowTarget(bundleID: "test.old", title: "Old", index: 0)],
+        ]
+        let newWindows = [
+            "test.new": [AppWindowTarget(bundleID: "test.new", title: "New", index: 0)],
+        ]
+        let state = AppState()
+        let monitor = AppActivityMonitor(
+            appState: state,
+            enumerateWindows: {
+                if enumerationCount.increment() == 1 {
+                    firstEnumerationStarted.fulfill()
+                    releaseFirstEnumeration.wait()
+                    firstEnumerationReturned.fulfill()
+                    return oldWindows
+                }
+                return newWindows
+            }
+        )
+
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {}
+        await fulfillment(of: [firstEnumerationStarted], timeout: 1)
+        monitor.stop()
+
+        monitor.start()
+        monitor.refreshWindowsForPickerPresentation {
+            secondEnumerationCompleted.fulfill()
+        }
+        await fulfillment(of: [secondEnumerationCompleted], timeout: 1)
+        XCTAssertEqual(state.runningWindowsByAppID, newWindows)
+
+        releaseFirstEnumeration.signal()
+        await fulfillment(of: [firstEnumerationReturned], timeout: 1)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        monitor.stop()
+
+        XCTAssertEqual(state.runningWindowsByAppID, newWindows)
+    }
+
     func testUnchangedRunningAppReusesCachedIconWithoutReloading() {
         let cachedIcon = NSImage(size: NSSize(width: 16, height: 16))
         var app = makeApp(id: "test.running")
