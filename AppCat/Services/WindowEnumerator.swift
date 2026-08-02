@@ -207,7 +207,7 @@ enum WindowEnumerator {
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         else { return nil }
 
-        return !axWindows(forPID: app.processIdentifier).isEmpty
+        return !applicationWindows(forPID: app.processIdentifier).isEmpty
     }
 
     /// Restores minimized AX windows and reports whether the app has open windows and one was restored.
@@ -216,7 +216,7 @@ enum WindowEnumerator {
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         else { return nil }
 
-        let windows = axWindows(forPID: app.processIdentifier)
+        let windows = applicationWindows(forPID: app.processIdentifier)
         var restoredWindow: AXUIElement?
         for window in windows {
             if restoreIfMinimized(window), restoredWindow == nil {
@@ -235,7 +235,7 @@ enum WindowEnumerator {
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
         else { return false }
 
-        let windows = axWindows(forPID: app.processIdentifier)
+        let windows = applicationWindows(forPID: app.processIdentifier)
         guard !windows.isEmpty else {
             return activateFromWindowMenu(target, app: app)
         }
@@ -349,6 +349,12 @@ enum WindowEnumerator {
             AXUIElementSetMessagingTimeout(window, messagingTimeout)
         }
         return windows
+    }
+
+    private static func applicationWindows(forPID pid: pid_t) -> [AXUIElement] {
+        axWindows(forPID: pid).filter {
+            isApplicationWindowRole(stringAttribute($0, kAXRoleAttribute as CFString))
+        }
     }
 
     private static func axWindowCandidates(forPID pid: pid_t, bundleID: String) -> [WindowCandidate] {
@@ -551,7 +557,7 @@ enum WindowEnumerator {
 
         switch candidate.source {
         case .ax:
-            guard candidate.role == kAXWindowRole as String,
+            guard isApplicationWindowRole(candidate.role),
                   candidate.isMinimized != true,
                   candidate.isModal != true
             else { return false }
@@ -576,6 +582,10 @@ enum WindowEnumerator {
             else { return false }
             return true
         }
+    }
+
+    static func isApplicationWindowRole(_ role: String?) -> Bool {
+        role == kAXWindowRole as String
     }
 
     private static func isLikelyWindowTitle(_ normalizedTitle: String) -> Bool {

@@ -1043,6 +1043,11 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(WindowEnumerator.filteredWindowCandidates(candidates).isEmpty)
     }
 
+    func testAXWindowRoleFilterRejectsFinderDesktopElement() {
+        XCTAssertFalse(WindowEnumerator.isApplicationWindowRole(kAXScrollAreaRole as String))
+        XCTAssertTrue(WindowEnumerator.isApplicationWindowRole(kAXWindowRole as String))
+    }
+
     func testCoreGraphicsSnapshotLoadsOnlyOncePerEnumerationPass() {
         var loadCount = 0
         var snapshot = WindowEnumerator.CoreGraphicsSnapshot()
