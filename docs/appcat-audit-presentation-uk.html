@@ -712,15 +712,18 @@
       height: 100%;
       padding: 4.5vh 2.4vw 8vh;
       overflow: auto;
+      visibility: hidden;
       transform: translateX(102%);
-      transition: transform 240ms ease;
+      transition: transform 240ms ease, visibility 0s linear 240ms;
       background: rgba(10, 10, 11, 0.94);
       border-left: 1px solid var(--line);
       backdrop-filter: blur(22px);
     }
 
     .presenter-notes.is-open {
+      visibility: visible;
       transform: translateX(0);
+      transition-delay: 0s;
     }
 
     .presenter-notes h2 {
@@ -830,10 +833,10 @@
           <div class="slide-body hero-grid">
             <div>
               <h1 id="title-1">Стабільність без фонового податку</h1>
-              <p class="lede">Пам’ять стабільна. Але три P1-ризики підривають довіру, а idle polling регулярно витрачає CPU.</p>
+              <p class="lede">Аудит виявив три P1-ризики та зайвий idle CPU. PR #37 усуває підтверджені дефекти.</p>
               <div class="status-row" aria-label="Ключові результати">
                 <span>3 × P1</span>
-                <span>233 / 233 тести</span>
+                <span>baseline 233 / 233</span>
                 <span>101–102 MB стабільно</span>
               </div>
             </div>
@@ -869,8 +872,8 @@
             </div>
             <div>
               <p class="big-number">233</p>
-              <h3>тести пройдено</h3>
-              <p class="metric-label">0 failed · 0 skipped. Xcode analyzer — без diagnostics.</p>
+              <h3>baseline-тести</h3>
+              <p class="metric-label">Pre-fix snapshot: 0 failed · 0 skipped. Xcode analyzer — без diagnostics.</p>
             </div>
             <div>
               <p class="big-number success">LIVE</p>
@@ -888,18 +891,17 @@
             <ul>
               <li><a href="appcat-runtime-audit-2026-08-02.md#scope-and-method">Audit — Scope and method</a></li>
               <li><a href="appcat-runtime-audit-2026-08-02.md#clean-checks-and-existing-safeguards">Audit — Clean checks</a></li>
-              <li><a href="../graphify-out/GRAPH_REPORT.md#corpus-check">Graphify corpus check</a></li>
             </ul>
           </aside>
         </section>
 
         <section class="slide" id="slide-3" aria-labelledby="title-3" data-tone="danger">
           <header class="slide-header">
-            <p class="eyebrow">P1 · picker race</p>
-            <h2 id="title-3">Фоновий refresh може вкрасти показ picker</h2>
+            <p class="eyebrow">P1 · picker race · виправлено</p>
+            <h2 id="title-3">Гонку показу picker усунено</h2>
           </header>
           <div class="slide-body">
-            <div class="flow" aria-label="Послідовність гонки показу picker">
+            <div class="flow" aria-label="Послідовність гонки показу picker до виправлення">
               <div class="flow-step">
                 <strong>Shortcut</strong>
                 <span>Створює pending presentation</span>
@@ -932,8 +934,8 @@
             </div>
           </div>
           <footer class="slide-footer">
-            <strong>Root cause</strong>
-            <span>Один generation token обслуговує user і utility requests</span>
+            <strong>Root cause до фіксу</strong>
+            <span>Один generation token обслуговував user і utility requests</span>
           </footer>
           <aside class="slide-notes">
             <h2>Джерела</h2>
@@ -948,7 +950,7 @@
 
         <section class="slide" id="slide-4" aria-labelledby="title-4" data-tone="safe">
           <header class="slide-header">
-            <p class="eyebrow">Вузьке виправлення</p>
+            <p class="eyebrow">Реалізоване виправлення</p>
             <h2 id="title-4">Один snapshot owner. Жодного загубленого completion</h2>
           </header>
           <div class="slide-body split split-wide">
@@ -979,11 +981,11 @@
 
         <section class="slide" id="slide-5" aria-labelledby="title-5" data-tone="danger">
           <header class="slide-header">
-            <p class="eyebrow">P1 · data loss</p>
-            <h2 id="title-5">Пошкоджений config зараз може стерти налаштування</h2>
+            <p class="eyebrow">P1 · data loss · виправлено</p>
+            <h2 id="title-5">Перезапис пошкодженого config усунено</h2>
           </header>
           <div class="slide-body">
-            <div class="flow" aria-label="Шлях перезапису пошкодженого config">
+            <div class="flow" aria-label="Шлях перезапису пошкодженого config до виправлення">
               <div class="flow-step">
                 <strong>Config існує</strong>
                 <span>Hotkeys · order · visibility</span>
@@ -1031,7 +1033,7 @@
 
         <section class="slide" id="slide-6" aria-labelledby="title-6" data-tone="safe">
           <header class="slide-header">
-            <p class="eyebrow">Відновлення без руйнування</p>
+            <p class="eyebrow">Реалізовано · відновлення без руйнування</p>
             <h2 id="title-6">Помилка читання — це не дозвіл перезаписати файл</h2>
           </header>
           <div class="slide-body split">
@@ -1069,11 +1071,11 @@
 
         <section class="slide" id="slide-7" aria-labelledby="title-7" data-tone="danger">
           <header class="slide-header">
-            <p class="eyebrow">P1 · network side effect</p>
-            <h2 id="title-7">AppCat робить GET ще до вибору користувача</h2>
+            <p class="eyebrow">P1 · network side effect · виправлено</p>
+            <h2 id="title-7">GET до вибору користувача прибрано</h2>
           </header>
           <div class="slide-body">
-            <div class="flow" aria-label="Поточний небезпечний мережевий маршрут">
+            <div class="flow" aria-label="Небезпечний мережевий маршрут до виправлення">
               <div class="flow-step">
                 <strong>Incoming HTTPS</strong>
                 <span>URL передано AppCat</span>
@@ -1450,6 +1452,7 @@
 
       document.addEventListener('keydown', event => {
         if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.target instanceof Element && event.target.closest('button, a')) return;
         const key = event.key;
 
         if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ') {

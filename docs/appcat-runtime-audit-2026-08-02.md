@@ -4,6 +4,8 @@ Date: 2026-08-02
 Source reviewed: `fix/picker-audit-followups` at `efc13fe23e41999ab138a9e21835bdfb048f77a7`; its tracked tree is identical to fetched `origin/main` at `8fafb0aad8ff07300968aa13e8738330343f204f`
 Runtime inspected: `/Applications/appcat-dev.app`, PID `97903`, version `1.7.2 (46)`, macOS `26.5.2 (25F84)`
 
+> **Remediation update — PR #37:** the findings and line references below are the pre-fix audit snapshot at `efc13fe`. The current PR branch fixes F-01/F-02/F-03/F-07/F-08/F-09/F-10/F-11/F-13/F-14 and the F-12 focus contract. The report keeps the original trigger/evidence as historical provenance; explicit status lines distinguish remediated findings from remaining audit work.
+
 ## Executive summary
 
 The audit found three high-severity correctness/data-loss/side-effect defects and several material sources of avoidable idle work:
@@ -44,11 +46,13 @@ Runtime attribution limitation: the running DEV bundle does not expose a source 
 
 ### F-01 — P1: background refresh can strand a manual picker presentation
 
+**Status:** fixed in PR #37 with serialized snapshot ownership, deterministic interleaving coverage, and lifecycle-generation rejection of late results.
+
 **Trigger**
 
 1. Toggle shortcut or service-key activation starts a user-initiated window snapshot and stores a `pendingManualPickerPresentationID`.
 2. Before AX enumeration finishes, either the five-second poll or a workspace notification schedules another snapshot.
-3. The second request increments the shared `windowSnapshotRequestID` and cancels the first task.
+3. The second request marks the first request stale and cancels its task.
 4. Cancellation does not stop the first synchronous AX pass. When it returns, its request-ID guard fails, so it returns without invoking the presentation completion.
 
 **Impact**
@@ -62,7 +66,7 @@ The picker remains logically pending but never appears. The next activation take
 - The user-initiated path delegates to the shared request mechanism: [`AppCat/Services/AppActivityMonitor.swift:108-112`](../AppCat/Services/AppActivityMonitor.swift#L108).
 - Every request increments the same generation, cancels the prior task, and invokes completion only when the generation still matches: [`AppCat/Services/AppActivityMonitor.swift:199-228`](../AppCat/Services/AppActivityMonitor.swift#L199).
 - The independent poll requests work every five seconds: [`AppCat/Services/AppActivityMonitor.swift:165-173`](../AppCat/Services/AppActivityMonitor.swift#L165). Workspace changes can request the same work: [`AppCat/Services/AppActivityMonitor.swift:138-152`](../AppCat/Services/AppActivityMonitor.swift#L138).
-- No test currently references `AppActivityMonitor`, `refreshWindowsForPickerPresentation`, or `windowSnapshotRequestID`.
+- At the audited SHA, no test covered this `AppActivityMonitor` interleaving.
 
 **Smallest fix direction**
 
@@ -191,6 +195,8 @@ Use a controlled app with one named document window on another Space and no usab
 
 ### F-07 — P2: queued history/stats/usage writes are not flushed before termination
 
+**Status:** fixed in PR #37; normal termination now drains the existing history, stats, and app-usage queues.
+
 **Trigger and impact**
 
 History, daily stats, and app-usage writes are queued asynchronously. `applicationWillTerminate` stops listeners but does not wait for those queues. If the user quits immediately after selecting a target, the last history/stat/usage update can be lost. Sudden termination remains a separate, larger durability boundary.
@@ -235,6 +241,8 @@ Guard immediately after the sleep, mark the monitor stopped, increment/invalidat
 Start with a blocking fake enumeration, call `stop()`, release the fake, advance the polling clock, and assert no new enumeration, state mutation, or callback occurs.
 
 ### F-09 — P1: pre-choice metadata GET can trigger external side effects; response bytes are also unbounded
+
+**Status:** fixed in PR #37; routing no longer dereferences the URL before user choice, and redirect resolution retains `HEAD` semantics.
 
 **Trigger and impact**
 
@@ -315,6 +323,8 @@ The current source distinguishes hold-to-switch behavior, but panel presentation
 A prior live run reproduced an invisible hold picker over fullscreen Slack while Option-release still activated the selected app, which is consistent with this path. The exact fullscreen Slack case was **not rerun against this process/HEAD**, so this audit treats the source-contract violation as confirmed but the current live symptom as unverified. The smallest fix is source-specific focus policy, not Slack-specific code; validation requires a native fullscreen host plus WindowServer overlap/layer assertions because the existing flag-only tests are false-green for visibility.
 
 ### F-13 — P1: config decode failure is treated as first launch and overwrites user settings
+
+**Status:** fixed in PR #37; config storage distinguishes `.missing`, `.loaded`, and `.failed`, with regression coverage preserving malformed file bytes.
 
 **Trigger and impact**
 
@@ -400,7 +410,7 @@ All displayed roots were Apple `NSXPCConnection`/`com.apple.linkd.autoShortcut`/
 ## Clean checks and existing safeguards
 
 - `xcodebuild analyze -project AppCat.xcodeproj -scheme 'AppCat DEV' -destination 'platform=macOS' -quiet` exited 0 with no analyzer diagnostics.
-- Unit result: **233 passed, 0 failed, 0 skipped** in the captured `.xcresult`.
+- Pre-remediation baseline: **233 passed, 0 failed, 0 skipped** in the captured `.xcresult` at `efc13fe`.
 - `PickerActivationListener.stop()` disables its event tap and removes its run-loop source: [`AppCat/Services/PickerActivationListener.swift:75-86`](../AppCat/Services/PickerActivationListener.swift#L75).
 - `PickerWindowController.close()` removes global/local mouse and key monitors; the scroll bridge also removes its monitor on removal/deinit: [`AppCat/Features/Picker/PickerWindowController.swift:320-405`](../AppCat/Features/Picker/PickerWindowController.swift#L320), [`AppCat/Features/Picker/PickerView.swift:930-969`](../AppCat/Features/Picker/PickerView.swift#L930).
 - Workspace notification tokens are removed in `AppActivityMonitor.stop()`: [`AppCat/Services/AppActivityMonitor.swift:38-42`](../AppCat/Services/AppActivityMonitor.swift#L38).
