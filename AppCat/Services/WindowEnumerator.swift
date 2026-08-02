@@ -210,17 +210,23 @@ enum WindowEnumerator {
         return !axWindows(forPID: app.processIdentifier).isEmpty
     }
 
-    /// Restores minimized AX windows and reports whether the app has any open AX windows.
-    static func restoreMinimizedWindows(bundleID: String) -> Bool? {
+    /// Restores minimized AX windows and reports whether the app has open windows and one was restored.
+    static func restoreMinimizedWindows(bundleID: String) -> (hasOpenWindows: Bool, didRestore: Bool)? {
         guard AXIsProcessTrusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         else { return nil }
 
         let windows = axWindows(forPID: app.processIdentifier)
+        var restoredWindow: AXUIElement?
         for window in windows {
-            restoreIfMinimized(window)
+            if restoreIfMinimized(window), restoredWindow == nil {
+                restoredWindow = window
+            }
         }
-        return !windows.isEmpty
+        if let restoredWindow {
+            focusAndActivate(restoredWindow, app: app)
+        }
+        return (!windows.isEmpty, restoredWindow != nil)
     }
 
     @discardableResult
@@ -242,9 +248,14 @@ enum WindowEnumerator {
             return activateFromWindowMenu(target, app: app)
         }
 
+        _ = restoreIfMinimized(window)
+        focusAndActivate(window, app: app)
+        return true
+    }
+
+    private static func focusAndActivate(_ window: AXUIElement, app: NSRunningApplication) {
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(axApp, messagingTimeout)
-        restoreIfMinimized(window)
         // Mark the target window as main/focused *before* activating the app so that
         // when forceActivate fires, the system sees this window as the frontmost.
         // Calling forceActivate again immediately after kAXRaiseAction re-activates the
@@ -260,7 +271,6 @@ enum WindowEnumerator {
             AXUIElementSetAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, window)
             AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         }
-        return true
     }
 
     private static func forceActivate(_ app: NSRunningApplication) {
@@ -496,9 +506,13 @@ enum WindowEnumerator {
         return ref as? Bool
     }
 
-    private static func restoreIfMinimized(_ window: AXUIElement) {
-        guard boolAttribute(window, kAXMinimizedAttribute as CFString) == true else { return }
-        AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+    private static func restoreIfMinimized(_ window: AXUIElement) -> Bool {
+        guard boolAttribute(window, kAXMinimizedAttribute as CFString) == true else { return false }
+        return AXUIElementSetAttributeValue(
+            window,
+            kAXMinimizedAttribute as CFString,
+            kCFBooleanFalse
+        ) == .success
     }
 
     private static func elementAttribute(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {

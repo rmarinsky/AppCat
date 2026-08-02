@@ -357,13 +357,15 @@ final class BrowserLauncherTests: XCTestCase {
     func testManualActivationRestoresMinimizedNativeAppWindows() {
         let runningApp = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        world.didRestoreMinimizedWindow = true
         let launcher = BrowserLauncher(dependencies: world.dependencies())
         let app = makeApp(id: "com.test.Editor", urlSchemes: [])
 
         launcher.activate(app: app)
+        world.drainScheduledActions()
 
         XCTAssertEqual(world.restoredMinimizedWindowAppIDs, [app.id])
-        XCTAssertGreaterThan(runningApp.activateCount, 0)
+        XCTAssertEqual(runningApp.activateCount, 0)
     }
 
     @MainActor
@@ -566,6 +568,7 @@ private final class FakeBrowserLauncherWorld {
     var executableRuns: [ExecutableRun] = []
     var openErrors: [Error?] = []
     var restoredMinimizedWindowAppIDs: [String] = []
+    var didRestoreMinimizedWindow = false
     var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
@@ -581,7 +584,10 @@ private final class FakeBrowserLauncherWorld {
             hasOpenWindows: { [self] _ in hasOpenWindows },
             restoreMinimizedWindows: { [self] bundleID in
                 restoredMinimizedWindowAppIDs.append(bundleID)
-                return hasOpenWindows
+                if didRestoreMinimizedWindow {
+                    runningApplication?.isActive = true
+                }
+                return hasOpenWindows.map { ($0, didRestoreMinimizedWindow) }
             },
             openURLs: { [self] urls, appURL, configuration, completion in
                 openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
