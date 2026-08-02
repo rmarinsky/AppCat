@@ -1955,6 +1955,16 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(reloadCount, 0)
     }
 
+    func testFaviconDomainUsesURLHostWithoutDereferencingDestination() {
+        XCTAssertEqual(
+            FaviconManager.domain(
+                forURLString: "https://one-time.example.test/consume-token",
+                fallbackDomain: "fallback.example.test"
+            ),
+            "one-time.example.test"
+        )
+    }
+
     private func assertOpenMode(
         _ expected: BrowserLauncher.OpenMode,
         modifiers: NSEvent.ModifierFlags,

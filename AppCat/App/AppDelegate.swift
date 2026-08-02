@@ -333,7 +333,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         appState.pickerInvocationSource = .linkRouting
         appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
-        fetchTitle(for: url)
 
         if rawURLs.count > 1 {
             Log.app.info("Received \(rawURLs.count) URL(s); primary: \(url.absoluteString)")
@@ -384,17 +383,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return (displayURL, launchURL)
-    }
-
-    // MARK: - Title Fetching
-
-    private func fetchTitle(for url: URL) {
-        Task {
-            let metadata = await LinkMetadataManager.shared.metadata(for: url)
-            guard let title = metadata.title else { return }
-            if self.appState.pendingURL == url {
-                self.appState.pendingURLTitle = title
-            }
-        }
     }
 }

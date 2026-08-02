@@ -2,22 +2,34 @@ import Foundation
 import os
 
 enum FileShortcutResolver {
-    static func resolve(_ url: URL) -> URL {
+    private static let maxShortcutBytes = 1_048_576
+
+    static func resolve(
+        _ url: URL,
+        readData: (URL) throws -> Data = { try Data(contentsOf: $0) }
+    ) -> URL {
         guard url.isFileURL else { return url }
+
+        guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize <= maxShortcutBytes
+        else { return url }
 
         switch url.pathExtension.lowercased() {
         case "webloc", "inetloc":
-            return resolvePropertyListShortcut(url) ?? url
+            return resolvePropertyListShortcut(url, readData: readData) ?? url
         case "url":
-            return resolveInternetShortcut(url) ?? url
+            return resolveInternetShortcut(url, readData: readData) ?? url
         default:
             return url
         }
     }
 
-    private static func resolvePropertyListShortcut(_ url: URL) -> URL? {
+    private static func resolvePropertyListShortcut(
+        _ url: URL,
+        readData: (URL) throws -> Data
+    ) -> URL? {
         do {
-            let data = try Data(contentsOf: url)
+            let data = try readData(url)
             let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
             guard let dictionary = plist as? [String: Any],
                   let urlString = dictionary["URL"] as? String,
@@ -32,9 +44,12 @@ enum FileShortcutResolver {
         }
     }
 
-    private static func resolveInternetShortcut(_ url: URL) -> URL? {
+    private static func resolveInternetShortcut(
+        _ url: URL,
+        readData: (URL) throws -> Data
+    ) -> URL? {
         do {
-            let data = try Data(contentsOf: url)
+            let data = try readData(url)
             guard let contents = String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .isoLatin1)
                 ?? String(data: data, encoding: .windowsCP1252)

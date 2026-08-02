@@ -41,6 +41,20 @@ final class FileShortcutResolverTests: XCTestCase {
         XCTAssertEqual(FileShortcutResolver.resolve(fileURL), fileURL)
     }
 
+    func testOversizedShortcutFallsBackWithoutReadingBody() throws {
+        let shortcutURL = try makeTempFile(name: "large.url")
+        try Data(count: 1_048_577).write(to: shortcutURL)
+        var readCount = 0
+
+        let resolved = FileShortcutResolver.resolve(shortcutURL, readData: { _ in
+            readCount += 1
+            return Data()
+        })
+
+        XCTAssertEqual(resolved, shortcutURL)
+        XCTAssertEqual(readCount, 0)
+    }
+
     private func makeTempFile(name: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("AppCatTests-\(UUID().uuidString)", isDirectory: true)

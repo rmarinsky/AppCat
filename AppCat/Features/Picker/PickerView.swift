@@ -900,9 +900,7 @@ struct PickerView: View {
 
 // MARK: - URL Bar Container
 
-/// Reads `pendingURL`/`pendingURLTitle` itself so that when the background title fetch lands and
-/// mutates `pendingURLTitle`, SwiftUI's Observation only re-evaluates this small view rather than
-/// the entire `PickerView` body (which owns the item grid).
+/// Reads pending URL state without making the item grid depend on it.
 private struct PickerURLBar: View {
     @Environment(AppState.self) private var appState
 
