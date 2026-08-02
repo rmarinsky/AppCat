@@ -28,7 +28,7 @@ final class URLResolver: NSObject, Sendable {
             return nil
         }
 
-        await fetch(method: "HEAD", url: url)
+        return await fetch(method: "HEAD", url: url)
     }
 
     private func fetch(method: String, url: URL) async -> URL? {
