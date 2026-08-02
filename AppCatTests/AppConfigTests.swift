@@ -37,7 +37,7 @@ final class AppConfigTests: XCTestCase {
             newResult: [newApp]
         )
         let storage = AppConfigStorage(fileURL: directory.appendingPathComponent("apps.json"))
-        let manager = AppManager(configStorage: storage, detectApps: detections.next)
+        let manager = AppManager(configStorage: storage, detectApps: { detections.next() })
         let state = AppState()
 
         let olderRefresh = manager.refreshAppsInBackground(into: state)
