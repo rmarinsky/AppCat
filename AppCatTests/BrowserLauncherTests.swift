@@ -354,6 +354,21 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowlessNativeAppFocusesWindowCreatedByReopen() {
+        let runningApp = FakeRunningApplication(activationResult: false)
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: false)
+        world.activateApplicationWindowResults = [false, true]
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+
+        launcher.activate(app: app)
+        world.drainScheduledActions()
+
+        XCTAssertEqual(world.reopenEvents, [app.displayName])
+        XCTAssertTrue(runningApp.isActive)
+    }
+
+    @MainActor
     func testManualActivationRestoresMinimizedNativeAppWindows() {
         let runningApp = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
@@ -584,6 +599,7 @@ private final class FakeBrowserLauncherWorld {
     var openErrors: [Error?] = []
     var activatedApplicationWindowAppIDs: [String] = []
     var didActivateApplicationWindow = false
+    var activateApplicationWindowResults: [Bool?] = []
     var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
@@ -599,6 +615,13 @@ private final class FakeBrowserLauncherWorld {
             hasOpenWindows: { [self] _ in hasOpenWindows },
             activateApplicationWindow: { [self] bundleID in
                 activatedApplicationWindowAppIDs.append(bundleID)
+                if !activateApplicationWindowResults.isEmpty {
+                    let result = activateApplicationWindowResults.removeFirst()
+                    if result == true {
+                        runningApplication?.isActive = true
+                    }
+                    return result
+                }
                 if didActivateApplicationWindow {
                     runningApplication?.isActive = true
                     return true

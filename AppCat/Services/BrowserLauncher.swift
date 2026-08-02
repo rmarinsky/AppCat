@@ -388,6 +388,7 @@ final class BrowserLauncher {
             : activateRunningApplication(runningApp, displayName: displayName)
         if let appURL, didActivateWindow == false {
             let didReopen = reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
+            scheduleWindowFocusAfterReopen(bundleID: bundleID)
             return didActivate || didReopen
         }
 
@@ -398,6 +399,14 @@ final class BrowserLauncher {
             reopenWindowlessWith: appURL
         )
         return didActivate
+    }
+
+    private func scheduleWindowFocusAfterReopen(bundleID: String) {
+        for delay in [0.15, 0.55] {
+            dependencies.schedule(delay) { [weak self] in
+                _ = self?.dependencies.activateApplicationWindow(bundleID)
+            }
+        }
     }
 
     @discardableResult
