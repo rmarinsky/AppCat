@@ -203,9 +203,21 @@ final class PickerCoordinator {
         #if DEBUG
             if UITestRuntime.isEnabled { return }
         #endif
-        browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] succeeded in
-            guard succeeded, let self else { return }
-            self.recordAppOpen(pendingOpen, app: app, source: source, state: state)
+        browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in
+            guard let self else { return }
+            let successfulIndices = results.indices.filter {
+                results[$0]
+                    && pendingOpen.displayURLs.indices.contains($0)
+                    && pendingOpen.launchURLs.indices.contains($0)
+            }
+            guard !successfulIndices.isEmpty else { return }
+            let successfulOpen = PendingOpenSnapshot(
+                url: pendingOpen.url,
+                displayURLs: successfulIndices.map { pendingOpen.displayURLs[$0] },
+                launchURLs: successfulIndices.map { pendingOpen.launchURLs[$0] },
+                title: pendingOpen.title
+            )
+            self.recordAppOpen(successfulOpen, app: app, source: source, state: state)
             self.deferHandoffOverlay(
                 .init(icon: app.icon, destinationName: app.displayName, reason: HandoffReason(source: source)),
                 state: state

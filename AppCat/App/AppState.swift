@@ -5,6 +5,7 @@ import os
 @Observable
 @MainActor
 final class AppState {
+    @ObservationIgnored private let appUsageStore: AppUsageFileStore
     /// Normalized URL — used for rule matching, history, picker display, and suggestion analysis.
     var pendingURL: URL?
     /// Extra URLs from one system open request, usually multi-file opens from Finder.
@@ -155,10 +156,11 @@ final class AppState {
         entry.count += 1
         entry.lastUsed = Date()
         appUsage[bundleID] = entry
-        AppUsageFileStore.usage.save(appUsage)
+        appUsageStore.save(appUsage)
     }
 
-    init() {
+    init(appUsageStore: AppUsageFileStore = .usage) {
+        self.appUsageStore = appUsageStore
         SettingsStorage.shared.applyLanguagePreference()
         lastOpenedURL = SettingsStorage.shared.lastURL
         recentLinksCount = SettingsStorage.shared.recentLinksCount
@@ -171,7 +173,7 @@ final class AppState {
         pickerServiceTapInterval = SettingsStorage.shared.pickerServiceTapInterval
         hiddenPickerAppIDs = SettingsStorage.shared.hiddenPickerAppIDs
         appLanguage = SettingsStorage.shared.appLanguage
-        appUsage = AppUsageFileStore.usage.load()
+        appUsage = appUsageStore.load()
         showWindowlessApps = SettingsStorage.shared.showWindowlessApps
         showBackgroundApps = SettingsStorage.shared.showBackgroundApps
         Log.app.debug("AppState initialized")

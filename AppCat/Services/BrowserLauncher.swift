@@ -262,21 +262,21 @@ final class BrowserLauncher {
     func open(
         urls: [URL],
         with app: InstalledApp,
-        completion: @escaping @MainActor (Bool) -> Void = { _ in }
+        completion: @escaping @MainActor ([Bool]) -> Void = { _ in }
     ) {
         guard !urls.isEmpty else {
-            completion(false)
+            completion([])
             return
         }
 
+        var results = Array(repeating: false, count: urls.count)
         var remaining = urls.count
-        var allSucceeded = true
-        for url in urls {
+        for (index, url) in urls.enumerated() {
             open(url: url, with: app) { succeeded in
-                allSucceeded = allSucceeded && succeeded
+                results[index] = succeeded
                 remaining -= 1
                 if remaining == 0 {
-                    completion(allSucceeded)
+                    completion(results)
                 }
             }
         }

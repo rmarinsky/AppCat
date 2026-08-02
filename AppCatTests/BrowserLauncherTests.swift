@@ -41,6 +41,48 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testPartialMultiURLAppOpenRecordsOnlySuccessfulURL() throws {
+        let world = FakeBrowserLauncherWorld()
+        world.openErrors = [nil, BrowserLauncherTestError.failed]
+        let stats = StatsManager(storage: BrowserLauncherStatsStorage())
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        let historyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("history-\(UUID().uuidString).json")
+        let historyStorage = HistoryStorage(fileURL: historyURL)
+        let appUsageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("app-usage-\(UUID().uuidString).json")
+        let appUsageStore = AppUsageFileStore(
+            file: appUsageURL,
+            queueLabel: "ua.com.rmarinsky.appcat.tests.appusage-\(UUID().uuidString)"
+        )
+        defer {
+            historyStorage.flush()
+            appUsageStore.flush()
+            try? FileManager.default.removeItem(at: historyURL)
+            try? FileManager.default.removeItem(at: appUsageURL)
+        }
+        coordinator.historyManager = HistoryManager(storage: historyStorage)
+        coordinator.statsManager = stats
+        let state = AppState(appUsageStore: appUsageStore)
+        let openedURL = try XCTUnwrap(URL(string: "https://example.com/opened"))
+        let failedURL = try XCTUnwrap(URL(string: "https://example.com/failed"))
+        state.setPendingOpen(
+            displayURLs: [openedURL, failedURL],
+            launchURLs: [openedURL, failedURL]
+        )
+        state.isPickerVisible = true
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+
+        XCTAssertTrue(coordinator.select(PickerItem(app: app), state: state))
+
+        XCTAssertEqual(state.history.map(\.url), [openedURL.absoluteString])
+        XCTAssertEqual(state.appUsage[app.id]?.count, 1)
+        XCTAssertEqual(stats.totalOpenCount, 1)
+    }
+
+    @MainActor
     func testNativeAppCandidatesReportOneSuccessAfterFallback() throws {
         let world = FakeBrowserLauncherWorld()
         world.openErrors = [BrowserLauncherTestError.failed, nil]
