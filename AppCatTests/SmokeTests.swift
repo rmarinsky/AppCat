@@ -1935,11 +1935,11 @@ final class SmokeTests: XCTestCase {
 
         await fulfillment(of: [firstEnumerationStarted], timeout: 1)
         try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(enumerationCount.value, 1)
         releaseFirstEnumeration.signal()
         await fulfillment(of: [pickerCompletion], timeout: 1)
         monitor.stop()
 
-        XCTAssertEqual(enumerationCount.value, 1)
         XCTAssertNotNil(state.appWindowActivityUpdatedAt)
     }
 
