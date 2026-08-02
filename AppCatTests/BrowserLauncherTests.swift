@@ -357,14 +357,29 @@ final class BrowserLauncherTests: XCTestCase {
     func testManualActivationRestoresMinimizedNativeAppWindows() {
         let runningApp = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
-        world.didRestoreMinimizedWindow = true
+        world.didActivateApplicationWindow = true
         let launcher = BrowserLauncher(dependencies: world.dependencies())
         let app = makeApp(id: "com.test.Editor", urlSchemes: [])
 
         launcher.activate(app: app)
         world.drainScheduledActions()
 
-        XCTAssertEqual(world.restoredMinimizedWindowAppIDs, [app.id])
+        XCTAssertEqual(world.activatedApplicationWindowAppIDs, [app.id])
+        XCTAssertEqual(runningApp.activateCount, 0)
+    }
+
+    @MainActor
+    func testManualActivationFocusesExistingNativeAppWindow() {
+        let runningApp = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        world.didActivateApplicationWindow = true
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+
+        launcher.activate(app: app)
+        world.drainScheduledActions()
+
+        XCTAssertTrue(runningApp.isActive)
         XCTAssertEqual(runningApp.activateCount, 0)
     }
 
@@ -567,8 +582,8 @@ private final class FakeBrowserLauncherWorld {
     var reopenEvents: [String] = []
     var executableRuns: [ExecutableRun] = []
     var openErrors: [Error?] = []
-    var restoredMinimizedWindowAppIDs: [String] = []
-    var didRestoreMinimizedWindow = false
+    var activatedApplicationWindowAppIDs: [String] = []
+    var didActivateApplicationWindow = false
     var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
@@ -582,12 +597,13 @@ private final class FakeBrowserLauncherWorld {
             activateWindowTarget: { [self] _ in activateWindowTargetResult },
             runningApplication: { [self] _ in runningApplication },
             hasOpenWindows: { [self] _ in hasOpenWindows },
-            restoreMinimizedWindows: { [self] bundleID in
-                restoredMinimizedWindowAppIDs.append(bundleID)
-                if didRestoreMinimizedWindow {
+            activateApplicationWindow: { [self] bundleID in
+                activatedApplicationWindowAppIDs.append(bundleID)
+                if didActivateApplicationWindow {
                     runningApplication?.isActive = true
+                    return true
                 }
-                return hasOpenWindows.map { ($0, didRestoreMinimizedWindow) }
+                return hasOpenWindows == false ? false : nil
             },
             openURLs: { [self] urls, appURL, configuration, completion in
                 openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))

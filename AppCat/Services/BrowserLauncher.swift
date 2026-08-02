@@ -26,7 +26,7 @@ final class BrowserLauncher {
         var activateWindowTarget: @MainActor (AppWindowTarget) -> Bool
         var runningApplication: @MainActor (String) -> BrowserLauncherRunningApplication?
         var hasOpenWindows: @MainActor (String) -> Bool?
-        var restoreMinimizedWindows: @MainActor (String) -> (hasOpenWindows: Bool, didRestore: Bool)?
+        var activateApplicationWindow: @MainActor (String) -> Bool?
         var openURLs: @MainActor ([URL], URL, NSWorkspace.OpenConfiguration, @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
         var sendReopenEvent: @MainActor (BrowserLauncherRunningApplication, String) -> Void
         var runExecutable: @MainActor (String, [String]) throws -> Void
@@ -36,7 +36,7 @@ final class BrowserLauncher {
             activateWindowTarget: { WindowEnumerator.activate($0) },
             runningApplication: { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first },
             hasOpenWindows: { WindowEnumerator.hasOpenWindows(bundleID: $0) },
-            restoreMinimizedWindows: { WindowEnumerator.restoreMinimizedWindows(bundleID: $0) },
+            activateApplicationWindow: { WindowEnumerator.activateApplicationWindow(bundleID: $0) },
             openURLs: { urls, appURL, configuration, completion in
                 NSWorkspace.shared.open(urls, withApplicationAt: appURL, configuration: configuration) { app, error in
                     Task { @MainActor in completion(app, error) }
@@ -382,11 +382,11 @@ final class BrowserLauncher {
             return false
         }
 
-        let restoration = dependencies.restoreMinimizedWindows(bundleID)
-        let didActivate = restoration?.didRestore == true
+        let didActivateWindow = dependencies.activateApplicationWindow(bundleID)
+        let didActivate = didActivateWindow == true
             ? true
             : activateRunningApplication(runningApp, displayName: displayName)
-        if let appURL, restoration?.hasOpenWindows == false {
+        if let appURL, didActivateWindow == false {
             let didReopen = reopenWindowlessApplication(runningApp, appURL: appURL, displayName: displayName)
             return didActivate || didReopen
         }
