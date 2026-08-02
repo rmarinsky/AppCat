@@ -643,10 +643,6 @@ final class PickerWindowController: NSObject {
         refreshPickerItemsSnapshot()
         let newItems = appState.pickerItemsSnapshot
 
-        guard !newItems.isEmpty else {
-            appState.pickerItemsSnapshot = oldItems
-            return
-        }
         guard newItems.map(\.id) != oldItems.map(\.id) else { return }
 
         appState.focusedBrowserIndex = Self.remappedFocusIndex(

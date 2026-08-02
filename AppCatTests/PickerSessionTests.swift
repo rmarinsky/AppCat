@@ -343,6 +343,38 @@ final class PickerSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshSnapshotForVisibleToggleSessionPublishesEmptyResult() {
+        let state = AppState()
+        let coordinator = PickerCoordinator()
+        state.pickerInvocationSource = .toggleShortcut
+        state.apps = [makeApp(id: "test.closed")]
+        state.regularAppBundleIDs = ["test.closed"]
+        state.runningAppBundleIDs = ["test.closed"]
+        state.appActivityUpdatedAt = Date()
+        state.appWindowActivityUpdatedAt = Date()
+        state.runningWindowsByAppID = [:]
+        state.showWindowlessApps = true
+
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+        if NSApp.isActive { NSApp.deactivate() }
+        coordinator.showPicker(state: state)
+        defer { coordinator.dismissPicker(state: state) }
+
+        state.isPickerVisible = true
+        state.isPickerPresentationPending = false
+        XCTAssertEqual(state.pickerItemsSnapshot.map(\.id), ["app:test.closed"])
+
+        state.runningAppBundleIDs = []
+        state.regularAppBundleIDs = []
+        coordinator.refreshManualPickerSession()
+
+        XCTAssertTrue(state.pickerItemsSnapshot.isEmpty)
+        XCTAssertEqual(state.focusedBrowserIndex, 0)
+    }
+
+    @MainActor
     func testHoldReassertVisibilityKeepsSessionActive() {
         let state = AppState()
         let coordinator = PickerCoordinator()
