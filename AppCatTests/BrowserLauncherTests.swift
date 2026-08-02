@@ -354,6 +354,19 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testManualActivationRestoresMinimizedNativeAppWindows() {
+        let runningApp = FakeRunningApplication()
+        let world = FakeBrowserLauncherWorld(runningApplication: runningApp, hasOpenWindows: true)
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+
+        launcher.activate(app: app)
+
+        XCTAssertEqual(world.restoredMinimizedWindowAppIDs, [app.id])
+        XCTAssertGreaterThan(runningApp.activateCount, 0)
+    }
+
+    @MainActor
     func testManualActivationWithProfileDoesNotLaunchProfileExecutable() {
         let app = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: true)
@@ -552,6 +565,7 @@ private final class FakeBrowserLauncherWorld {
     var reopenEvents: [String] = []
     var executableRuns: [ExecutableRun] = []
     var openErrors: [Error?] = []
+    var restoredMinimizedWindowAppIDs: [String] = []
     var activateWindowTargetResult = false
     private var scheduledActions: [() -> Void] = []
 
@@ -565,6 +579,9 @@ private final class FakeBrowserLauncherWorld {
             activateWindowTarget: { [self] _ in activateWindowTargetResult },
             runningApplication: { [self] _ in runningApplication },
             hasOpenWindows: { [self] _ in hasOpenWindows },
+            restoreMinimizedWindows: { [self] bundleID in
+                restoredMinimizedWindowAppIDs.append(bundleID)
+            },
             openURLs: { [self] urls, appURL, configuration, completion in
                 openedURLs.append(OpenedURLs(urls: urls, appURL: appURL, activates: configuration.activates))
                 let error = openErrors.isEmpty ? nil : openErrors.removeFirst()
