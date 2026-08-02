@@ -1,5 +1,18 @@
 import AppKit
 
+enum RunningAppIconPolicy {
+    static func icon(
+        previous: InstalledApp?,
+        appURL: URL,
+        reload: () -> NSImage?
+    ) -> NSImage? {
+        if previous?.appURL == appURL, let cached = previous?.icon {
+            return cached
+        }
+        return reload()
+    }
+}
+
 @MainActor
 final class AppActivityMonitor {
     private weak var appState: AppState?
@@ -77,7 +90,11 @@ final class AppActivityMonitor {
                 else { return nil }
 
                 let fallbackName = appURL.deletingPathExtension().lastPathComponent
-                let icon = application.icon ?? NSWorkspace.shared.icon(forFile: appURL.path)
+                let icon = RunningAppIconPolicy.icon(
+                    previous: appState.runningAppsByBundleID[bundleID],
+                    appURL: appURL,
+                    reload: { application.icon ?? NSWorkspace.shared.icon(forFile: appURL.path) }
+                )
                 return (
                     bundleID,
                     InstalledApp(

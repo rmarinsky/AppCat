@@ -1936,6 +1936,25 @@ final class SmokeTests: XCTestCase {
         XCTAssertNil(state.appWindowActivityUpdatedAt)
     }
 
+    func testUnchangedRunningAppReusesCachedIconWithoutReloading() {
+        let cachedIcon = NSImage(size: NSSize(width: 16, height: 16))
+        var app = makeApp(id: "test.running")
+        app.icon = cachedIcon
+        var reloadCount = 0
+
+        let icon = RunningAppIconPolicy.icon(
+            previous: app,
+            appURL: app.appURL,
+            reload: {
+                reloadCount += 1
+                return NSImage(size: NSSize(width: 32, height: 32))
+            }
+        )
+
+        XCTAssertTrue(icon === cachedIcon)
+        XCTAssertEqual(reloadCount, 0)
+    }
+
     private func assertOpenMode(
         _ expected: BrowserLauncher.OpenMode,
         modifiers: NSEvent.ModifierFlags,
