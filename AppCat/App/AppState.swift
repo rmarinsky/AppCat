@@ -34,6 +34,12 @@ final class AppState {
     var appUsage: [String: AppUsage] = [:]
     /// Trailing-seven-day successful manual picker selections, snapshotted per session.
     var manualPickerTargetCounts: [String: Int] = [:]
+    /// Most-recently-used window order, snapshotted per session so a background app stealing focus
+    /// mid-session cannot reshuffle the row under the user's focused tile.
+    var manualPickerWindowRanks: [String: Int] = [:]
+    /// Identity that was frontmost when the current session opened — the tile the switcher skips
+    /// past to land on the previous window.
+    var manualPickerFrontmostKey: String?
     var recentLinksCount: Int = 3
     /// Show running apps without open windows in the switcher (dimmed group).
     var showWindowlessApps: Bool = true

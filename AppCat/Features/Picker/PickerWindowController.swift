@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
 private enum PickerPanelViewID {
@@ -201,7 +202,13 @@ final class PickerWindowController: NSObject {
         seedPickerSnapshotIfPossible()
         // Reset focus here, not only in the view's onAppear — after a pre-warm the hidden view
         // has already "appeared" once and onAppear may not fire again for the real presentation.
-        appState.focusedBrowserIndex = 0
+        // `seedPickerSnapshotIfPossible` ran just above, so a manual session already has its items;
+        // if it could not seed, this lands on 0 and `prepareInitialFocus` corrects it on appear.
+        appState.focusedBrowserIndex = PickerInitialFocusPolicy.initialIndex(
+            items: appState.pickerItemsSnapshot,
+            frontmostRankKey: appState.manualPickerFrontmostKey,
+            invocationSource: appState.pickerInvocationSource
+        )
         let screen = screenNearCursor()
         let targetSize = panelSize(for: screen)
 
@@ -335,6 +342,8 @@ final class PickerWindowController: NSObject {
         appState.clearPendingOpen()
         appState.pickerInvocationSource = .linkRouting
         appState.pickerItemsSnapshot = []
+        appState.manualPickerWindowRanks = [:]
+        appState.manualPickerFrontmostKey = nil
         removeMonitors()
         panel?.orderOut(nil)
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.dismissalActivationPolicy(
@@ -434,6 +443,10 @@ final class PickerWindowController: NSObject {
             removeLastTypeAheadCharacter()
             return true
         case 48: // Tab
+            // The activation chord itself is claimed by the global hot key, which already steps
+            // focus. Handling it here too would advance twice per press if the system ever lets the
+            // chord through to the key panel as well.
+            if Self.isActivationChordRepeat(event) { return true }
             clearTypeAheadBuffer()
             let itemCount = itemCountForFocusNavigation()
             if event.modifierFlags.contains(.shift) {
@@ -582,6 +595,7 @@ final class PickerWindowController: NSObject {
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
             manualPickerTargetCounts: appState.manualPickerTargetCounts,
+            windowActivationRanks: appState.manualPickerWindowRanks,
             regularBundleIDs: appState.regularAppBundleIDs,
             runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
@@ -704,6 +718,18 @@ final class PickerWindowController: NSObject {
 
         appState.focusedBrowserIndex = index
         return coordinator.select(items[index], state: appState, source: .pickerClick)
+    }
+
+    /// Whether this Tab event *is* the configured activation chord, which the global hot key has
+    /// already acted on. Compared on the exact modifier set, so ⇧⌥Tab (a different set) still
+    /// reaches the panel and steps backward.
+    static func isActivationChordRepeat(
+        _ event: NSEvent,
+        shortcut: KeyboardShortcuts.Shortcut? = KeyboardShortcuts.getShortcut(for: .openPickerManually)
+    ) -> Bool {
+        guard let shortcut, shortcut.key == .tab else { return false }
+        let relevant: NSEvent.ModifierFlags = [.option, .command, .control, .shift]
+        return event.modifierFlags.intersection(relevant) == shortcut.modifiers.intersection(relevant)
     }
 
     /// Where focus should land after the item list is replaced: follow the focused item's id,

@@ -277,18 +277,30 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerInvocationSourceDefinesSessionInteractionPolicy() {
-        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool)] = [
-            (.linkRouting, false, false, false, true),
-            (.toggleShortcut, true, false, true, true),
-            (.serviceKey, true, false, true, true),
-            (.holdOptionTab, true, true, false, false),
+        // Hold-⌥Tab is excluded from `startsOnPreviousItem` deliberately: it already reaches the
+        // previous window by presenting at 0 and stepping +1, so opting in would double-advance.
+        let expectations: [(PickerInvocationSource, Bool, Bool, Bool, Bool, Bool, Bool)] = [
+            (.linkRouting, false, false, false, true, false, false),
+            (.toggleShortcut, true, false, true, true, true, true),
+            (.serviceKey, true, false, true, true, true, true),
+            (.holdOptionTab, true, true, false, false, false, false),
         ]
 
-        for (source, isManual, isHoldToSwitch, refreshesSnapshot, requiresKeyboardFocus) in expectations {
+        for (
+            source,
+            isManual,
+            isHoldToSwitch,
+            refreshesSnapshot,
+            requiresKeyboardFocus,
+            startsOnPreviousItem,
+            advancesOnRepeat
+        ) in expectations {
             XCTAssertEqual(source.isManualPresentation, isManual)
             XCTAssertEqual(source.isHoldToSwitch, isHoldToSwitch)
             XCTAssertEqual(source.refreshesLiveSnapshot, refreshesSnapshot)
             XCTAssertEqual(source.requiresKeyboardFocus, requiresKeyboardFocus)
+            XCTAssertEqual(source.startsOnPreviousItem, startsOnPreviousItem)
+            XCTAssertEqual(source.advancesFocusOnRepeatedInvocation, advancesOnRepeat)
         }
     }
 
@@ -552,34 +564,63 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(PickerInvocationSource.serviceKey.opensFocusedItemOnOptionRelease(isPickerVisible: true))
     }
 
-    func testRepeatedManualShortcutReleaseConfirmsVisiblePickerSelection() {
+    func testRepeatedManualShortcutStepsThroughVisiblePicker() {
         XCTAssertEqual(
             PickerManualActivationPolicy.action(
                 isPickerVisible: true,
-                isPresentationPending: false
+                isPresentationPending: false,
+                advancesOnRepeat: true
+            ),
+            .advanceFocus(delta: 1)
+        )
+    }
+
+    func testRepeatedManualShortcutConfirmsWhenAdvancingIsDisabled() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: true,
+                isPresentationPending: false,
+                advancesOnRepeat: false
             ),
             .confirmFocusedItem
         )
     }
 
-    func testRepeatedManualShortcutReleaseCancelsPendingPresentation() {
+    /// A second press during the window-enumeration wait is the ⌘Tab "two windows back" gesture:
+    /// nothing is on screen yet to cancel, so it must bank a step rather than drop the session.
+    func testRepeatedManualShortcutStepsWhilePresentationIsPending() {
         XCTAssertEqual(
             PickerManualActivationPolicy.action(
                 isPickerVisible: false,
-                isPresentationPending: true
+                isPresentationPending: true,
+                advancesOnRepeat: true
+            ),
+            .advanceFocus(delta: 1)
+        )
+    }
+
+    func testRepeatedManualShortcutCancelsPendingPresentationWhenAdvancingIsDisabled() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: false,
+                isPresentationPending: true,
+                advancesOnRepeat: false
             ),
             .cancelPendingPresentation
         )
     }
 
-    func testManualShortcutReleasePresentsPickerWhenIdle() {
-        XCTAssertEqual(
-            PickerManualActivationPolicy.action(
-                isPickerVisible: false,
-                isPresentationPending: false
-            ),
-            .presentPicker
-        )
+    func testManualShortcutPresentsPickerWhenIdle() {
+        for advancesOnRepeat in [true, false] {
+            XCTAssertEqual(
+                PickerManualActivationPolicy.action(
+                    isPickerVisible: false,
+                    isPresentationPending: false,
+                    advancesOnRepeat: advancesOnRepeat
+                ),
+                .presentPicker
+            )
+        }
     }
 
     func testHoldOptionTabInvokesOpenCallbackWhenOptionIsReleased() throws {
@@ -1064,6 +1105,81 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(first.count, 1)
         XCTAssertEqual(second.count, 1)
         XCTAssertEqual(loadCount, 1)
+    }
+
+    // MARK: - Launch z-order seed
+
+    private func cgWindow(
+        pid: pid_t,
+        title: String? = nil,
+        layer: Int = 0,
+        alpha: Double = 1,
+        isOnscreen: Bool = true,
+        width: Double = 800,
+        height: Double = 600
+    ) -> [String: Any] {
+        var info: [String: Any] = [
+            kCGWindowOwnerPID as String: Int(pid),
+            kCGWindowLayer as String: layer,
+            kCGWindowAlpha as String: alpha,
+            kCGWindowIsOnscreen as String: isOnscreen,
+            kCGWindowSharingState as String: 1,
+            kCGWindowBounds as String: ["Width": width, "Height": height, "X": 0, "Y": 0],
+        ]
+        if let title { info[kCGWindowName as String] = title }
+        return info
+    }
+
+    /// Apps must appear in Core Graphics stacking order, and — because `kCGWindowName` is withheld
+    /// without Screen Recording — a title-less entry must still contribute its app's position.
+    func testFrontToBackSeedFollowsCoreGraphicsOrderWithoutTitles() {
+        let bundleIDs: [pid_t: String] = [10: "test.front", 20: "test.back"]
+
+        let seed = WindowEnumerator.frontToBackWindows(
+            windowInfo: [cgWindow(pid: 10), cgWindow(pid: 20), cgWindow(pid: 10)],
+            bundleIDForPID: { bundleIDs[$0] },
+            windowsForBundleID: { bundleID, _ in
+                [AppWindowTarget(bundleID: bundleID, title: "\(bundleID) window", index: 0)]
+            }
+        )
+
+        XCTAssertEqual(seed.map(\.bundleID), ["test.front", "test.back"])
+        XCTAssertEqual(seed.map(\.title), ["test.front window", "test.back window"])
+    }
+
+    func testFrontToBackSeedSkipsNonWindowAndUnknownCoreGraphicsEntries() {
+        let seed = WindowEnumerator.frontToBackWindows(
+            windowInfo: [
+                cgWindow(pid: 99), // no bundle id mapping (not a regular app / AppCat itself)
+                cgWindow(pid: 10, layer: 25), // menu bar / overlay layer
+                cgWindow(pid: 10, isOnscreen: false),
+                cgWindow(pid: 10, width: 20, height: 20), // too small to be a content window
+                cgWindow(pid: 10),
+            ],
+            bundleIDForPID: { $0 == 10 ? "test.app" : nil },
+            windowsForBundleID: { bundleID, _ in
+                [AppWindowTarget(bundleID: bundleID, title: "Window", index: 0)]
+            }
+        )
+
+        XCTAssertEqual(seed.map(\.bundleID), ["test.app"])
+    }
+
+    /// Where Screen Recording did grant titles, Core Graphics order leads and Accessibility only
+    /// contributes windows it alone knows about.
+    func testFrontToBackSeedPrefersCoreGraphicsTitlesWhenPresent() {
+        let seed = WindowEnumerator.frontToBackWindows(
+            windowInfo: [cgWindow(pid: 10, title: "Second"), cgWindow(pid: 10, title: "First")],
+            bundleIDForPID: { _ in "test.app" },
+            windowsForBundleID: { bundleID, _ in
+                [
+                    AppWindowTarget(bundleID: bundleID, title: "First", index: 0),
+                    AppWindowTarget(bundleID: bundleID, title: "Only In Accessibility", index: 1),
+                ]
+            }
+        )
+
+        XCTAssertEqual(seed.map(\.title), ["Second", "First", "Only In Accessibility"])
     }
 
     func testWindowFilterRejectsInvalidCoreGraphicsCandidates() {
@@ -1626,7 +1742,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testManualPickerSortsByRecentPickerFrequencyThenName() {
+    func testManualPickerSortsByRecentPickerFrequencyThenNameWhenNoRecencyIsKnown() {
         let a = makeApp(id: "test.a", displayName: "A")
         let b = makeApp(id: "test.b", displayName: "B")
         let c = makeApp(id: "test.c", displayName: "C")
@@ -1650,7 +1766,7 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
-    func testManualPickerKeepsWindowsOfRankedAppTogether() {
+    func testManualPickerKeepsWindowsOfRankedAppTogetherWhenNoRecencyIsKnown() {
         let editor = makeApp(id: "test.editor", displayName: "Editor")
         let browser = makeApp(id: "test.browser", displayName: "Browser")
         let items = PickerItem.items(
@@ -1672,6 +1788,151 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(items.map(\.displayName), ["Editor One", "Editor Two", "Browser"])
+    }
+
+    // MARK: - Switcher most-recently-used ordering
+
+    @MainActor
+    private func makeSwitcherItems(
+        apps: [InstalledApp],
+        windowsByAppID: [String: [AppWindowTarget]],
+        manualPickerTargetCounts: [String: Int] = [:],
+        windowActivationRanks: [String: Int] = [:]
+    ) -> [PickerItem] {
+        PickerItem.items(
+            for: nil,
+            pickerBrowsers: [],
+            allBrowsers: [],
+            apps: apps,
+            appUsage: [:],
+            runningBundleIDs: Set(apps.map(\.id)),
+            windowsByAppID: windowsByAppID,
+            manualPickerTargetCounts: manualPickerTargetCounts,
+            windowActivationRanks: windowActivationRanks,
+            regularBundleIDs: Set(apps.map(\.id))
+        )
+    }
+
+    /// The point of window-level recency: two windows of one app land wherever their own recency
+    /// puts them, so the tile after the one you are in is the exact window you were in before.
+    @MainActor
+    func testManualPickerOrdersWindowsByRecencyAcrossApps() {
+        let editor = makeApp(id: "test.editor", displayName: "Editor")
+        let chat = makeApp(id: "test.chat", displayName: "Chat")
+
+        let items = makeSwitcherItems(
+            apps: [editor, chat],
+            windowsByAppID: [
+                editor.id: [
+                    AppWindowTarget(bundleID: editor.id, title: "Editor One", index: 0),
+                    AppWindowTarget(bundleID: editor.id, title: "Editor Two", index: 1),
+                ],
+                chat.id: [
+                    AppWindowTarget(bundleID: chat.id, title: "Chat One", index: 0),
+                    AppWindowTarget(bundleID: chat.id, title: "Chat Two", index: 1),
+                ],
+            ],
+            windowActivationRanks: [
+                WindowActivationKey.window(bundleID: editor.id, title: "Editor One"): 40,
+                WindowActivationKey.window(bundleID: chat.id, title: "Chat One"): 30,
+                WindowActivationKey.window(bundleID: editor.id, title: "Editor Two"): 20,
+                WindowActivationKey.window(bundleID: chat.id, title: "Chat Two"): 10,
+            ]
+        )
+
+        XCTAssertEqual(
+            items.map(\.displayName),
+            ["Editor One", "Chat One", "Editor Two", "Chat Two"],
+            "Windows must interleave by recency rather than staying grouped by app"
+        )
+    }
+
+    @MainActor
+    func testManualPickerFallsBackToFrequencyForTargetsWithoutRecency() {
+        let recent = makeApp(id: "test.recent", displayName: "Zeta")
+        let frequent = makeApp(id: "test.frequent", displayName: "Alpha")
+        let rare = makeApp(id: "test.rare", displayName: "Beta")
+
+        let items = makeSwitcherItems(
+            apps: [recent, frequent, rare],
+            windowsByAppID: [
+                recent.id: [AppWindowTarget(bundleID: recent.id, title: "w", index: 0)],
+                frequent.id: [AppWindowTarget(bundleID: frequent.id, title: "w", index: 0)],
+                rare.id: [AppWindowTarget(bundleID: rare.id, title: "w", index: 0)],
+            ],
+            manualPickerTargetCounts: [frequent.id: 20, rare.id: 1],
+            windowActivationRanks: [WindowActivationKey.app(recent.id): 5]
+        )
+
+        XCTAssertEqual(
+            items.map(\.id),
+            ["app:test.recent", "app:test.frequent", "app:test.rare"],
+            "Any recency outranks all frequency; frequency then orders the unranked remainder"
+        )
+    }
+
+    /// A window whose title was actually resolved must beat siblings that only inherit the app's
+    /// tick — otherwise ⌥Tab would land on an arbitrary window of the right app.
+    @MainActor
+    func testManualPickerPrefersExactWindowOverAppLevelRecency() {
+        let editor = makeApp(id: "test.editor", displayName: "Editor")
+
+        let items = makeSwitcherItems(
+            apps: [editor],
+            windowsByAppID: [
+                editor.id: [
+                    AppWindowTarget(bundleID: editor.id, title: "First", index: 0),
+                    AppWindowTarget(bundleID: editor.id, title: "Second", index: 1),
+                ],
+            ],
+            windowActivationRanks: [
+                WindowActivationKey.app(editor.id): 7,
+                WindowActivationKey.window(bundleID: editor.id, title: "Second"): 7,
+            ]
+        )
+
+        XCTAssertEqual(items.map(\.displayName), ["Second", "First"])
+    }
+
+    @MainActor
+    func testManualPickerWindowRanksDoNotCreateOrRestoreItems() {
+        let running = makeApp(id: "test.running", displayName: "Running")
+
+        let items = makeSwitcherItems(
+            apps: [running],
+            windowsByAppID: [running.id: [AppWindowTarget(bundleID: running.id, title: "w", index: 0)]],
+            windowActivationRanks: [
+                WindowActivationKey.app("test.quit"): 99,
+                WindowActivationKey.window(bundleID: "test.quit", title: "Gone"): 98,
+            ]
+        )
+
+        XCTAssertEqual(items.map(\.id), ["app:test.running"])
+    }
+
+    /// The refactor to per-tile ranking must be inert until recency exists — this is what lets the
+    /// pre-recency ordering tests above keep passing unchanged.
+    @MainActor
+    func testManualPickerOrderingIsUnchangedWhenNoRecencyIsKnown() {
+        let editor = makeApp(id: "test.editor", displayName: "Editor")
+        let browser = makeApp(id: "test.browser", displayName: "Browser")
+        let windows: [String: [AppWindowTarget]] = [
+            editor.id: [
+                AppWindowTarget(bundleID: editor.id, title: "Editor One", index: 0),
+                AppWindowTarget(bundleID: editor.id, title: "Editor Two", index: 1),
+            ],
+            browser.id: [AppWindowTarget(bundleID: browser.id, title: "Browser", index: 0)],
+        ]
+        let counts = [editor.id: 5, browser.id: 2]
+
+        let withEmptyRanks = makeSwitcherItems(
+            apps: [browser, editor],
+            windowsByAppID: windows,
+            manualPickerTargetCounts: counts,
+            windowActivationRanks: [:]
+        )
+
+        XCTAssertEqual(withEmptyRanks.map(\.displayName), ["Editor One", "Editor Two", "Browser"])
     }
 
     @MainActor

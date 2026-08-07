@@ -66,6 +66,40 @@ struct PickerItem: Identifiable {
         return "window-title|\(windowTarget.bundleID)|\(title)"
     }
 
+    /// Identities this tile is ranked by in the switcher's most-recently-used order. Window tiles
+    /// carry the same app + folded-title identity as `switcherDedupeKey`; every other tile — app,
+    /// browser, browser-profile, windowless — stands for the whole app. Profiles are not separately
+    /// observable through activation notifications, so they share the browser's recency, matching
+    /// how the frequency contract already aggregates them.
+    var activationRankKeys: (window: String?, app: String?) {
+        let candidateBundleID: String? = if let windowTarget {
+            windowTarget.bundleID
+        } else if let app {
+            app.id
+        } else {
+            browser?.id
+        }
+        guard let bundleID = candidateBundleID else { return (nil, nil) }
+        guard let windowTarget else { return (nil, WindowActivationKey.app(bundleID)) }
+        return (
+            WindowActivationKey.window(bundleID: bundleID, title: windowTarget.title),
+            WindowActivationKey.app(bundleID)
+        )
+    }
+
+    /// Whether this tile represents the target a most-recently-used key names.
+    ///
+    /// An app with a single open window renders as an *app* tile with no window target, while the
+    /// frontmost key recorded for it is a *window* key. Matching only on the exact key would fail
+    /// for exactly that case — the common one — so a tile that stands for a whole app also matches
+    /// any key belonging to it.
+    func matchesActivationRankKey(_ key: String) -> Bool {
+        let keys = activationRankKeys
+        if keys.window == key || keys.app == key { return true }
+        guard keys.window == nil, let appKey = keys.app else { return false }
+        return WindowActivationKey.bundleID(from: key) == WindowActivationKey.bundleID(from: appKey)
+    }
+
     var icon: NSImage? {
         runtimeIcon ?? browser?.icon ?? app?.icon
     }
@@ -207,6 +241,7 @@ struct PickerItem: Identifiable {
         runningBundleIDs providedRunningBundleIDs: Set<String>? = nil,
         windowsByAppID providedWindowsByAppID: [String: [AppWindowTarget]]? = nil,
         manualPickerTargetCounts: [String: Int] = [:],
+        windowActivationRanks: [String: Int] = [:],
         regularBundleIDs: Set<String>? = nil,
         runningAppsByBundleID: [String: InstalledApp] = [:],
         showWindowlessApps: Bool = true,
@@ -230,6 +265,7 @@ struct PickerItem: Identifiable {
                 regularBundleIDs: regularBundleIDs,
                 windowsByAppID: windowsByAppID,
                 manualPickerTargetCounts: manualPickerTargetCounts,
+                windowActivationRanks: windowActivationRanks,
                 runningAppsByBundleID: runningAppsByBundleID.filter { !hiddenAppIDs.contains($0.key) },
                 showWindowlessApps: showWindowlessApps,
                 showBackgroundApps: showBackgroundApps
@@ -277,6 +313,7 @@ struct PickerItem: Identifiable {
         regularBundleIDs: Set<String>?,
         windowsByAppID: [String: [AppWindowTarget]],
         manualPickerTargetCounts: [String: Int],
+        windowActivationRanks: [String: Int],
         runningAppsByBundleID: [String: InstalledApp],
         showWindowlessApps: Bool,
         showBackgroundApps: Bool
@@ -361,22 +398,78 @@ struct PickerItem: Identifiable {
             ))
         }
 
-        /// Recent picker frequency first, then name and id for deterministic ties.
-        func before(_ x: Entry, _ y: Entry) -> Bool {
-            let cx = manualPickerTargetCounts[x.id.lowercased()] ?? 0
-            let cy = manualPickerTargetCounts[y.id.lowercased()] ?? 0
-            if cx != cy { return cx > cy }
-            let nameOrder = x.name.localizedCaseInsensitiveCompare(y.name)
-            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
-            return x.id.localizedCaseInsensitiveCompare(y.id) == .orderedAscending
+        let visibleEntries = showWindowlessApps ? entries : entries.filter(\.hasWindows)
+        var tiles: [SwitcherTile] = []
+        for entry in visibleEntries {
+            for item in entry.items {
+                tiles.append(SwitcherTile(
+                    item: tagged(item, hasOpenWindows: entry.hasWindows, isBackground: !entry.hasWindows),
+                    groupID: entry.id,
+                    groupName: entry.name,
+                    order: tiles.count
+                ))
+            }
         }
 
-        let visibleEntries = showWindowlessApps ? entries : entries.filter(\.hasWindows)
-        return dedupedForDisplay(visibleEntries.sorted(by: before).flatMap { entry in
-            entry.items.map {
-                tagged($0, hasOpenWindows: entry.hasWindows, isBackground: !entry.hasWindows)
+        /// Rank of one tile in the frozen most-recently-used snapshot.
+        func rank(_ tile: SwitcherTile) -> WindowActivationRank? {
+            let keys = tile.item.activationRankKeys
+            let windowTick = keys.window.flatMap { windowActivationRanks[$0] }
+            let appTick = keys.app.flatMap { windowActivationRanks[$0] }
+            switch (windowTick, appTick) {
+            case let (window?, app?):
+                return window >= app
+                    ? WindowActivationRank(tick: window, isExactWindow: true)
+                    : WindowActivationRank(tick: app, isExactWindow: false)
+            case let (window?, nil):
+                return WindowActivationRank(tick: window, isExactWindow: true)
+            case let (nil, app?):
+                return WindowActivationRank(tick: app, isExactWindow: false)
+            case (nil, nil):
+                return nil
             }
-        })
+        }
+
+        /// Most recently frontmost window first — tiles are ranked individually, so two windows of
+        /// one app can land at opposite ends of the row. That is the point: index 1 must be the
+        /// exact window you were in before, not merely the app it belongs to.
+        ///
+        /// Targets with no recency at all (never focused since launch and absent from the launch
+        /// z-order seed) fall through to the pre-recency contract: trailing-seven-day manual-picker
+        /// frequency, then localized name, then bundle id. Construction order settles the rest,
+        /// which is what keeps an empty ledger producing exactly the old ordering.
+        func before(_ x: SwitcherTile, _ y: SwitcherTile) -> Bool {
+            switch (rank(x), rank(y)) {
+            case let (rx?, ry?):
+                if rx != ry { return rx > ry }
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                break
+            }
+            let cx = manualPickerTargetCounts[x.groupID.lowercased()] ?? 0
+            let cy = manualPickerTargetCounts[y.groupID.lowercased()] ?? 0
+            if cx != cy { return cx > cy }
+            let nameOrder = x.groupName.localizedCaseInsensitiveCompare(y.groupName)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            let idOrder = x.groupID.localizedCaseInsensitiveCompare(y.groupID)
+            if idOrder != .orderedSame { return idOrder == .orderedAscending }
+            return x.order < y.order
+        }
+
+        return dedupedForDisplay(tiles.sorted(by: before).map(\.item))
+    }
+
+    /// One rendered switcher tile plus the app-group facts its fallback tiers still need.
+    private struct SwitcherTile {
+        let item: PickerItem
+        let groupID: String
+        let groupName: String
+        /// Construction position — the total-order tiebreak that makes an empty most-recently-used
+        /// ledger reproduce the previous group-then-expand ordering exactly.
+        let order: Int
     }
 
     /// Safety net: never render two switcher tiles that read identically (see `switcherDedupeKey`).
@@ -689,6 +782,7 @@ struct PickerView: View {
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
             manualPickerTargetCounts: appState.manualPickerTargetCounts,
+            windowActivationRanks: appState.manualPickerWindowRanks,
             regularBundleIDs: appState.regularAppBundleIDs,
             runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
@@ -895,10 +989,18 @@ struct PickerView: View {
         // A pre-warmed (hidden) panel also runs onAppear; it must not reset focus or seed a
         // stale URL-less snapshot that a later real presentation would then trust.
         guard appState.isPickerVisible else { return }
-        appState.focusedBrowserIndex = 0
         if appState.pickerItemsSnapshot.isEmpty, !items.isEmpty {
             appState.pickerItemsSnapshot = items
         }
+        // Hold-⌥Tab drives its own focus: it presents at 0 and steps +1 before this can run, so
+        // re-deriving here would drag it back to the window the user is already in. (Today that is
+        // avoided only by pre-warm suppressing a second onAppear — this makes it explicit.)
+        guard appState.pickerInvocationSource.requiresKeyboardFocus else { return }
+        appState.focusedBrowserIndex = PickerInitialFocusPolicy.initialIndex(
+            items: appState.pickerItemsSnapshot.isEmpty ? items : appState.pickerItemsSnapshot,
+            frontmostRankKey: appState.manualPickerFrontmostKey,
+            invocationSource: appState.pickerInvocationSource
+        )
     }
 }
 

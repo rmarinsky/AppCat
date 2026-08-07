@@ -1,5 +1,6 @@
 @testable import AppCat
 import AppKit
+import KeyboardShortcuts
 import XCTest
 
 final class PickerSessionTests: XCTestCase {
@@ -437,6 +438,161 @@ final class PickerSessionTests: XCTestCase {
         let rep = try? XCTUnwrap(icon.representations.first as? NSBitmapImageRep)
         XCTAssertEqual(rep?.pixelsWide, 128)
         XCTAssertEqual(rep?.pixelsHigh, 128)
+    }
+
+    // MARK: - Initial focus lands on the previous window
+
+    func testManualPickerOpensFocusedOnThePreviousWindow() {
+        let items = [item("test.current"), item("test.previous")]
+
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: WindowActivationKey.app("test.current"),
+                invocationSource: .toggleShortcut
+            ),
+            1
+        )
+    }
+
+    /// An app with one open window renders as an app tile, but the recorded frontmost key is a
+    /// *window* key. Matching only on the exact key would leave focus on the app you are already in
+    /// for the most common case there is.
+    func testManualPickerSkipsSingleWindowFrontmostAppRenderedAsAnAppTile() {
+        let items = [item("test.current"), item("test.previous")]
+
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: WindowActivationKey.window(bundleID: "test.current", title: "Only Window"),
+                invocationSource: .toggleShortcut
+            ),
+            1
+        )
+    }
+
+    /// If the window you are in was filtered out of the list (hidden, or windowless with windowless
+    /// apps switched off), index 0 *is* the previous window — skipping again would overshoot.
+    func testManualPickerStaysOnIndexZeroWhenTheFrontmostTargetIsNotListed() {
+        let items = [item("test.previous"), item("test.older")]
+
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: WindowActivationKey.app("test.hidden"),
+                invocationSource: .toggleShortcut
+            ),
+            0
+        )
+    }
+
+    func testInitialFocusStaysOnIndexZeroForNonSwitcherAndDegenerateSessions() {
+        let items = [item("test.current"), item("test.previous")]
+        let frontmost = WindowActivationKey.app("test.current")
+
+        // Link routing lists destinations for a URL, not a history — there is no "previous".
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: frontmost,
+                invocationSource: .linkRouting
+            ),
+            0
+        )
+        // Hold-⌥Tab presents at 0 and steps +1 itself; opting in here would land on 2.
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: frontmost,
+                invocationSource: .holdOptionTab
+            ),
+            0
+        )
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: [item("test.current")],
+                frontmostRankKey: frontmost,
+                invocationSource: .toggleShortcut
+            ),
+            0
+        )
+        XCTAssertEqual(
+            PickerInitialFocusPolicy.initialIndex(
+                items: items,
+                frontmostRankKey: nil,
+                invocationSource: .toggleShortcut
+            ),
+            0
+        )
+    }
+
+    // MARK: - Commit on modifier release
+
+    func testWatchedModifiersFollowTheConfiguredShortcut() {
+        XCTAssertEqual(
+            PickerCommitModifierPolicy.watchedModifiers(for: .init(.tab, modifiers: [.option])),
+            [.option]
+        )
+        XCTAssertEqual(
+            PickerCommitModifierPolicy.watchedModifiers(for: .init(.b, modifiers: [.option, .command])),
+            [.option, .command]
+        )
+        XCTAssertNil(
+            PickerCommitModifierPolicy.watchedModifiers(for: .init(.f13)),
+            "A modifier-free chord has no release to wait for; the picker stays modal"
+        )
+        XCTAssertNil(PickerCommitModifierPolicy.watchedModifiers(for: nil))
+    }
+
+    func testCommitTriggersOnlyOnceTheWatchedModifierIsReleased() {
+        XCTAssertFalse(PickerCommitModifierPolicy.shouldCommit(watched: [.option], current: [.option]))
+        XCTAssertFalse(
+            PickerCommitModifierPolicy.shouldCommit(watched: [.option], current: [.option, .shift]),
+            "⇧⌥Tab still holds ⌥, so stepping backward must not commit"
+        )
+        XCTAssertTrue(PickerCommitModifierPolicy.shouldCommit(watched: [.option], current: []))
+        XCTAssertTrue(
+            PickerCommitModifierPolicy.shouldCommit(watched: [.option, .command], current: [.command]),
+            "Releasing any watched modifier ends the gesture"
+        )
+    }
+
+    @MainActor
+    func testModifierWatcherCommitsOnceWhenModifiersAreReleased() async {
+        var heldModifiers: NSEvent.ModifierFlags = [.option]
+        var commitCount = 0
+        let watcher = PickerCommitModifierWatcher(
+            dependencies: .init(currentModifiers: { heldModifiers }, sleep: { _ in await Task.yield() })
+        )
+        watcher.isSessionAlive = { true }
+        watcher.onCommit = { commitCount += 1 }
+
+        watcher.arm(watching: [.option])
+        await Task.yield()
+        XCTAssertEqual(commitCount, 0, "Still held")
+
+        heldModifiers = []
+        while watcher.isArmed { await Task.yield() }
+
+        XCTAssertEqual(commitCount, 1)
+        XCTAssertFalse(watcher.isArmed)
+    }
+
+    /// Escape, click-away, and resign-key all end a session without telling the watcher; polling the
+    /// session instead of hooking each path is what keeps them from committing a dismissed picker.
+    @MainActor
+    func testModifierWatcherDisarmsWhenTheSessionEnds() async {
+        var commitCount = 0
+        let watcher = PickerCommitModifierWatcher(
+            dependencies: .init(currentModifiers: { [] }, sleep: { _ in await Task.yield() })
+        )
+        watcher.isSessionAlive = { false }
+        watcher.onCommit = { commitCount += 1 }
+
+        watcher.arm(watching: [.option])
+        while watcher.isArmed { await Task.yield() }
+
+        XCTAssertEqual(commitCount, 0)
     }
 
     // MARK: - Helpers
