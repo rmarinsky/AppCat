@@ -202,6 +202,90 @@ enum WindowEnumerator {
         )
     }
 
+    /// Title of the app's currently focused window — the switcher's per-window recency signal.
+    static func focusedWindowTitle(forPID pid: pid_t) -> String? {
+        guard AXIsProcessTrusted() else { return nil }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, messagingTimeout)
+        guard let window = elementAttribute(axApp, kAXFocusedWindowAttribute as String) else { return nil }
+        AXUIElementSetMessagingTimeout(window, messagingTimeout)
+        return title(of: window)
+    }
+
+    /// On-screen windows of every running regular app, front to back. Seeds the switcher's
+    /// most-recently-used order at launch, before any activation has been observed.
+    ///
+    /// Two sources, because neither is sufficient alone: `kCGWindowName` is withheld from processes
+    /// without Screen Recording, which AppCat does not request, so Core Graphics contributes the
+    /// cross-application z-order while Accessibility contributes each app's own window order and
+    /// titles.
+    static func frontToBackWindows() -> [AppWindowTarget] {
+        let mainBundleID = Bundle.main.bundleIdentifier
+        var bundleIDsByPID: [pid_t: String] = [:]
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            guard let bundleID = app.bundleIdentifier, bundleID != mainBundleID else { continue }
+            bundleIDsByPID[app.processIdentifier] = bundleID
+        }
+
+        return frontToBackWindows(
+            windowInfo: currentCoreGraphicsWindowInfo(),
+            bundleIDForPID: { bundleIDsByPID[$0] },
+            windowsForBundleID: { bundleID, pid in
+                windows(forPID: pid, bundleID: bundleID, coreGraphicsWindowInfo: currentCoreGraphicsWindowInfo)
+            }
+        )
+    }
+
+    /// Testable core of `frontToBackWindows()` — no Core Graphics, Accessibility, or `NSWorkspace`.
+    static func frontToBackWindows(
+        windowInfo: [[String: Any]],
+        bundleIDForPID: (pid_t) -> String?,
+        windowsForBundleID: (String, pid_t) -> [AppWindowTarget]
+    ) -> [AppWindowTarget] {
+        var appOrder: [(bundleID: String, pid: pid_t)] = []
+        var seenBundleIDs = Set<String>()
+        var coreGraphicsTitlesByBundleID: [String: [AppWindowTarget]] = [:]
+
+        for info in windowInfo {
+            guard let pid = ownerPID(from: info), let bundleID = bundleIDForPID(pid) else { continue }
+            let title = cgWindowTitle(from: info) ?? ""
+            let candidate = WindowCandidate(
+                bundleID: bundleID,
+                title: title,
+                index: 0,
+                source: .coreGraphics,
+                ownerPID: pid,
+                layer: layer(from: info),
+                alpha: alpha(from: info),
+                isOnscreen: isOnscreen(from: info),
+                sharingState: sharingState(from: info),
+                bounds: cgWindowBounds(from: info)
+            )
+            // Titles are usually absent here, so this is the one place the shared filter must not
+            // require one — z-order is meaningful even for a window we cannot name.
+            guard isValidWindowCandidate(candidate, requiresTitle: false) else { continue }
+
+            if seenBundleIDs.insert(bundleID).inserted {
+                appOrder.append((bundleID, pid))
+            }
+            let trimmed = title.trimmedWindowTitle
+            guard !trimmed.isEmpty else { continue }
+            let targets = coreGraphicsTitlesByBundleID[bundleID] ?? []
+            coreGraphicsTitlesByBundleID[bundleID] = targets + [
+                AppWindowTarget(bundleID: bundleID, title: trimmed, index: targets.count),
+            ]
+        }
+
+        return appOrder.flatMap { bundleID, pid in
+            // Accessibility window arrays are front-to-back within an app. Where Screen Recording
+            // did grant titles, the Core Graphics order is the more authoritative one, so it leads.
+            mergeWindowTargets(
+                coreGraphicsTitlesByBundleID[bundleID] ?? [],
+                windowsForBundleID(bundleID, pid)
+            )
+        }
+    }
+
     static func hasOpenWindows(bundleID: String) -> Bool? {
         guard AXIsProcessTrusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
@@ -542,16 +626,21 @@ enum WindowEnumerator {
 
     static func filteredWindowCandidates(_ candidates: [WindowCandidate]) -> [WindowCandidate] {
         var seenTitles = Set<String>()
-        return candidates.filter(isValidWindowCandidate).filter { candidate in
+        return candidates.filter { isValidWindowCandidate($0) }.filter { candidate in
             seenTitles.insert(candidate.dedupeKey).inserted
         }
     }
 
-    static func isValidWindowCandidate(_ candidate: WindowCandidate) -> Bool {
+    /// `requiresTitle: false` is only for the launch z-order seed, where `kCGWindowName` is
+    /// withheld without Screen Recording and an untitled window still carries usable stacking
+    /// information. Every other caller keeps the default: an untitled window has nothing to render.
+    static func isValidWindowCandidate(_ candidate: WindowCandidate, requiresTitle: Bool = true) -> Bool {
         let title = candidate.title.trimmedWindowTitle
-        guard !title.isEmpty,
-              isLikelyWindowTitle(normalizedMenuTitle(title))
-        else { return false }
+        if title.isEmpty {
+            if requiresTitle { return false }
+        } else if !isLikelyWindowTitle(normalizedMenuTitle(title)) {
+            return false
+        }
 
         switch candidate.source {
         case .ax:

@@ -16,6 +16,7 @@ final class PickerCoordinator {
     var historyManager: HistoryManager?
     var suggestionsManager: SuggestionsManager?
     var statsManager: StatsManager?
+    weak var windowActivationTracker: WindowActivationTracker?
 
     init() {
         browserLauncher = BrowserLauncher()
@@ -26,8 +27,15 @@ final class PickerCoordinator {
     }
 
     func showPicker(state: AppState) {
+        // Every ordering input of a manual session is captured once, here, and never re-read for
+        // the life of that session. Without this, a background app stealing focus mid-session (a
+        // notification banner, a helper launching) would reshuffle the row under the user's
+        // focused tile while they were still stepping through it.
         if state.isManualPickerPresentation, !state.isPickerSessionActive {
             state.manualPickerTargetCounts = statsManager?.recentManualPickerTargetCounts() ?? [:]
+            let activationSnapshot = windowActivationTracker?.sessionSnapshot()
+            state.manualPickerWindowRanks = activationSnapshot?.ranks ?? [:]
+            state.manualPickerFrontmostKey = activationSnapshot?.frontmostKey
         }
         if pickerController == nil {
             pickerController = PickerWindowController(appState: state, coordinator: self)
@@ -84,6 +92,8 @@ final class PickerCoordinator {
         state.clearPendingOpen()
         state.pickerInvocationSource = .linkRouting
         state.pickerItemsSnapshot = []
+        state.manualPickerWindowRanks = [:]
+        state.manualPickerFrontmostKey = nil
     }
 
     func configureAppsForUnmatchedFile(state: AppState) {

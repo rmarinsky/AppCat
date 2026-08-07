@@ -34,7 +34,7 @@ The reason AppCat earns its name. Press `⌥Tab` anywhere to open a HUD switcher
 
 - **Running apps and their individual open windows** as tiles — pick a specific window (e.g. the right VS Code project or Chrome window), not just the app.
 - Apps **with open windows first**, background/menu-bar apps dimmed below a divider (both toggleable).
-- Ordered by how often and how recently you actually use each app.
+- **Ordered by the window you were most recently in**, so it opens focused on the one you just left — tap `⌥Tab` and release to bounce straight back. Each further press steps one window further back; `⇧⌥Tab` steps forward again. Apps you have never switched to fall back to how often you pick them.
 - Toggle-shortcut and service-key sessions support arrows, `Tab`, positional keys, and **type-to-focus**, then `Return`. Hold-to-switch sessions use `Tab` / `Shift+Tab` and open on `Option` release.
 - Every tile is clickable. Toggle/service pickers wait for a fresh window snapshot, and newly
   launched apps use their current runtime icon without waiting for the installed-app rescan.
@@ -75,7 +75,8 @@ Beyond the pickers, AppCat has a full window (Dock icon appears while it's open)
 
 | Shortcut | Action |
 |----------|--------|
-| `⌥Tab` | Open the app/window switcher |
+| `⌥Tab` | Open the switcher on the previous window; press again to step further back, release `⌥` to switch |
+| `⇧⌥Tab` | Step forward through the switcher |
 | `⌥⌘⇧B` | Re-open the last picker |
 | Hold `⌥`, press `Tab` / `⇧Tab` | Optional hold-to-switch mode |
 | `Caps Lock` or `Escape` taps | Optional service-key trigger |
@@ -94,6 +95,8 @@ Both are rebindable under **Settings → Shortcuts**.
 | `Option` / `Shift` + key | *(link picker only)* open in private mode |
 
 > Picker keys are plain characters — `⌘` and `⌃` are intentionally not used, so app-level shortcuts keep working.
+
+A toggle session also commits when you let go of the activation shortcut's modifiers, the way `⌘Tab` does — so a quick `⌥Tab` tap switches immediately rather than leaving a menu open. Rebind it to a modifier-free key and it stays a plain modal picker you dismiss with `Return` or `Escape`.
 
 Hold-to-switch is deliberately different: hold `Option`, use `Tab` / `Shift+Tab` to cycle, and release `Option` to open. It stays non-activating and shows no indexed shortcut labels.
 
