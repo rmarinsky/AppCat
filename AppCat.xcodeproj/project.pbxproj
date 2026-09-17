@@ -59,6 +59,7 @@
 		80988FAA95D600422B288066 /* GlobalShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 444BD4FDBF899122BF29E9E4 /* GlobalShortcuts.swift */; };
 		8289CC820626E900D7FF98FA /* ProfileDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3C0FF29264602FF4A9B1C1 /* ProfileDetector.swift */; };
 		82E399E6F2E57C9CD08AACCC /* BrowserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B424D267560EE4CA8E1DC24 /* BrowserProfile.swift */; };
+		837DDB0D3CEC052BF3949592 /* ReceiverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46630F0D0B753D3C7D3E22BB /* ReceiverApp.swift */; };
 		84B8319D7F76374126AA1763 /* KeyCodeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0DBC46F3CCEF6E0C401DB68 /* KeyCodeMap.swift */; };
 		84C02913D7C579C3AFF97E65 /* FaviconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5979BC24BB0F5143418D326 /* FaviconView.swift */; };
 		84FFB63394C1C64C63051198 /* AppActivationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151D3147AFA4D5AF980459D8 /* AppActivationStore.swift */; };
@@ -138,6 +139,13 @@
 			remoteGlobalIDString = BF6EC713D9DD43043F8F7E55;
 			remoteInfo = AppCat;
 		};
+		C6E0AF64C4CF2C89F55405D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97ADBB11194C94DDCC47DDCE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5DA67B825EE916E9951D328D;
+			remoteInfo = AppCatUITestReceiver;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -158,6 +166,7 @@
 		1D803CED98BB0DF4F5640508 /* AppManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
 		1F4033D0748472E9FC343BED /* RuleSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSuggestion.swift; sourceTree = "<group>"; };
 		1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewHelpers.swift; sourceTree = "<group>"; };
+		200DD118E89D6563F60599DA /* AppCatUITestReceiver.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppCatUITestReceiver.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2076EFAB4C42651F87E64E7B /* RulesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesSettingsView.swift; sourceTree = "<group>"; };
 		20D94280F276C8981BE4DC5A /* PickerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerWindowController.swift; sourceTree = "<group>"; };
 		20F2AE4F92362502E6C1178F /* SuggestionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionsManager.swift; sourceTree = "<group>"; };
@@ -180,6 +189,7 @@
 		3F05CF4D4ED6D47156E440E4 /* FileShortcutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShortcutResolver.swift; sourceTree = "<group>"; };
 		3F50EADF6466A8F29F984995 /* HotkeyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
 		444BD4FDBF899122BF29E9E4 /* GlobalShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcuts.swift; sourceTree = "<group>"; };
+		46630F0D0B753D3C7D3E22BB /* ReceiverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverApp.swift; sourceTree = "<group>"; };
 		4A480C399D8F1E54C9CF5038 /* HistoryEntryCodableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntryCodableTests.swift; sourceTree = "<group>"; };
 		4A587F95C0A99403B49AE465 /* BrowserFileType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserFileType.swift; sourceTree = "<group>"; };
 		4B424D267560EE4CA8E1DC24 /* BrowserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserProfile.swift; sourceTree = "<group>"; };
@@ -228,6 +238,7 @@
 		B5F4044EDF9F6122F785A3AF /* BrowserCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserCell.swift; sourceTree = "<group>"; };
 		BAB1BCF38CDC65F97DE142C0 /* PickerUserJourneysUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerUserJourneysUITests.swift; sourceTree = "<group>"; };
 		BF389B1FE7F0E8414509B0E9 /* StatsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsManager.swift; sourceTree = "<group>"; };
+		BFD6F96CBDDA659C18409E6A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3BEC844E1BAAFD4B677AF48 /* URLResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLResolver.swift; sourceTree = "<group>"; };
 		C4D06DB8D572F80D30F2D6CB /* UITestLaunchScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestLaunchScenario.swift; sourceTree = "<group>"; };
 		C6E8A5294BC5046ABB3C1AEF /* DailyStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyStats.swift; sourceTree = "<group>"; };
@@ -281,6 +292,7 @@
 			children = (
 				77E6D0C6381D31CEB867859F /* AppCat.app */,
 				A08E4AC9F263E592C49E1E85 /* AppCatTests.xctest */,
+				200DD118E89D6563F60599DA /* AppCatUITestReceiver.app */,
 				F21DB40F791F9B04B4CD5695 /* AppCatUITests.xctest */,
 			);
 			name = Products;
@@ -384,6 +396,7 @@
 			children = (
 				D990674372001BC60E11A45A /* AppCat */,
 				E0C35F22B4F4F40D167D74BE /* AppCatTests */,
+				CE99A7C7A93A867F7C934931 /* AppCatUITestReceiver */,
 				314B37FED0E7E7DF266C7B3F /* AppCatUITests */,
 				390BC698C40043D9EC230629 /* Config */,
 				0377302B949AE2FCFD805370 /* Products */,
@@ -477,6 +490,15 @@
 			path = MainWindow;
 			sourceTree = "<group>";
 		};
+		CE99A7C7A93A867F7C934931 /* AppCatUITestReceiver */ = {
+			isa = PBXGroup;
+			children = (
+				BFD6F96CBDDA659C18409E6A /* Info.plist */,
+				46630F0D0B753D3C7D3E22BB /* ReceiverApp.swift */,
+			);
+			path = AppCatUITestReceiver;
+			sourceTree = "<group>";
+		};
 		CF111CCC5DBE1B17F2757483 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -565,6 +587,23 @@
 			productReference = A08E4AC9F263E592C49E1E85 /* AppCatTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		5DA67B825EE916E9951D328D /* AppCatUITestReceiver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CF509164513E7CF4F634E829 /* Build configuration list for PBXNativeTarget "AppCatUITestReceiver" */;
+			buildPhases = (
+				2354E1888EE998AF58A05529 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AppCatUITestReceiver;
+			packageProductDependencies = (
+			);
+			productName = AppCatUITestReceiver;
+			productReference = 200DD118E89D6563F60599DA /* AppCatUITestReceiver.app */;
+			productType = "com.apple.product-type.application";
+		};
 		863BCF6C1B1968D03A0F6EF8 /* AppCatUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7978BF6A02AFF8CA4AEC67B8 /* Build configuration list for PBXNativeTarget "AppCatUITests" */;
@@ -575,6 +614,7 @@
 			);
 			dependencies = (
 				0B5038126BCA2085A5E304C3 /* PBXTargetDependency */,
+				AA3EF7BACCB20EF806CFE350 /* PBXTargetDependency */,
 			);
 			name = AppCatUITests;
 			packageProductDependencies = (
@@ -618,6 +658,10 @@
 						DevelopmentTeam = 8JL9TM5WLG;
 						ProvisioningStyle = Automatic;
 					};
+					5DA67B825EE916E9951D328D = {
+						DevelopmentTeam = 8JL9TM5WLG;
+						ProvisioningStyle = Automatic;
+					};
 					863BCF6C1B1968D03A0F6EF8 = {
 						DevelopmentTeam = 8JL9TM5WLG;
 						ProvisioningStyle = Automatic;
@@ -651,6 +695,7 @@
 			targets = (
 				BF6EC713D9DD43043F8F7E55 /* AppCat */,
 				5ACB1C0D50EF4B00ADB18564 /* AppCatTests */,
+				5DA67B825EE916E9951D328D /* AppCatUITestReceiver */,
 				863BCF6C1B1968D03A0F6EF8 /* AppCatUITests */,
 			);
 		};
@@ -669,6 +714,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2354E1888EE998AF58A05529 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				837DDB0D3CEC052BF3949592 /* ReceiverApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		30F1BD5230C082A5099C8F53 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -812,6 +865,11 @@
 			target = BF6EC713D9DD43043F8F7E55 /* AppCat */;
 			targetProxy = 52E8C82B3F2D0BF431EDD3C2 /* PBXContainerItemProxy */;
 		};
+		AA3EF7BACCB20EF806CFE350 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5DA67B825EE916E9951D328D /* AppCatUITestReceiver */;
+			targetProxy = C6E0AF64C4CF2C89F55405D4 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
@@ -883,6 +941,24 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AppCat DEV.app/Contents/MacOS/AppCat DEV";
 			};
 			name = Debug;
+		};
+		A2A2932D26945D6FFC052128 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 8JL9TM5WLG;
+				INFOPLIST_FILE = AppCatUITestReceiver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "ua.com.rmarinsky.appcat.uitest-receiver";
+				PRODUCT_NAME = "AppCat UI Test Receiver";
+				SDKROOT = macosx;
+			};
+			name = Release;
 		};
 		A3AB77284458A6F5ECCE8B38 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1068,6 +1144,24 @@
 			};
 			name = Release;
 		};
+		FEDE5E470F0984E1163A5C44 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 8JL9TM5WLG;
+				INFOPLIST_FILE = AppCatUITestReceiver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "ua.com.rmarinsky.appcat.uitest-receiver";
+				PRODUCT_NAME = "AppCat UI Test Receiver";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1094,6 +1188,15 @@
 			buildConfigurations = (
 				94427548B10DBE2467B30A4E /* Debug */,
 				CB24886A17300CD9B062FA7A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CF509164513E7CF4F634E829 /* Build configuration list for PBXNativeTarget "AppCatUITestReceiver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FEDE5E470F0984E1163A5C44 /* Debug */,
+				A2A2932D26945D6FFC052128 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -327,6 +327,19 @@ final class SmokeTests: XCTestCase {
             hostingView.acceptsFirstMouse(for: nil),
             "First click on an inactive nonactivating panel must select, not activate-only"
         )
+        XCTAssertTrue(
+            hostingView.needsPanelToBecomeKey,
+            "Picker hit-tested views must be able to make the nonactivating panel key"
+        )
+    }
+
+    @MainActor
+    func testPickerPanelBecomesKeyOnlyForViewsThatNeedIt() {
+        let panel = NSPanel()
+
+        PickerPanelInteractionPolicy.apply(to: panel)
+
+        XCTAssertTrue(panel.becomesKeyOnlyIfNeeded)
     }
 
     func testPickerPanelUsesTheCrossApplicationFullscreenOverlayPolicy() {
@@ -432,12 +445,15 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerRefocusesWhileInteractingAndDismissesOnClickAway() {
+        let sessionID = UUID()
         // During the presentation grace period, always refocus regardless of pointer position.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: true,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .refocus
         )
@@ -447,7 +463,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: true
+                isPointerInsidePanel: true,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .refocus
         )
@@ -456,7 +474,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .dismiss
         )
@@ -464,7 +484,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: false,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .ignore
         )

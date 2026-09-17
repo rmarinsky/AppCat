@@ -20,6 +20,15 @@ enum PickerCommitModifierPolicy {
     static func shouldCommit(watched: NSEvent.ModifierFlags, current: NSEvent.ModifierFlags) -> Bool {
         !watched.isEmpty && !watched.isSubset(of: current.intersection(holdable))
     }
+
+    static func isToggleSessionAlive(
+        invocationSource: PickerInvocationSource,
+        isPickerSessionActive: Bool,
+        isManualPresentationPending: Bool
+    ) -> Bool {
+        invocationSource == .toggleShortcut
+            && (isPickerSessionActive || isManualPresentationPending)
+    }
 }
 
 /// Commits a manual switcher session when the activation chord's modifiers come back up — the

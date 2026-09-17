@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        #if DEBUG
+        #if DEV_BUILD
             if configureUITestSessionIfRequested() {
                 return
             }
@@ -252,8 +252,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch PickerManualActivationPolicy.action(
             isPickerVisible: appState.isPickerSessionActive,
             isPresentationPending: pendingManualPickerPresentationID != nil,
-            advancesOnRepeat: source.advancesFocusOnRepeatedInvocation
+            advancesOnRepeat: source.advancesFocusOnRepeatedInvocation,
+            isLinkRoutingSessionActive: appState.pendingURL != nil
+                || (appState.isPickerSessionActive && appState.pickerInvocationSource == .linkRouting)
         ) {
+        case .ignore:
+            return
         case let .advanceFocus(delta):
             advanceManualPickerFocus(delta: delta)
             return
@@ -293,7 +297,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         commitModifierWatcher.isSessionAlive = { [weak self] in
             guard let self else { return false }
-            return self.appState.isPickerSessionActive || self.pendingManualPickerPresentationID != nil
+            return PickerCommitModifierPolicy.isToggleSessionAlive(
+                invocationSource: self.appState.pickerInvocationSource,
+                isPickerSessionActive: self.appState.isPickerSessionActive,
+                isManualPresentationPending: self.pendingManualPickerPresentationID != nil
+            )
         }
         commitModifierWatcher.onCommit = { [weak self] in
             guard let self else { return }
@@ -387,10 +395,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleIncomingURLs(_ rawURLs: [URL]) {
+        guard !rawURLs.isEmpty else { return }
+
         // A routing request supersedes any scheduled main-window open — cancel it outright so a
         // late-firing timer can never pop the main window over the picker.
-        cancelScheduledMainWindowOpen()
-        pendingManualPickerPresentationID = nil
+        prepareForIncomingRouting()
 
         guard isLaunchConfigured else {
             // Launch config (browsers/rules/apps) isn't loaded yet — routing now would misfire.
@@ -434,6 +443,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         pickerCoordinator.showPicker(state: appState)
     }
+
+    /// End every manual-picker input path before a URL starts a new routing session. In
+    /// particular, a modifier release from the old Option-Tab gesture must not commit the new
+    /// link picker, and queued focus steps must not carry into its destination list.
+    func prepareForIncomingRouting() {
+        cancelScheduledMainWindowOpen()
+        pendingManualPickerPresentationID = nil
+        pendingManualPickerAdvances = 0
+        pendingManualPickerCommit = false
+        commitModifierWatcher.disarm()
+        if appState.isPickerSessionActive {
+            pickerCoordinator.dismissPicker(state: appState)
+        }
+    }
+
+    #if DEV_BUILD
+        func startPendingTogglePickerForUITest() {
+            openPickerManually(source: .toggleShortcut)
+        }
+
+        func completeLaunchConfigurationForUITest(routing urls: [URL] = []) {
+            isLaunchConfigured = true
+            if !urls.isEmpty {
+                handleIncomingURLs(urls)
+            }
+        }
+    #endif
 
     private func flushBufferedLaunchURLs() {
         guard !bufferedLaunchURLs.isEmpty else { return }

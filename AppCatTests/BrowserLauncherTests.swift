@@ -3,6 +3,23 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testPickerSessionCommitsOnlyFirstSelection() throws {
+        let world = FakeBrowserLauncherWorld()
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        let state = AppState()
+        let url = try XCTUnwrap(URL(string: "https://example.com/one-click"))
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        state.isPickerVisible = true
+        let item = PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: []))
+
+        XCTAssertTrue(coordinator.select(item, state: state, source: .pickerClick))
+        XCTAssertFalse(coordinator.select(item, state: state, source: .pickerClick))
+        XCTAssertEqual(world.openedURLs.count, 1)
+    }
+
+    @MainActor
     func testFailedBrowserOpenDoesNotRecordRoutingStats() async throws {
         let world = FakeBrowserLauncherWorld()
         world.openErrors = [BrowserLauncherTestError.failed]

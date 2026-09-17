@@ -30,6 +30,10 @@ final class PickerHostingView<Content: View>: NSHostingView<Content> {
         true
     }
 
+    override var needsPanelToBecomeKey: Bool {
+        true
+    }
+
     /// The picker floats over another app as a nonactivating panel, so at click time AppCat is
     /// often not the active application and the panel is not key. Without this, AppKit treats the
     /// first click as a window-activation click and swallows it (or lets it fall through to the
@@ -44,6 +48,22 @@ enum PickerPanelKeyResignAction: Equatable {
     case ignore
     case refocus
     case dismiss
+}
+
+enum PickerGlobalMouseDownAction: Equatable {
+    case ignore
+    case refocus
+    case dismiss
+}
+
+struct PickerGlobalMouseDownObservation: Equatable {
+    let screenLocation: NSPoint
+    let sessionID: UUID
+}
+
+enum PickerLocalMouseDownAction: Equatable {
+    case passThrough
+    case consume
 }
 
 enum PickerPanelInteractionPolicy {
@@ -96,14 +116,20 @@ enum PickerPanelInteractionPolicy {
     static func keyResignAction(
         requiresKeyboardFocus: Bool,
         isInDismissGracePeriod: Bool,
-        isPointerInsidePanel: Bool
+        isPointerInsidePanel: Bool,
+        isPanelKey: Bool = false,
+        observedSessionID: UUID?,
+        activeSessionID: UUID?
     ) -> PickerPanelKeyResignAction {
+        guard !isPanelKey else { return .ignore }
+        guard let observedSessionID, observedSessionID == activeSessionID else { return .ignore }
         guard requiresKeyboardFocus else { return .ignore }
         return (isInDismissGracePeriod || isPointerInsidePanel) ? .refocus : .dismiss
     }
 
     static func apply(to panel: NSPanel) {
         panel.isFloatingPanel = true
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = false
         panel.level = windowLevel
@@ -147,6 +173,8 @@ final class PickerWindowController: NSObject {
     private var keyMonitor: Any?
     private var ignoreDismissUntil: Date = .distantPast
     private var isClosing = false
+    private var activeSessionID: UUID?
+    private var keyedSessionID: UUID?
     private var presentationDeactivationObserver: NSObjectProtocol?
     private var presentationWorkItem: DispatchWorkItem?
     private let dismissGraceInterval: TimeInterval = 0.12
@@ -192,6 +220,7 @@ final class PickerWindowController: NSObject {
 
     func show() {
         isClosing = false
+        activeSessionID = UUID()
         let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
@@ -239,10 +268,11 @@ final class PickerWindowController: NSObject {
             wasWaitingForDeactivation: wasWaitingForDeactivation
         )
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.presentationActivationPolicy)
+        guard let sessionID = activeSessionID else { return }
         if shouldWaitForDeactivation {
-            waitForApplicationDeactivationBeforePresenting()
+            waitForApplicationDeactivationBeforePresenting(sessionID: sessionID)
         } else {
-            presentPanelAfterDeactivation()
+            presentPanelAfterDeactivation(sessionID: sessionID)
         }
     }
 
@@ -256,12 +286,16 @@ final class PickerWindowController: NSObject {
         panel.orderFrontRegardless()
     }
 
-    private func presentPanelAfterDeactivation() {
-        guard !isClosing, appState.isPickerSessionActive, let panel else { return }
+    private func presentPanelAfterDeactivation(sessionID: UUID) {
+        guard sessionID == activeSessionID,
+              !isClosing,
+              appState.isPickerSessionActive,
+              let panel
+        else { return }
         guard !NSApp.isActive else {
             // LaunchServices can briefly reactivate AppCat during the settling interval. Re-arm
             // the deactivation wait instead of abandoning a visible picker session with no panel.
-            waitForApplicationDeactivationBeforePresenting()
+            waitForApplicationDeactivationBeforePresenting(sessionID: sessionID)
             return
         }
         removePresentationDeactivationObserver()
@@ -281,16 +315,17 @@ final class PickerWindowController: NSObject {
         Log.picker.debug("Picker shown")
     }
 
-    private func waitForApplicationDeactivationBeforePresenting() {
-        guard !isClosing, appState.isPickerSessionActive else { return }
-        installPresentationDeactivationObserver()
+    private func waitForApplicationDeactivationBeforePresenting(sessionID: UUID) {
+        guard sessionID == activeSessionID, !isClosing, appState.isPickerSessionActive else { return }
+        installPresentationDeactivationObserver(sessionID: sessionID)
         NSApp.deactivate()
         if !NSApp.isActive {
-            schedulePresentationAfterDeactivation()
+            schedulePresentationAfterDeactivation(sessionID: sessionID)
         }
     }
 
-    private func installPresentationDeactivationObserver() {
+    private func installPresentationDeactivationObserver(sessionID: UUID) {
+        guard sessionID == activeSessionID else { return }
         guard presentationDeactivationObserver == nil else { return }
         presentationDeactivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
@@ -298,19 +333,20 @@ final class PickerWindowController: NSObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.schedulePresentationAfterDeactivation()
+                self?.schedulePresentationAfterDeactivation(sessionID: sessionID)
             }
         }
     }
 
-    private func schedulePresentationAfterDeactivation() {
+    private func schedulePresentationAfterDeactivation(sessionID: UUID) {
+        guard sessionID == activeSessionID, !isClosing, appState.isPickerSessionActive else { return }
         guard presentationWorkItem == nil else { return }
         removePresentationDeactivationObserver()
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, sessionID == self.activeSessionID else { return }
             self.presentationWorkItem = nil
-            self.presentPanelAfterDeactivation()
+            self.presentPanelAfterDeactivation(sessionID: sessionID)
         }
         presentationWorkItem = workItem
         DispatchQueue.main.asyncAfter(
@@ -333,6 +369,8 @@ final class PickerWindowController: NSObject {
 
     func close() {
         isClosing = true
+        activeSessionID = nil
+        keyedSessionID = nil
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
         ignoreDismissUntil = .distantPast
@@ -356,6 +394,7 @@ final class PickerWindowController: NSObject {
     }
 
     private func focusPanel(_ panel: NSPanel) {
+        keyedSessionID = activeSessionID
         panel.makeKey()
         panel.makeFirstResponder(hostingView(in: panel))
     }
@@ -366,37 +405,51 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
+        guard let observedSessionID = activeSessionID else { return }
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            Task { @MainActor [weak self] in
+            Self.deferGlobalMouseDownObservation(event: event, sessionID: observedSessionID) { [weak self] observation in
                 guard let self else { return }
-                guard !self.isInDismissGracePeriod else { return }
-                if event.type == .leftMouseDown,
-                   self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type)
-                {
-                    // Fallback for rare click-through: if the global monitor sees a click inside
-                    // the picker hit area, route it as a picker click so selection still works.
-                    return
+                switch Self.globalMouseDownAction(
+                    at: observation.screenLocation,
+                    panelFrame: self.panel?.frame,
+                    observedSessionID: observation.sessionID,
+                    activeSessionID: self.activeSessionID,
+                    isClosing: self.isClosing,
+                    isPickerSessionActive: self.appState.isPickerSessionActive,
+                    isPickerVisible: self.appState.isPickerVisible,
+                    isPanelVisible: self.panel?.isVisible == true,
+                    requiresKeyboardFocus: self.appState.pickerInvocationSource.requiresKeyboardFocus
+                ) {
+                case .ignore:
+                    break
+                case .refocus:
+                    guard !self.isInDismissGracePeriod, let panel = self.panel else { return }
+                    panel.orderFrontRegardless()
+                    self.focusPanel(panel)
+                case .dismiss:
+                    guard !self.isInDismissGracePeriod else { return }
+                    self.close()
                 }
-                guard Self.shouldDismissForGlobalMouseDown(
-                    at: NSEvent.mouseLocation,
-                    panelFrame: self.panel?.frame
-                ) else { return }
-                self.close()
             }
         }
 
         // Intercept the panel's mouse-down before SwiftUI dispatch and use the same selection path
         // as keyboard handling. Returning nil prevents a second Button action.
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self, let panel = self.panel, event.window === panel else {
-                return event
-            }
+            guard let self, let panel = self.panel else { return event }
+            let eventWindowIsPanel = event.window === panel
+            guard eventWindowIsPanel else { return event }
             let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
-            guard self.openItemForMouseDown(at: screenLocation, eventType: event.type)
-            else {
+            let didSelect = self.openItemForMouseDown(at: screenLocation, eventType: event.type)
+            switch Self.localMouseDownAction(
+                eventWindowIsPanel: eventWindowIsPanel,
+                didSelect: didSelect
+            ) {
+            case .passThrough:
                 return event
+            case .consume:
+                return nil
             }
-            return nil
         }
 
         // Handle keyboard events via local monitor since SwiftUI's
@@ -744,6 +797,53 @@ final class PickerWindowController: NSObject {
     static func shouldDismissForGlobalMouseDown(at screenLocation: NSPoint, panelFrame: NSRect?) -> Bool {
         guard let panelFrame else { return true }
         return !panelFrame.contains(screenLocation)
+    }
+
+    nonisolated static func deferGlobalMouseDownObservation(
+        event: NSEvent,
+        sessionID: UUID,
+        action: @escaping @MainActor (PickerGlobalMouseDownObservation) -> Void
+    ) {
+        let observation = PickerGlobalMouseDownObservation(
+            screenLocation: event.locationInWindow,
+            sessionID: sessionID
+        )
+        Task { @MainActor in
+            action(observation)
+        }
+    }
+
+    static func globalMouseDownAction(
+        at screenLocation: NSPoint,
+        panelFrame: NSRect?,
+        observedSessionID: UUID,
+        activeSessionID: UUID?,
+        isClosing: Bool,
+        isPickerSessionActive: Bool,
+        isPickerVisible: Bool,
+        isPanelVisible: Bool,
+        requiresKeyboardFocus: Bool
+    ) -> PickerGlobalMouseDownAction {
+        guard observedSessionID == activeSessionID,
+              !isClosing,
+              isPickerSessionActive,
+              isPickerVisible,
+              isPanelVisible,
+              let panelFrame
+        else {
+            return .ignore
+        }
+        if panelFrame.contains(screenLocation) {
+            return requiresKeyboardFocus ? .refocus : .ignore
+        }
+        return .dismiss
+    }
+
+    static func localMouseDownAction(
+        eventWindowIsPanel: Bool,
+        didSelect: Bool
+    ) -> PickerLocalMouseDownAction {
+        eventWindowIsPanel && didSelect ? .consume : .passThrough
     }
 
     static func itemIndexForManualPickerClick(
@@ -1107,6 +1207,7 @@ extension PickerWindowController: NSWindowDelegate {
     }
 
     nonisolated func windowDidResignKey(_: Notification) {
+        let observedSessionID = MainActor.assumeIsolated { keyedSessionID }
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.refreshPanelAppearance()
@@ -1119,7 +1220,10 @@ extension PickerWindowController: NSWindowDelegate {
             switch PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: self.appState.pickerInvocationSource.requiresKeyboardFocus,
                 isInDismissGracePeriod: self.isInDismissGracePeriod,
-                isPointerInsidePanel: pointerInside
+                isPointerInsidePanel: pointerInside,
+                isPanelKey: self.panel?.isKeyWindow == true,
+                observedSessionID: observedSessionID,
+                activeSessionID: self.activeSessionID
             ) {
             case .ignore:
                 break
