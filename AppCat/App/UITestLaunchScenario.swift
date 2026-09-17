@@ -3,8 +3,16 @@
     import Foundation
 
     enum UITestRuntime {
-        static var isEnabled: Bool {
-            ProcessInfo.processInfo.environment["APPCAT_UI_TEST_SCENARIO"] != nil
+        static var skipsExternalLaunch: Bool {
+            guard let scenario = ProcessInfo.processInfo.environment["APPCAT_UI_TEST_SCENARIO"] else {
+                return false
+            }
+            switch scenario {
+            case "routing-receiver", "manual-receiver":
+                return false
+            default:
+                return true
+            }
         }
     }
 
@@ -13,6 +21,8 @@
         case holdPicker = "hold-picker"
         case linkPicker = "link-picker"
         case filePicker = "file-picker"
+        case routingReceiver = "routing-receiver"
+        case manualReceiver = "manual-receiver"
         case mainWindow = "main-window"
     }
 
@@ -37,6 +47,10 @@
                 configureLinkPickerUITest()
             case .filePicker:
                 configureFilePickerUITest()
+            case .routingReceiver:
+                configureRoutingReceiverUITest()
+            case .manualReceiver:
+                configureManualReceiverUITest()
             case .mainWindow:
                 appState.mainWindowSection = .overview
                 DispatchQueue.main.async { [weak self] in
@@ -131,15 +145,64 @@
             }
         }
 
+        private func configureRoutingReceiverUITest() {
+            guard var receiver = makeUITestReceiver(),
+                  let routedURLString = ProcessInfo.processInfo.environment["APPCAT_UI_TEST_ROUTED_URL"],
+                  let routedURL = URL(string: routedURLString)
+            else { return }
+            receiver.customFormats = ["romanuitest"]
+            appState.apps = [receiver]
+            appState.pickerInvocationSource = .linkRouting
+            NSApp.setActivationPolicy(.accessory)
+            DispatchQueue.main.async { [weak self] in
+                self?.completeLaunchConfigurationForUITest(routing: [routedURL])
+                NSApp.deactivate()
+            }
+        }
+
+        private func configureManualReceiverUITest() {
+            guard let receiver = makeUITestReceiver() else { return }
+
+            appState.apps = [receiver]
+            appState.runningAppBundleIDs = [receiver.id]
+            appState.regularAppBundleIDs = [receiver.id]
+            appState.runningAppsByBundleID = [receiver.id: receiver]
+            appState.runningWindowsByAppID = [:]
+            appState.appActivityUpdatedAt = Date()
+            appState.appWindowActivityUpdatedAt = Date()
+            appState.showWindowlessApps = true
+            appState.showBackgroundApps = false
+            appState.pickerInvocationSource = .serviceKey
+            completeLaunchConfigurationForUITest()
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pickerCoordinator.showPicker(state: self.appState)
+            }
+        }
+
+        private func makeUITestReceiver() -> InstalledApp? {
+            guard let receiverPath = ProcessInfo.processInfo.environment["APPCAT_UI_TEST_RECEIVER_PATH"]
+            else { return nil }
+
+            return makeUITestApp(
+                id: "ua.com.rmarinsky.appcat.uitest-receiver",
+                displayName: "AppCat UI Test Receiver",
+                appURL: URL(fileURLWithPath: receiverPath),
+                hostPatterns: ["ui-test.invalid"]
+            )
+        }
+
         private func makeUITestApp(
             id: String,
             displayName: String,
+            appURL: URL? = nil,
             hostPatterns: [String] = []
         ) -> InstalledApp {
             InstalledApp(
                 id: id,
                 displayName: displayName,
-                appURL: URL(fileURLWithPath: "/Applications/\(displayName).app"),
+                appURL: appURL ?? URL(fileURLWithPath: "/Applications/\(displayName).app"),
                 urlSchemes: [],
                 hostPatterns: hostPatterns,
                 isVisible: true,

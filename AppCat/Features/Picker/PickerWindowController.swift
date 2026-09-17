@@ -30,6 +30,10 @@ final class PickerHostingView<Content: View>: NSHostingView<Content> {
         true
     }
 
+    override var needsPanelToBecomeKey: Bool {
+        true
+    }
+
     /// The picker floats over another app as a nonactivating panel, so at click time AppCat is
     /// often not the active application and the panel is not key. Without this, AppKit treats the
     /// first click as a window-activation click and swallows it (or lets it fall through to the
@@ -44,6 +48,16 @@ enum PickerPanelKeyResignAction: Equatable {
     case ignore
     case refocus
     case dismiss
+}
+
+enum PickerGlobalMouseDownAction: Equatable {
+    case ignoreInside
+    case dismiss
+}
+
+enum PickerLocalMouseDownAction: Equatable {
+    case passThrough
+    case consume
 }
 
 enum PickerPanelInteractionPolicy {
@@ -104,6 +118,7 @@ enum PickerPanelInteractionPolicy {
 
     static func apply(to panel: NSPanel) {
         panel.isFloatingPanel = true
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = false
         panel.level = windowLevel
@@ -366,37 +381,43 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard !self.isInDismissGracePeriod else { return }
-                if event.type == .leftMouseDown,
-                   self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type)
-                {
-                    // Fallback for rare click-through: if the global monitor sees a click inside
-                    // the picker hit area, route it as a picker click so selection still works.
-                    return
-                }
-                guard Self.shouldDismissForGlobalMouseDown(
+                switch Self.globalMouseDownAction(
                     at: NSEvent.mouseLocation,
                     panelFrame: self.panel?.frame
-                ) else { return }
-                self.close()
+                ) {
+                case .ignoreInside:
+                    guard self.appState.pickerInvocationSource.requiresKeyboardFocus,
+                          let panel = self.panel
+                    else { return }
+                    panel.orderFrontRegardless()
+                    self.focusPanel(panel)
+                case .dismiss:
+                    self.close()
+                }
             }
         }
 
         // Intercept the panel's mouse-down before SwiftUI dispatch and use the same selection path
         // as keyboard handling. Returning nil prevents a second Button action.
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self, let panel = self.panel, event.window === panel else {
-                return event
-            }
+            guard let self, let panel = self.panel else { return event }
+            let eventWindowIsPanel = event.window === panel
+            guard eventWindowIsPanel else { return event }
             let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
-            guard self.openItemForMouseDown(at: screenLocation, eventType: event.type)
-            else {
+            let didSelect = self.openItemForMouseDown(at: screenLocation, eventType: event.type)
+            switch Self.localMouseDownAction(
+                eventWindowIsPanel: eventWindowIsPanel,
+                didSelect: didSelect
+            ) {
+            case .passThrough:
                 return event
+            case .consume:
+                return nil
             }
-            return nil
         }
 
         // Handle keyboard events via local monitor since SwiftUI's
@@ -742,8 +763,22 @@ final class PickerWindowController: NSObject {
     }
 
     static func shouldDismissForGlobalMouseDown(at screenLocation: NSPoint, panelFrame: NSRect?) -> Bool {
-        guard let panelFrame else { return true }
-        return !panelFrame.contains(screenLocation)
+        globalMouseDownAction(at: screenLocation, panelFrame: panelFrame) == .dismiss
+    }
+
+    static func globalMouseDownAction(
+        at screenLocation: NSPoint,
+        panelFrame: NSRect?
+    ) -> PickerGlobalMouseDownAction {
+        guard let panelFrame else { return .dismiss }
+        return panelFrame.contains(screenLocation) ? .ignoreInside : .dismiss
+    }
+
+    static func localMouseDownAction(
+        eventWindowIsPanel: Bool,
+        didSelect: Bool
+    ) -> PickerLocalMouseDownAction {
+        eventWindowIsPanel && didSelect ? .consume : .passThrough
     }
 
     static func itemIndexForManualPickerClick(

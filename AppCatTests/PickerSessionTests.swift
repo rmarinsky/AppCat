@@ -141,6 +141,14 @@ final class PickerSessionTests: XCTestCase {
     func testGlobalMouseDownInsidePickerFrameDoesNotDismiss() {
         let panelFrame = NSRect(x: 100, y: 200, width: 320, height: 160)
 
+        XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+            at: NSPoint(x: 220, y: 260),
+            panelFrame: panelFrame
+        ), .ignoreInside)
+        XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+            at: NSPoint(x: 80, y: 260),
+            panelFrame: panelFrame
+        ), .dismiss)
         XCTAssertFalse(PickerWindowController.shouldDismissForGlobalMouseDown(
             at: NSPoint(x: 220, y: 260),
             panelFrame: panelFrame
@@ -153,6 +161,22 @@ final class PickerSessionTests: XCTestCase {
             at: NSPoint(x: 220, y: 260),
             panelFrame: nil
         ))
+    }
+
+    @MainActor
+    func testLocalTileMouseDownIsConsumedOnlyAfterSelection() {
+        XCTAssertEqual(PickerWindowController.localMouseDownAction(
+            eventWindowIsPanel: true,
+            didSelect: true
+        ), .consume)
+        XCTAssertEqual(PickerWindowController.localMouseDownAction(
+            eventWindowIsPanel: true,
+            didSelect: false
+        ), .passThrough)
+        XCTAssertEqual(PickerWindowController.localMouseDownAction(
+            eventWindowIsPanel: false,
+            didSelect: true
+        ), .passThrough)
     }
 
     @MainActor

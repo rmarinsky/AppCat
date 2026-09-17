@@ -327,6 +327,19 @@ final class SmokeTests: XCTestCase {
             hostingView.acceptsFirstMouse(for: nil),
             "First click on an inactive nonactivating panel must select, not activate-only"
         )
+        XCTAssertTrue(
+            hostingView.needsPanelToBecomeKey,
+            "Picker hit-tested views must be able to make the nonactivating panel key"
+        )
+    }
+
+    @MainActor
+    func testPickerPanelBecomesKeyOnlyForViewsThatNeedIt() {
+        let panel = NSPanel()
+
+        PickerPanelInteractionPolicy.apply(to: panel)
+
+        XCTAssertTrue(panel.becomesKeyOnlyIfNeeded)
     }
 
     func testPickerPanelUsesTheCrossApplicationFullscreenOverlayPolicy() {

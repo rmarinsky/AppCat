@@ -435,6 +435,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pickerCoordinator.showPicker(state: appState)
     }
 
+    #if DEBUG
+        func completeLaunchConfigurationForUITest(routing urls: [URL] = []) {
+            isLaunchConfigured = true
+            if !urls.isEmpty {
+                handleIncomingURLs(urls)
+            }
+        }
+    #endif
+
     private func flushBufferedLaunchURLs() {
         guard !bufferedLaunchURLs.isEmpty else { return }
         let urls = bufferedLaunchURLs
