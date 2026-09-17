@@ -150,7 +150,7 @@ final class PickerCoordinator {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
-            #if DEBUG
+            #if DEV_BUILD
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
@@ -160,7 +160,7 @@ final class PickerCoordinator {
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
-        #if DEBUG
+        #if DEV_BUILD
             if UITestRuntime.skipsExternalLaunch { return }
         #endif
         // Launch the original/wrapped URL(s) so Slack click tracking, Teams Safe Links security
@@ -200,7 +200,7 @@ final class PickerCoordinator {
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
-            #if DEBUG
+            #if DEV_BUILD
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
@@ -210,7 +210,7 @@ final class PickerCoordinator {
             return
         }
         dismissPickerForSelection(pendingOpen, state: state)
-        #if DEBUG
+        #if DEV_BUILD
             if UITestRuntime.skipsExternalLaunch { return }
         #endif
         browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in

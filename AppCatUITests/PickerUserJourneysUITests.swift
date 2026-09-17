@@ -23,6 +23,10 @@ final class PickerUserJourneysUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         terminateReceiverApplications()
+        XCTAssertTrue(
+            waitForReceiverApplicationsToTerminate(),
+            "A stale receiver application remained alive before the test"
+        )
         app = XCUIApplication()
     }
 
@@ -33,7 +37,10 @@ final class PickerUserJourneysUITests: XCTestCase {
         }
         app = nil
         receiverApplication?.terminate()
-        waitForReceiverApplicationsToTerminate()
+        XCTAssertTrue(
+            waitForReceiverApplicationsToTerminate(),
+            "The receiver application did not terminate during cleanup"
+        )
         receiverApplication = nil
         if let receiverStateURL {
             try? FileManager.default.removeItem(at: receiverStateURL)
@@ -105,6 +112,62 @@ final class PickerUserJourneysUITests: XCTestCase {
         try assertRoutingClickIsConsumed(routedURL: routedURL)
     }
 
+    func testRepeatedSameURLStartsFreshRoutingSession() throws {
+        let routedURL = try XCTUnwrap(URL(string: "https://ui-test.invalid/repeated-routing"))
+        let setup = try launchRoutingReceiver(
+            routedURL: routedURL,
+            scenario: "repeated-routing-receiver",
+            tileID: "picker.item.app:ui.receiver.edge"
+        )
+        let edgeTile = setup.receiverTile
+
+        XCTAssertTrue(edgeTile.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: edgeTile.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
+        XCTAssertTrue(edgeTile.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(waitForReceiverState(at: setup.stateURL) { $0.openRequestCount == 1 })
+
+        try openWithAppCat(routedURL, appURL: setup.paths.appCat)
+
+        let chromeTile = app.buttons["picker.item.app:ui.receiver.chrome"]
+        XCTAssertTrue(chromeTile.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: chromeTile.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
+        XCTAssertTrue(chromeTile.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(staysAbsent(chromeTile, duration: 1))
+        XCTAssertTrue(waitForReceiverState(at: setup.stateURL) { $0.openRequestCount == 2 })
+
+        let receiverState = try readReceiverState(at: setup.stateURL)
+        XCTAssertEqual(receiverState.mouseDownCount, 0)
+        XCTAssertEqual(receiverState.openRequestCount, 2)
+    }
+
+    func testIncomingURLCancelsPendingManualModifierCommit() throws {
+        let routedURL = try XCTUnwrap(URL(string: "https://ui-test.invalid/manual-to-routing"))
+        let setup = try launchRoutingReceiver(
+            routedURL: routedURL,
+            scenario: "pending-manual-routing-receiver"
+        )
+        let receiverTile = setup.receiverTile
+
+        XCTAssertTrue(receiverTile.waitForExistence(timeout: 5))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        XCTAssertTrue(receiverTile.exists, "The old modifier watcher committed the new link picker")
+        XCTAssertEqual(try readReceiverState(at: setup.stateURL).openRequestCount, 0)
+
+        XCTAssertTrue(waitForAppCatToDeactivate())
+        postRawClick(at: receiverTile.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
+        XCTAssertTrue(receiverTile.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(staysAbsent(receiverTile, duration: 1))
+        XCTAssertTrue(waitForReceiverState(at: setup.stateURL) { $0.openRequestCount == 1 })
+    }
+
     func testManualPickerConsumesRawClickWithoutReopening() throws {
         let routedURL = try XCTUnwrap(URL(string: "https://ui-test.invalid/manual-click-through"))
         let paths = try testApplicationPaths()
@@ -137,9 +200,10 @@ final class PickerUserJourneysUITests: XCTestCase {
         XCTAssertTrue(receiverTile.waitForNonExistence(timeout: 2))
         XCTAssertTrue(staysAbsent(receiverTile, duration: 1))
         XCTAssertTrue(waitForReceiverState(at: receiverStateURL) {
-            $0.activationCount > activationCountBeforeSelection
+            $0.activationCount == activationCountBeforeSelection + 1
         })
         let receiverState = try readReceiverState(at: receiverStateURL)
+        XCTAssertEqual(receiverState.activationCount, activationCountBeforeSelection + 1)
         XCTAssertEqual(receiverState.mouseDownCount, 0, "Picker click leaked to the app underneath")
         XCTAssertEqual(receiverState.openRequestCount, 0, "Manual selection must not create a routing request")
     }
@@ -154,6 +218,29 @@ final class PickerUserJourneysUITests: XCTestCase {
     }
 
     private func assertRoutingClickIsConsumed(routedURL: URL) throws {
+        let setup = try launchRoutingReceiver(routedURL: routedURL, scenario: "routing-receiver")
+        let receiverTile = setup.receiverTile
+
+        XCTAssertTrue(receiverTile.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForAppCatToDeactivate())
+
+        postRawClick(at: receiverTile.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
+        ).screenPoint)
+
+        XCTAssertTrue(receiverTile.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(staysAbsent(receiverTile, duration: 1))
+        XCTAssertTrue(waitForReceiverState(at: setup.stateURL) { $0.openRequestCount >= 1 })
+        let receiverState = try readReceiverState(at: setup.stateURL)
+        XCTAssertEqual(receiverState.mouseDownCount, 0, "Picker click leaked to the app underneath")
+        XCTAssertEqual(receiverState.openRequestCount, 1, "One picker selection must produce one open request")
+    }
+
+    private func launchRoutingReceiver(
+        routedURL: URL,
+        scenario: String,
+        tileID: String = "picker.item.app:ua.com.rmarinsky.appcat.uitest-receiver"
+    ) throws -> (paths: (appCat: URL, receiver: URL), stateURL: URL, receiverTile: XCUIElement) {
         let paths = try testApplicationPaths()
         let receiverStateURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("appcat-ui-receiver-\(UUID().uuidString).json")
@@ -166,27 +253,13 @@ final class PickerUserJourneysUITests: XCTestCase {
         )
         XCTAssertTrue(waitForReceiverState(at: receiverStateURL) { $0.isReady })
 
-        app.launchEnvironment["APPCAT_UI_TEST_SCENARIO"] = "routing-receiver"
+        app.launchEnvironment["APPCAT_UI_TEST_SCENARIO"] = scenario
         app.launchEnvironment["APPCAT_UI_TEST_RECEIVER_PATH"] = paths.receiver.path
         app.launchEnvironment["APPCAT_UI_TEST_ROUTED_URL"] = routedURL.absoluteString
         app.launch()
 
-        let receiverTile = app.buttons[
-            "picker.item.app:ua.com.rmarinsky.appcat.uitest-receiver"
-        ]
-        XCTAssertTrue(receiverTile.waitForExistence(timeout: 5))
-        XCTAssertTrue(waitForAppCatToDeactivate())
-
-        postRawClick(at: receiverTile.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)
-        ).screenPoint)
-
-        XCTAssertTrue(receiverTile.waitForNonExistence(timeout: 2))
-        XCTAssertTrue(staysAbsent(receiverTile, duration: 1))
-        XCTAssertTrue(waitForReceiverState(at: receiverStateURL) { $0.openRequestCount >= 1 })
-        let receiverState = try readReceiverState(at: receiverStateURL)
-        XCTAssertEqual(receiverState.mouseDownCount, 0, "Picker click leaked to the app underneath")
-        XCTAssertEqual(receiverState.openRequestCount, 1, "One picker selection must produce one open request")
+        let receiverTile = app.buttons[tileID]
+        return (paths, receiverStateURL, receiverTile)
     }
 
     func testFilePickerOpensFromRawIconClickWhileAppStaysInactive() {
@@ -342,6 +415,19 @@ final class PickerUserJourneysUITests: XCTestCase {
         return try XCTUnwrap(result)
     }
 
+    private func openWithAppCat(_ url: URL, appURL: URL) throws {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        let opened = expectation(description: "URL delivered to AppCat")
+        var openError: Error?
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: configuration) { _, error in
+            openError = error
+            opened.fulfill()
+        }
+        wait(for: [opened], timeout: 5)
+        if let openError { throw openError }
+    }
+
     private func waitForReceiverState(
         at url: URL,
         timeout: TimeInterval = 5,
@@ -411,15 +497,14 @@ final class PickerUserJourneysUITests: XCTestCase {
         ) {
             application.terminate()
         }
-        waitForReceiverApplicationsToTerminate()
     }
 
-    private func waitForReceiverApplicationsToTerminate() {
+    private func waitForReceiverApplicationsToTerminate() -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             NSRunningApplication.runningApplications(
                 withBundleIdentifier: "ua.com.rmarinsky.appcat.uitest-receiver"
             ).isEmpty
         }, object: nil)
-        _ = XCTWaiter.wait(for: [expectation], timeout: 2)
+        return XCTWaiter.wait(for: [expectation], timeout: 2) == .completed
     }
 }

@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEV_BUILD
     import AppKit
     import Foundation
 
@@ -8,7 +8,8 @@
                 return false
             }
             switch scenario {
-            case "routing-receiver", "manual-receiver":
+            case "routing-receiver", "repeated-routing-receiver", "manual-receiver",
+                 "pending-manual-routing-receiver":
                 return false
             default:
                 return true
@@ -22,7 +23,9 @@
         case linkPicker = "link-picker"
         case filePicker = "file-picker"
         case routingReceiver = "routing-receiver"
+        case repeatedRoutingReceiver = "repeated-routing-receiver"
         case manualReceiver = "manual-receiver"
+        case pendingManualRoutingReceiver = "pending-manual-routing-receiver"
         case mainWindow = "main-window"
     }
 
@@ -49,8 +52,12 @@
                 configureFilePickerUITest()
             case .routingReceiver:
                 configureRoutingReceiverUITest()
+            case .repeatedRoutingReceiver:
+                configureRoutingReceiverUITest(repeatedDestinations: true)
             case .manualReceiver:
                 configureManualReceiverUITest()
+            case .pendingManualRoutingReceiver:
+                configurePendingManualRoutingReceiverUITest()
             case .mainWindow:
                 appState.mainWindowSection = .overview
                 DispatchQueue.main.async { [weak self] in
@@ -84,6 +91,25 @@
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.pickerCoordinator.showPicker(state: self.appState)
+            }
+        }
+
+        private func configurePendingManualRoutingReceiverUITest() {
+            guard var receiver = makeUITestReceiver(),
+                  let routedURLString = ProcessInfo.processInfo.environment["APPCAT_UI_TEST_ROUTED_URL"],
+                  let routedURL = URL(string: routedURLString)
+            else { return }
+            receiver.customFormats = ["romanuitest"]
+            appState.apps = [receiver]
+            completeLaunchConfigurationForUITest()
+            startPendingTogglePickerForUITest()
+
+            NSApp.setActivationPolicy(.accessory)
+            // Route before yielding the main actor so the real pending presentation token is
+            // cancelled before its asynchronous window enumeration can complete.
+            completeLaunchConfigurationForUITest(routing: [routedURL])
+            DispatchQueue.main.async {
+                NSApp.deactivate()
             }
         }
 
@@ -145,13 +171,31 @@
             }
         }
 
-        private func configureRoutingReceiverUITest() {
+        private func configureRoutingReceiverUITest(repeatedDestinations: Bool = false) {
             guard var receiver = makeUITestReceiver(),
                   let routedURLString = ProcessInfo.processInfo.environment["APPCAT_UI_TEST_ROUTED_URL"],
                   let routedURL = URL(string: routedURLString)
             else { return }
             receiver.customFormats = ["romanuitest"]
-            appState.apps = [receiver]
+            if repeatedDestinations {
+                var edge = makeUITestApp(
+                    id: "ui.receiver.edge",
+                    displayName: "Edge",
+                    appURL: receiver.appURL,
+                    hostPatterns: receiver.hostPatterns
+                )
+                edge.customFormats = receiver.customFormats
+                var chrome = makeUITestApp(
+                    id: "ui.receiver.chrome",
+                    displayName: "Chrome",
+                    appURL: receiver.appURL,
+                    hostPatterns: receiver.hostPatterns
+                )
+                chrome.customFormats = receiver.customFormats
+                appState.apps = [edge, chrome]
+            } else {
+                appState.apps = [receiver]
+            }
             appState.pickerInvocationSource = .linkRouting
             NSApp.setActivationPolicy(.accessory)
             DispatchQueue.main.async { [weak self] in
@@ -172,7 +216,7 @@
             appState.appWindowActivityUpdatedAt = Date()
             appState.showWindowlessApps = true
             appState.showBackgroundApps = false
-            appState.pickerInvocationSource = .serviceKey
+            appState.pickerInvocationSource = .toggleShortcut
             completeLaunchConfigurationForUITest()
 
             DispatchQueue.main.async { [weak self] in

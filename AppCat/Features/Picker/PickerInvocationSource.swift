@@ -65,6 +65,7 @@ enum PickerInitialFocusPolicy {
 }
 
 enum PickerManualActivationAction: Equatable {
+    case ignore
     case presentPicker
     case advanceFocus(delta: Int)
     case confirmFocusedItem
@@ -75,8 +76,12 @@ enum PickerManualActivationPolicy {
     static func action(
         isPickerVisible: Bool,
         isPresentationPending: Bool,
-        advancesOnRepeat: Bool
+        advancesOnRepeat: Bool,
+        isLinkRoutingSessionActive: Bool = false
     ) -> PickerManualActivationAction {
+        if isLinkRoutingSessionActive {
+            return .ignore
+        }
         if isPickerVisible {
             return advancesOnRepeat ? .advanceFocus(delta: 1) : .confirmFocusedItem
         }

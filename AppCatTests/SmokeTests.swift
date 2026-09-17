@@ -445,12 +445,15 @@ final class SmokeTests: XCTestCase {
     }
 
     func testPickerRefocusesWhileInteractingAndDismissesOnClickAway() {
+        let sessionID = UUID()
         // During the presentation grace period, always refocus regardless of pointer position.
         XCTAssertEqual(
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: true,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .refocus
         )
@@ -460,7 +463,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: true
+                isPointerInsidePanel: true,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .refocus
         )
@@ -469,7 +474,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: true,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .dismiss
         )
@@ -477,7 +484,9 @@ final class SmokeTests: XCTestCase {
             PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: false,
                 isInDismissGracePeriod: false,
-                isPointerInsidePanel: false
+                isPointerInsidePanel: false,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
             ),
             .ignore
         )

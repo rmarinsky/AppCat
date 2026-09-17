@@ -138,16 +138,131 @@ final class PickerSessionTests: XCTestCase {
     // MARK: - Click-away dismissal
 
     @MainActor
-    func testGlobalMouseDownInsidePickerFrameDoesNotDismiss() {
+    func testStaleGlobalMouseDownCannotActOnReplacementPickerSession() {
         let panelFrame = NSRect(x: 100, y: 200, width: 320, height: 160)
 
         XCTAssertEqual(PickerWindowController.globalMouseDownAction(
             at: NSPoint(x: 220, y: 260),
-            panelFrame: panelFrame
-        ), .ignoreInside)
+            panelFrame: panelFrame,
+            observedSessionID: UUID(),
+            activeSessionID: UUID(),
+            isClosing: false,
+            isPickerSessionActive: true,
+            isPickerVisible: true,
+            isPanelVisible: true,
+            requiresKeyboardFocus: true
+        ), .ignore)
+    }
+
+    @MainActor
+    func testGlobalMouseDownIgnoresInactiveOrClosedPickerSession() {
+        let panelFrame = NSRect(x: 100, y: 200, width: 320, height: 160)
+        let sessionID = UUID()
+
+        for state in [
+            (isClosing: true, isActive: true, isVisible: true, isPanelVisible: true),
+            (isClosing: false, isActive: false, isVisible: true, isPanelVisible: true),
+            (isClosing: false, isActive: true, isVisible: false, isPanelVisible: true),
+            (isClosing: false, isActive: true, isVisible: true, isPanelVisible: false),
+        ] {
+            XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+                at: NSPoint(x: 80, y: 260),
+                panelFrame: panelFrame,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID,
+                isClosing: state.isClosing,
+                isPickerSessionActive: state.isActive,
+                isPickerVisible: state.isVisible,
+                isPanelVisible: state.isPanelVisible,
+                requiresKeyboardFocus: true
+            ), .ignore)
+        }
+    }
+
+    @MainActor
+    func testGlobalMouseDownInsideHoldPickerDoesNotRefocus() {
+        let sessionID = UUID()
+
+        XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+            at: NSPoint(x: 220, y: 260),
+            panelFrame: NSRect(x: 100, y: 200, width: 320, height: 160),
+            observedSessionID: sessionID,
+            activeSessionID: sessionID,
+            isClosing: false,
+            isPickerSessionActive: true,
+            isPickerVisible: true,
+            isPanelVisible: true,
+            requiresKeyboardFocus: false
+        ), .ignore)
+    }
+
+    func testDeferredGlobalMouseDownUsesSynchronouslyCapturedPosition() async throws {
+        let sessionID = UUID()
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 220, y: 260),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+        let delivered = expectation(description: "Deferred global mouse observation delivered")
+        var observation: PickerGlobalMouseDownObservation?
+
+        PickerWindowController.deferGlobalMouseDownObservation(event: event, sessionID: sessionID) {
+            observation = $0
+            delivered.fulfill()
+        }
+        let cursorAfterCallback = NSPoint(x: 80, y: 260)
+        await fulfillment(of: [delivered], timeout: 1)
+
+        let captured = try XCTUnwrap(observation)
+        XCTAssertEqual(captured.screenLocation, NSPoint(x: 220, y: 260))
+        XCTAssertNotEqual(captured.screenLocation, cursorAfterCallback)
+        await MainActor.run {
+            XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+                at: captured.screenLocation,
+                panelFrame: NSRect(x: 100, y: 200, width: 320, height: 160),
+                observedSessionID: captured.sessionID,
+                activeSessionID: sessionID,
+                isClosing: false,
+                isPickerSessionActive: true,
+                isPickerVisible: true,
+                isPanelVisible: true,
+                requiresKeyboardFocus: true
+            ), .refocus)
+        }
+    }
+
+    @MainActor
+    func testGlobalMouseDownInsidePickerFrameDoesNotDismiss() {
+        let panelFrame = NSRect(x: 100, y: 200, width: 320, height: 160)
+        let sessionID = UUID()
+
+        XCTAssertEqual(PickerWindowController.globalMouseDownAction(
+            at: NSPoint(x: 220, y: 260),
+            panelFrame: panelFrame,
+            observedSessionID: sessionID,
+            activeSessionID: sessionID,
+            isClosing: false,
+            isPickerSessionActive: true,
+            isPickerVisible: true,
+            isPanelVisible: true,
+            requiresKeyboardFocus: true
+        ), .refocus)
         XCTAssertEqual(PickerWindowController.globalMouseDownAction(
             at: NSPoint(x: 80, y: 260),
-            panelFrame: panelFrame
+            panelFrame: panelFrame,
+            observedSessionID: sessionID,
+            activeSessionID: sessionID,
+            isClosing: false,
+            isPickerSessionActive: true,
+            isPickerVisible: true,
+            isPanelVisible: true,
+            requiresKeyboardFocus: true
         ), .dismiss)
         XCTAssertFalse(PickerWindowController.shouldDismissForGlobalMouseDown(
             at: NSPoint(x: 220, y: 260),
@@ -161,6 +276,45 @@ final class PickerSessionTests: XCTestCase {
             at: NSPoint(x: 220, y: 260),
             panelFrame: nil
         ))
+    }
+
+    func testStaleKeyResignNotificationIsIgnoredAfterPanelRegainsKey() {
+        let sessionID = UUID()
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false,
+                isPanelKey: true,
+                observedSessionID: sessionID,
+                activeSessionID: sessionID
+            ),
+            .ignore
+        )
+    }
+
+    func testKeyResignFromReplacedSessionIsIgnored() {
+        let activeSessionID = UUID()
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false,
+                observedSessionID: UUID(),
+                activeSessionID: activeSessionID
+            ),
+            .ignore
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.keyResignAction(
+                requiresKeyboardFocus: true,
+                isInDismissGracePeriod: false,
+                isPointerInsidePanel: false,
+                observedSessionID: nil,
+                activeSessionID: activeSessionID
+            ),
+            .ignore
+        )
     }
 
     @MainActor
@@ -550,6 +704,35 @@ final class PickerSessionTests: XCTestCase {
         )
     }
 
+    func testManualShortcutDoesNotReplaceAnActiveLinkRoutingPicker() {
+        XCTAssertEqual(
+            PickerManualActivationPolicy.action(
+                isPickerVisible: true,
+                isPresentationPending: false,
+                advancesOnRepeat: true,
+                isLinkRoutingSessionActive: true
+            ),
+            .ignore
+        )
+    }
+
+    @MainActor
+    func testIncomingRoutingEndsManualPickerAndDisarmsModifierWatcher() {
+        let delegate = AppDelegate()
+        delegate.appState.pickerInvocationSource = .toggleShortcut
+        delegate.appState.isPickerVisible = true
+        delegate.commitModifierWatcher.isSessionAlive = { true }
+        delegate.commitModifierWatcher.arm(watching: [.option])
+
+        XCTAssertTrue(delegate.commitModifierWatcher.isArmed)
+
+        delegate.prepareForIncomingRouting()
+
+        XCTAssertFalse(delegate.commitModifierWatcher.isArmed)
+        XCTAssertFalse(delegate.appState.isPickerSessionActive)
+        XCTAssertEqual(delegate.appState.pickerInvocationSource, .linkRouting)
+    }
+
     // MARK: - Commit on modifier release
 
     func testWatchedModifiersFollowTheConfiguredShortcut() {
@@ -579,6 +762,19 @@ final class PickerSessionTests: XCTestCase {
             PickerCommitModifierPolicy.shouldCommit(watched: [.option, .command], current: [.command]),
             "Releasing any watched modifier ends the gesture"
         )
+    }
+
+    func testModifierWatcherDoesNotTreatLinkRoutingAsItsManualSession() {
+        XCTAssertFalse(PickerCommitModifierPolicy.isToggleSessionAlive(
+            invocationSource: .linkRouting,
+            isPickerSessionActive: true,
+            isManualPresentationPending: false
+        ))
+        XCTAssertTrue(PickerCommitModifierPolicy.isToggleSessionAlive(
+            invocationSource: .toggleShortcut,
+            isPickerSessionActive: true,
+            isManualPresentationPending: false
+        ))
     }
 
     @MainActor
