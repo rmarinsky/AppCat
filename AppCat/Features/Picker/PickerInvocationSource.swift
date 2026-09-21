@@ -94,3 +94,35 @@ enum PickerManualActivationPolicy {
         return .presentPicker
     }
 }
+
+enum PickerHoldGestureStepAction: Equatable {
+    case handle
+    case ignore
+}
+
+enum PickerHoldGestureReleaseAction: Equatable {
+    case openFocusedItem
+    case clearSuppression
+    case ignore
+}
+
+enum PickerHoldGestureSuppressionPolicy {
+    static func stepAction(
+        isSuppressedUntilOptionRelease: Bool
+    ) -> PickerHoldGestureStepAction {
+        isSuppressedUntilOptionRelease ? .ignore : .handle
+    }
+
+    static func releaseAction(
+        isSuppressedUntilOptionRelease: Bool,
+        invocationSource: PickerInvocationSource,
+        isPickerSessionActive: Bool
+    ) -> PickerHoldGestureReleaseAction {
+        if isSuppressedUntilOptionRelease {
+            return .clearSuppression
+        }
+        return invocationSource.opensFocusedItemOnOptionRelease(
+            isPickerVisible: isPickerSessionActive
+        ) ? .openFocusedItem : .ignore
+    }
+}

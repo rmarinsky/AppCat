@@ -716,6 +716,48 @@ final class PickerSessionTests: XCTestCase {
         )
     }
 
+    func testHoldGestureSuppressesQueuedStepsUntilOptionReleaseAfterMouseSelection() {
+        XCTAssertEqual(
+            PickerHoldGestureSuppressionPolicy.stepAction(
+                isSuppressedUntilOptionRelease: true
+            ),
+            .ignore
+        )
+        XCTAssertEqual(
+            PickerHoldGestureSuppressionPolicy.releaseAction(
+                isSuppressedUntilOptionRelease: true,
+                invocationSource: .holdOptionTab,
+                isPickerSessionActive: false
+            ),
+            .clearSuppression
+        )
+    }
+
+    func testHoldGestureReleaseStillOpensFocusedItemWhenNotSuppressed() {
+        XCTAssertEqual(
+            PickerHoldGestureSuppressionPolicy.stepAction(
+                isSuppressedUntilOptionRelease: false
+            ),
+            .handle
+        )
+        XCTAssertEqual(
+            PickerHoldGestureSuppressionPolicy.releaseAction(
+                isSuppressedUntilOptionRelease: false,
+                invocationSource: .holdOptionTab,
+                isPickerSessionActive: true
+            ),
+            .openFocusedItem
+        )
+        XCTAssertEqual(
+            PickerHoldGestureSuppressionPolicy.releaseAction(
+                isSuppressedUntilOptionRelease: false,
+                invocationSource: .linkRouting,
+                isPickerSessionActive: true
+            ),
+            .ignore
+        )
+    }
+
     @MainActor
     func testIncomingRoutingEndsManualPickerAndDisarmsModifierWatcher() {
         let delegate = AppDelegate()

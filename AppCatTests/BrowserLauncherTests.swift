@@ -20,6 +20,47 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testHoldPickerMouseSelectionEndsTheCurrentHoldGesture() throws {
+        let world = FakeBrowserLauncherWorld()
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        var holdGestureEndCount = 0
+        coordinator.onHoldPickerMouseSelection = {
+            holdGestureEndCount += 1
+        }
+        let state = AppState()
+        state.pickerInvocationSource = .holdOptionTab
+        state.isPickerVisible = true
+        let item = PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: []))
+
+        XCTAssertTrue(coordinator.select(item, state: state, source: .pickerClick))
+
+        XCTAssertEqual(holdGestureEndCount, 1)
+        XCTAssertFalse(state.isPickerSessionActive)
+    }
+
+    @MainActor
+    func testHoldPickerHotkeySelectionDoesNotEndMouseGesture() throws {
+        let world = FakeBrowserLauncherWorld()
+        let coordinator = PickerCoordinator(
+            browserLauncher: BrowserLauncher(dependencies: world.dependencies())
+        )
+        var holdGestureEndCount = 0
+        coordinator.onHoldPickerMouseSelection = {
+            holdGestureEndCount += 1
+        }
+        let state = AppState()
+        state.pickerInvocationSource = .holdOptionTab
+        state.isPickerVisible = true
+        let item = PickerItem(app: makeApp(id: "com.test.Editor", urlSchemes: []))
+
+        XCTAssertTrue(coordinator.select(item, state: state, source: .pickerHotkey))
+
+        XCTAssertEqual(holdGestureEndCount, 0)
+    }
+
+    @MainActor
     func testFailedBrowserOpenDoesNotRecordRoutingStats() async throws {
         let world = FakeBrowserLauncherWorld()
         world.openErrors = [BrowserLauncherTestError.failed]
