@@ -36,11 +36,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingManualPickerAdvances = 0
     /// The activation modifiers came back up before the session was presentable; commit on arrival.
     private var pendingManualPickerCommit = false
+    /// A mouse click inside hold-to-switch commits the target immediately. Any queued Tab step from
+    /// that same hold gesture must not create a new picker while Option is still down.
+    private var suppressHoldPickerUntilOptionRelease = false
     /// URLs can arrive before `applicationDidFinishLaunching` loads browsers/rules/apps (the
     /// launch kAEGetURL event is delivered right after `applicationWillFinishLaunching`). Buffer
     /// them until launch configuration is ready, then flush.
     private var isLaunchConfigured = false
     private var bufferedLaunchURLs: [URL] = []
+
+    override init() {
+        super.init()
+        pickerCoordinator.onHoldPickerMouseSelection = { [weak self] in
+            self?.suppressHoldPickerUntilOptionRelease = true
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -319,6 +329,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cycleManualPicker(delta: Int) {
         guard appState.pendingURL == nil else { return }
+        let stepAction = PickerHoldGestureSuppressionPolicy.stepAction(
+            isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease
+        )
+        guard stepAction == .handle else {
+            Log.picker.debug("Ignored hold picker step after mouse selection until Option release")
+            return
+        }
         if !appState.isPickerSessionActive {
             presentManualPicker(source: .holdOptionTab)
         } else if appState.pickerInvocationSource == .holdOptionTab {
@@ -329,10 +346,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openFocusedManualPickerItem() {
-        guard appState.pickerInvocationSource.opensFocusedItemOnOptionRelease(
-            isPickerVisible: appState.isPickerSessionActive
-        ) else { return }
-        pickerCoordinator.openFocusedItem(state: appState)
+        switch PickerHoldGestureSuppressionPolicy.releaseAction(
+            isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease,
+            invocationSource: appState.pickerInvocationSource,
+            isPickerSessionActive: appState.isPickerSessionActive
+        ) {
+        case .clearSuppression:
+            suppressHoldPickerUntilOptionRelease = false
+            Log.picker.debug("Cleared hold picker mouse-selection suppression on Option release")
+        case .openFocusedItem:
+            pickerCoordinator.openFocusedItem(state: appState)
+        case .ignore:
+            break
+        }
     }
 
     private func presentManualPicker(source: PickerInvocationSource) {
@@ -452,6 +478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pendingManualPickerPresentationID = nil
         pendingManualPickerAdvances = 0
         pendingManualPickerCommit = false
+        suppressHoldPickerUntilOptionRelease = false
         commitModifierWatcher.disarm()
         if appState.isPickerSessionActive {
             pickerCoordinator.dismissPicker(state: appState)

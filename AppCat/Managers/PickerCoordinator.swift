@@ -17,6 +17,7 @@ final class PickerCoordinator {
     var suggestionsManager: SuggestionsManager?
     var statsManager: StatsManager?
     weak var windowActivationTracker: WindowActivationTracker?
+    var onHoldPickerMouseSelection: (() -> Void)?
 
     init() {
         browserLauncher = BrowserLauncher()
@@ -116,6 +117,11 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) -> Bool {
         guard state.isPickerSessionActive else { return false }
+        if state.pickerInvocationSource == .holdOptionTab,
+           source == .pickerClick
+        {
+            onHoldPickerMouseSelection?()
+        }
 
         if let app = item.app {
             openURL(
