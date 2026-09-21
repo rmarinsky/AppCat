@@ -172,5 +172,17 @@
       length="4217689"
       type="application/octet-stream" />
   </item>
+      <item>
+    <title>Version 2.3.2</title>
+    <pubDate>Mon, 21 Sep 2026 16:11:55 +0000</pubDate>
+    <sparkle:version>161</sparkle:version>
+    <sparkle:shortVersionString>2.3.2</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+      url="https://github.com/rmarinsky/AppCat/releases/download/v2.3.2/AppCat-2.3.2.dmg"
+      sparkle:edSignature="lHqRjOopMpormIpLRCYpImCF/OiuAe02Jzw0FnvKtsALQ7uQohWUlZ8NzX92gaSWBwb5JPf6zBpm3d0buGeTDA=="
+      length="4218845"
+      type="application/octet-stream" />
+  </item>
   </channel>
 </rss>
