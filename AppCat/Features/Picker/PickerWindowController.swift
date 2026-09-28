@@ -86,9 +86,11 @@ enum PickerPanelInteractionPolicy {
     ]
 
     static func dismissalActivationPolicy(
+        isApplicationActive: Bool,
         isMainWindowVisibleOnActiveSpace: Bool
     ) -> NSApplication.ActivationPolicy {
-        isMainWindowVisibleOnActiveSpace ? .regular : .accessory
+        guard isApplicationActive else { return .accessory }
+        return isMainWindowVisibleOnActiveSpace ? .regular : .accessory
     }
 
     static func shouldRestoreRegularPolicy(
@@ -384,7 +386,10 @@ final class PickerWindowController: NSObject {
         appState.manualPickerFrontmostKey = nil
         removeMonitors()
         panel?.orderOut(nil)
+        // Keep an inactive app accessory while the nonactivating panel leaves the screen. The
+        // visible main window can restore regular policy from applicationDidBecomeActive later.
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.dismissalActivationPolicy(
+            isApplicationActive: NSApp.isActive,
             isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
         ))
         DispatchQueue.main.async { [weak self] in

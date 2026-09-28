@@ -69,6 +69,10 @@ an accepting SwiftUI hosting responder. Hold-to-switch stays non-key because its
 If LaunchServices activated AppCat first, presentation waits for deactivation to settle so a late
 `windowDidResignKey` cannot flash and dismiss the picker.
 
+On dismissal, an inactive AppCat stays `.accessory`, even if its main window is visible on the
+active Space. The existing activation callback can restore `.regular` when AppCat becomes active
+again and that main window is visible.
+
 On macOS 26 and newer, the panel surface uses `NSGlassEffectContainerView` with a child `NSGlassEffectView`:
 
 - glass style: `.regular`
