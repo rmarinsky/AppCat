@@ -23,6 +23,37 @@ private class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool {
         true
     }
+
+    #if DEV_BUILD
+        // Temporary ordering probe for the macOS 27 panel-after-dismissal reproduction.
+        // Only lifecycle metadata is recorded: no titles, URLs, item names, or typed text.
+        var diagnosticContext: (() -> String)?
+
+        override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
+            traceOrdering("order.before mode=\(place.rawValue)", includeStack: place != .out)
+            super.order(place, relativeTo: otherWin)
+            traceOrdering("order.after mode=\(place.rawValue)")
+        }
+
+        override func orderFrontRegardless() {
+            traceOrdering("orderFrontRegardless.before", includeStack: true)
+            super.orderFrontRegardless()
+            traceOrdering("orderFrontRegardless.after")
+        }
+
+        private func traceOrdering(_ operation: String, includeStack: Bool = false) {
+            guard let diagnosticContext else { return }
+            let context = diagnosticContext()
+            let eventType = NSApp.currentEvent.map { Int($0.type.rawValue) } ?? -1
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.windowNumber) visible=\(self.isVisible) key=\(self.isKeyWindow) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) eventType=\(eventType) \(context, privacy: .public)"
+            )
+            if includeStack {
+                let stack = Thread.callStackSymbols.prefix(18).joined(separator: " <- ")
+                Log.picker.notice("[DEBUG-picker-ordering] caller \(stack, privacy: .public)")
+            }
+        }
+    #endif
 }
 
 final class PickerHostingView<Content: View>: NSHostingView<Content> {
@@ -184,6 +215,18 @@ final class PickerWindowController: NSObject {
     private var typeAheadResetTask: Task<Void, Never>?
     private let typeAheadResetDelay: UInt64 = 900_000_000
 
+    #if DEV_BUILD
+        private var diagnosticContext: String {
+            "session=\(activeSessionID?.uuidString ?? "none") source=\(String(describing: appState.pickerInvocationSource)) closing=\(isClosing) sessionActive=\(appState.isPickerSessionActive) stateVisible=\(appState.isPickerVisible) pending=\(appState.isPickerPresentationPending) hasURL=\(appState.pendingURL != nil)"
+        }
+
+        private func traceLifecycle(_ operation: String) {
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.panel?.windowNumber ?? -1) panelVisible=\(self.panel?.isVisible == true) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) \(self.diagnosticContext, privacy: .public)"
+            )
+        }
+    #endif
+
     init(appState: AppState, coordinator: PickerCoordinator) {
         self.appState = appState
         self.coordinator = coordinator
@@ -221,6 +264,9 @@ final class PickerWindowController: NSObject {
     }
 
     func show() {
+        #if DEV_BUILD
+            traceLifecycle("show.request")
+        #endif
         isClosing = false
         activeSessionID = UUID()
         let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
@@ -281,6 +327,9 @@ final class PickerWindowController: NSObject {
     /// Re-assert fullscreen-safe policy, position under the cursor, and z-order (hold-⌥Tab steps).
     func reassertVisibility() {
         guard !isClosing, appState.isPickerSessionActive, let panel else { return }
+        #if DEV_BUILD
+            traceLifecycle("hold.reassert")
+        #endif
         PickerPanelInteractionPolicy.apply(to: panel)
         let screen = screenNearCursor()
         resizePanelIfNeeded(panel, to: panelSize(for: screen))
@@ -370,6 +419,9 @@ final class PickerWindowController: NSObject {
     }
 
     func close() {
+        #if DEV_BUILD
+            traceLifecycle("close.begin")
+        #endif
         isClosing = true
         activeSessionID = nil
         keyedSessionID = nil
@@ -386,6 +438,9 @@ final class PickerWindowController: NSObject {
         appState.manualPickerFrontmostKey = nil
         removeMonitors()
         panel?.orderOut(nil)
+        #if DEV_BUILD
+            traceLifecycle("close.afterOrderOut")
+        #endif
         // Keep an inactive app accessory while the nonactivating panel leaves the screen. The
         // visible main window can restore regular policy from applicationDidBecomeActive later.
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.dismissalActivationPolicy(
@@ -394,7 +449,13 @@ final class PickerWindowController: NSObject {
         ))
         DispatchQueue.main.async { [weak self] in
             self?.isClosing = false
+            #if DEV_BUILD
+                self?.traceLifecycle("close.nextRunLoop")
+            #endif
         }
+        #if DEV_BUILD
+            traceLifecycle("close.afterActivationPolicy")
+        #endif
         Log.picker.debug("Picker dismissed")
     }
 
@@ -429,6 +490,9 @@ final class PickerWindowController: NSObject {
                     break
                 case .refocus:
                     guard !self.isInDismissGracePeriod, let panel = self.panel else { return }
+                    #if DEV_BUILD
+                        self.traceLifecycle("globalMouse.refocus")
+                    #endif
                     panel.orderFrontRegardless()
                     self.focusPanel(panel)
                 case .dismiss:
@@ -962,6 +1026,11 @@ final class PickerWindowController: NSObject {
             backing: .buffered,
             defer: false
         )
+        #if DEV_BUILD
+            panel.diagnosticContext = { [weak self] in
+                self?.diagnosticContext ?? "controller=gone"
+            }
+        #endif
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -1234,6 +1303,9 @@ extension PickerWindowController: NSWindowDelegate {
                 break
             case .refocus:
                 if let panel = self.panel {
+                    #if DEV_BUILD
+                        self.traceLifecycle("keyResign.refocus")
+                    #endif
                     panel.orderFrontRegardless()
                     self.focusPanel(panel)
                 }
