@@ -164,14 +164,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_: Notification) {
+        #if DEV_BUILD
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.begin appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) sessionActive=\(self.appState.isPickerSessionActive) stateVisible=\(self.appState.isPickerVisible)"
+            )
+        #endif
         appState.refreshPickerPermissions()
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
-        if PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+        let shouldRestoreRegularPolicy = PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
             isPickerVisible: appState.isPickerVisible,
             isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
-        ) {
+        )
+        #if DEV_BUILD
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.restoreDecision restoreRegular=\(shouldRestoreRegularPolicy) policy=\(NSApp.activationPolicy().rawValue)"
+            )
+        #endif
+        if shouldRestoreRegularPolicy {
             NSApp.setActivationPolicy(.regular)
         }
+        #if DEV_BUILD
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.end appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) sessionActive=\(self.appState.isPickerSessionActive) stateVisible=\(self.appState.isPickerVisible)"
+            )
+        #endif
     }
 
     func applicationWillTerminate(_: Notification) {
