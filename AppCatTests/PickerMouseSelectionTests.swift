@@ -5,6 +5,17 @@ import Foundation
 import XCTest
 
 final class PickerMouseSelectionTests: XCTestCase {
+    @objc func testReleaseFromReplacedSessionCannotCancelCurrentPress() {
+        var mouse = PickerMouseSelection()
+        let currentSession = UUID()
+        _ = mouse.mouseDown(session: currentSession, item: "current", eventNumber: 20)
+
+        XCTAssertEqual(mouse.mouseUp(session: UUID(), item: "old", eventNumber: 21), .passThrough)
+        XCTAssertTrue(mouse.isTracking)
+        XCTAssertFalse(mouse.allowsModifierCommit)
+        XCTAssertEqual(mouse.mouseUp(session: currentSession, item: "current", eventNumber: 22), .select("current"))
+    }
+
     @objc func testModifierReleaseCannotCommitWhileMouseOwnsTheGesture() {
         var mouse = PickerMouseSelection()
         let session = UUID()
@@ -29,8 +40,8 @@ final class PickerMouseSelectionTests: XCTestCase {
         var mouse = PickerMouseSelection()
         let session = UUID()
         _ = mouse.mouseDown(session: session, item: "first", eventNumber: 10)
-        XCTAssertEqual(mouse.mouseUp(session: UUID(), item: "first", eventNumber: 11), .consume)
-        XCTAssertFalse(mouse.isTracking)
+        XCTAssertEqual(mouse.mouseUp(session: UUID(), item: "first", eventNumber: 11), .passThrough)
+        XCTAssertTrue(mouse.isTracking)
         _ = mouse.mouseDown(session: session, item: "second", eventNumber: 20)
         XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: 11), .passThrough)
         XCTAssertTrue(mouse.isTracking)
