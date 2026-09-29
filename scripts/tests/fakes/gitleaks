@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+if [[ "${1:-}" == version ]]; then
+    echo 8.30.1
+    exit 0
+fi
+printf '%s\n' "$*" >> "$CHECK_SECRETS_TEST_LOG"

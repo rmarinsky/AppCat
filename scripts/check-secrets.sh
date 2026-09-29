@@ -35,7 +35,43 @@ case "${1:-tree}" in
         fi
         ;;
     range)
-        gitleaks git --redact --no-banner --log-opts="${2:-origin/main..HEAD}"
+        scan_range() {
+            gitleaks git --redact --no-banner --log-opts="$1"
+        }
+
+        if [[ "${2:-}" == --push-refs ]]; then
+            saw_ref_update=false
+            while IFS=' ' read -r local_ref local_oid remote_ref remote_oid extra; do
+                [[ -z "$local_ref" ]] && continue
+                saw_ref_update=true
+                if [[ -n "${extra:-}" || -z "${local_oid:-}" || -z "${remote_ref:-}" || -z "${remote_oid:-}" ]]; then
+                    echo 'Malformed pre-push ref update.' >&2
+                    exit 2
+                fi
+                for oid in "$local_oid" "$remote_oid"; do
+                    if [[ ! "$oid" =~ ^[0-9a-fA-F]+$ || ( ${#oid} != 40 && ${#oid} != 64 ) ]]; then
+                        echo 'Malformed pre-push object ID.' >&2
+                        exit 2
+                    fi
+                done
+
+                [[ "$local_oid" =~ ^0+$ ]] && continue # Deleted remote ref.
+                if [[ "$remote_oid" =~ ^0+$ ]]; then
+                    scan_range "$local_oid" # A new ref makes its complete history newly reachable.
+                else
+                    scan_range "$remote_oid..$local_oid"
+                fi
+            done
+            if [[ "$saw_ref_update" == false ]]; then
+                echo 'Git supplied no ref updates to the pre-push secret scan.' >&2
+                exit 2
+            fi
+        elif [[ -n "${2:-}" ]]; then
+            scan_range "$2"
+        else
+            echo 'A commit range or --push-refs is required for range mode.' >&2
+            exit 2
+        fi
         ;;
     tree)
         check_paths < <(git ls-files -z)
@@ -46,5 +82,5 @@ case "${1:-tree}" in
             exit 1
         }
         ;;
-    *) echo 'Usage: check-secrets.sh staged|tree|range [base..head]' >&2; exit 2 ;;
+    *) echo 'Usage: check-secrets.sh staged|tree|range [base..head|--push-refs]' >&2; exit 2 ;;
 esac
