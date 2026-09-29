@@ -6,8 +6,7 @@
     final class PickerDiagnostics {
         private var journal = PickerDiagnosticJournal()
         private let queue = DispatchQueue(label: "appcat.picker-diagnostics", qos: .utility)
-        private let store = PickerDiagnosticStore(directory: FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/AppCat DEV/PickerDiagnostics", isDirectory: true))
+        private let store: PickerDiagnosticStore
         private var timer: Timer?
         private var localMonitor: Any?
         private var globalMonitor: Any?
@@ -26,6 +25,12 @@
         }
 
         var snapshot: (() -> PickerDiagnosticSnapshot)?
+
+        init(directory: URL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/AppCat DEV/PickerDiagnostics", isDirectory: true))
+        {
+            store = PickerDiagnosticStore(directory: directory)
+        }
 
         func token(for identity: String) -> Int {
             if let token = identities[identity] { return token }

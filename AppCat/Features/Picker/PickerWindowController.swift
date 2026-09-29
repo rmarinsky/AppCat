@@ -211,7 +211,7 @@ final class PickerWindowController: NSObject {
     private let typeAheadResetDelay: UInt64 = 900_000_000
 
     #if DEV_BUILD
-        let diagnostics = PickerDiagnostics()
+        var diagnostics = PickerDiagnostics()
 
         private func diagnosticSnapshot() -> PickerDiagnosticSnapshot {
             var state = PickerDiagnosticSnapshot()
@@ -253,9 +253,10 @@ final class PickerWindowController: NSObject {
         }
     #endif
 
-    init(appState: AppState, coordinator: PickerCoordinator) {
+    init(appState: AppState, coordinator: PickerCoordinator, panel: NSPanel? = nil) {
         self.appState = appState
         self.coordinator = coordinator
+        self.panel = panel
     }
 
     /// Build the panel + SwiftUI hosting view without presenting — the first real show() then
@@ -290,17 +291,25 @@ final class PickerWindowController: NSObject {
     }
 
     func show() {
-        mouseSelection.cancel()
         #if DEV_BUILD
             traceLifecycle("show.request")
         #endif
-        isClosing = false
-        activeSessionID = UUID()
+        let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
+        let sessionID = prepareSession()
         #if DEV_BUILD
             diagnostics.snapshot = { [weak self] in self?.diagnosticSnapshot() ?? PickerDiagnosticSnapshot() }
-            diagnostics.begin(activeSessionID!)
+            diagnostics.begin(sessionID)
         #endif
-        let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
+        presentPreparedSession(sessionID, wasWaitingForDeactivation: wasWaitingForDeactivation)
+    }
+
+    /// Establish session identity and its item snapshot before any AppKit presentation work.
+    @discardableResult
+    func prepareSession() -> UUID {
+        mouseSelection.cancel()
+        isClosing = false
+        let sessionID = UUID()
+        activeSessionID = sessionID
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
         // Every show() starts a fresh session: a second link can arrive while the picker is
@@ -317,6 +326,10 @@ final class PickerWindowController: NSObject {
             frontmostRankKey: appState.manualPickerFrontmostKey,
             invocationSource: appState.pickerInvocationSource
         )
+        return sessionID
+    }
+
+    private func presentPreparedSession(_ sessionID: UUID, wasWaitingForDeactivation: Bool) {
         let screen = screenNearCursor()
         let targetSize = panelSize(for: screen)
 
@@ -347,7 +360,6 @@ final class PickerWindowController: NSObject {
             wasWaitingForDeactivation: wasWaitingForDeactivation
         )
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.presentationActivationPolicy)
-        guard let sessionID = activeSessionID else { return }
         if shouldWaitForDeactivation {
             waitForApplicationDeactivationBeforePresenting(sessionID: sessionID)
         } else {
@@ -547,8 +559,25 @@ final class PickerWindowController: NSObject {
 
         // Own both halves of the click. Keep the panel alive until mouse-up and prevent SwiftUI
         // from running a second Button action. Keyboard/accessibility keep their existing paths.
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseUp], handler: localMouseHandler(for: observedSessionID)
+        )
+
+        // Handle keyboard events via local monitor since SwiftUI's
+        // .onKeyPress does not work reliably inside an NSPanel.
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            return self.handleKeyEvent(event) ? nil : event
+        }
+    }
+
+    func localMouseHandler(for observedSessionID: UUID) -> (NSEvent) -> NSEvent? {
+        { [weak self] event in
             guard let self, let panel = self.panel else { return event }
+            guard observedSessionID == self.activeSessionID,
+                  !self.isClosing, self.appState.isPickerSessionActive,
+                  event.type == .leftMouseDown || event.type == .leftMouseUp
+            else { return event }
             let eventWindowIsPanel = event.window === panel
             let isDown = event.type == .leftMouseDown
             guard eventWindowIsPanel || (!isDown && self.mouseSelection.isTracking) else { return event }
@@ -586,12 +615,6 @@ final class PickerWindowController: NSObject {
             }
         }
 
-        // Handle keyboard events via local monitor since SwiftUI's
-        // .onKeyPress does not work reliably inside an NSPanel.
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
-            return self.handleKeyEvent(event) ? nil : event
-        }
     }
 
     private func removeMonitors() {

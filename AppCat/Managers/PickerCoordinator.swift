@@ -11,6 +11,7 @@ final class PickerCoordinator {
     }
 
     private let browserLauncher: BrowserLauncher
+    private let makePickerController: @MainActor (AppState, PickerCoordinator) -> PickerWindowController
     private let urlResolver = URLResolver()
     private var pickerController: PickerWindowController?
     var historyManager: HistoryManager?
@@ -24,12 +25,17 @@ final class PickerCoordinator {
         var diagnostics: PickerDiagnostics? { pickerController?.diagnostics }
     #endif
 
-    init() {
-        browserLauncher = BrowserLauncher()
+    convenience init() {
+        self.init(browserLauncher: BrowserLauncher())
     }
 
-    init(browserLauncher: BrowserLauncher) {
+    init(browserLauncher: BrowserLauncher,
+         makePickerController: @escaping @MainActor (AppState, PickerCoordinator) -> PickerWindowController = {
+             PickerWindowController(appState: $0, coordinator: $1)
+         })
+    {
         self.browserLauncher = browserLauncher
+        self.makePickerController = makePickerController
     }
 
     func showPicker(state: AppState) {
@@ -44,7 +50,7 @@ final class PickerCoordinator {
             state.manualPickerFrontmostKey = activationSnapshot?.frontmostKey
         }
         if pickerController == nil {
-            pickerController = PickerWindowController(appState: state, coordinator: self)
+            pickerController = makePickerController(state, self)
         }
         // Mark presentation pending before ordering front. `isPickerVisible` flips true only after
         // a successful orderFront so Dock reopen is not blocked during the deactivation wait.
@@ -57,7 +63,7 @@ final class PickerCoordinator {
     /// presentation doesn't pay window/view-graph construction on the click-to-picker path.
     func prewarmPicker(state: AppState) {
         guard pickerController == nil, !state.isPickerSessionActive else { return }
-        pickerController = PickerWindowController(appState: state, coordinator: self)
+        pickerController = makePickerController(state, self)
         pickerController?.prewarm()
     }
 
