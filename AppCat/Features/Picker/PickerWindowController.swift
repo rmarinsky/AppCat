@@ -955,13 +955,16 @@ final class PickerWindowController: NSObject {
         return !panelFrame.contains(screenLocation)
     }
 
-    nonisolated static func deferGlobalMouseDownObservation(
+    static func deferGlobalMouseDownObservation(
         event: NSEvent,
         sessionID: UUID,
         action: @escaping @MainActor (PickerGlobalMouseDownObservation) -> Void
     ) {
+        // A windowless NSEvent already carries screen coordinates. Convert an associated
+        // window's point now, before the window or pointer can move during deferred delivery.
+        let screenLocation = event.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         let observation = PickerGlobalMouseDownObservation(
-            screenLocation: event.locationInWindow,
+            screenLocation: screenLocation,
             sessionID: sessionID
         )
         Task { @MainActor in
