@@ -91,4 +91,42 @@ struct PickerDiagnosticJournal {
         return reason
     }
 }
+
+/// Used only from the diagnostic I/O queue. Fixed slots bound storage across app launches.
+final class PickerDiagnosticStore {
+    let directory: URL
+    private let runID = UUID()
+    private var incidentIndex = 0
+    init(directory: URL) { self.directory = directory }
+
+    func write(_ events: [PickerDiagnosticEvent], reason: String? = nil) throws {
+        struct Envelope: Encodable {
+            let formatVersion = 1
+            let runID: UUID
+            let pid: Int32
+            let osVersion: String
+            let reason: String?
+            let events: [PickerDiagnosticEvent]
+        }
+        let manager = FileManager.default
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true,
+                                    attributes: [.posixPermissions: 0o700])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(Envelope(runID: runID, pid: ProcessInfo.processInfo.processIdentifier,
+                                               osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+                                               reason: reason, events: Array(events.suffix(1024))))
+        var names = ["latest.json"]
+        if reason != nil {
+            names.append(String(format: "incident-%02d.json", incidentIndex % 12))
+            incidentIndex += 1
+        }
+        for name in names {
+            let url = directory.appendingPathComponent(name)
+            try data.write(to: url, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+    }
+}
 #endif

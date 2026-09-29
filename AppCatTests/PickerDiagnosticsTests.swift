@@ -6,6 +6,24 @@ import Foundation
 import XCTest
 
 final class PickerDiagnosticsTests: XCTestCase {
+    @objc func testDiagnosticFilesContainReplayableMetadataAndBoundedIncidentSlots() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = PickerDiagnosticStore(directory: directory)
+        var journal = PickerDiagnosticJournal()
+        journal.append("mouse.up", detail: "event=25 option=true", session: UUID(), at: 12)
+        try store.write(journal.events)
+        for _ in 0..<15 { try store.write(journal.events, reason: "closed_panel_visible") }
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertEqual(files.filter { $0.hasPrefix("incident-") }.count, 12)
+        let data = try Data(contentsOf: directory.appendingPathComponent("latest.json"))
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let events = try XCTUnwrap(payload["events"] as? [[String: Any]])
+        XCTAssertEqual(events.first?["name"] as? String, "mouse.up")
+        XCTAssertEqual(events.first?["uptime"] as? Double, 12)
+        XCTAssertNotNil(payload["runID"])
+    }
+
     @objc func testStalledPresentationAndLostActivePanelAreReported() {
         var journal = PickerDiagnosticJournal()
         var state = PickerDiagnosticSnapshot()
