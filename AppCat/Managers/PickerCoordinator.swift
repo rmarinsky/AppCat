@@ -161,7 +161,7 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) {
         #if DEV_BUILD
-            let diagnosticSession = diagnostics?.session
+            let diagnosticContext = diagnostics?.context ?? PickerDiagnosticContext()
             diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: browser.id) ?? 0) hasURL=\(state.pendingURL != nil)")
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
@@ -172,7 +172,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
             #if DEV_BUILD
-                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", session: diagnosticSession)
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: browser.id)
@@ -193,7 +193,7 @@ final class PickerCoordinator {
             profile: profile
         ) { [weak self] succeeded in
             #if DEV_BUILD
-                self?.diagnostics?.record("launch.openResult", detail: "success=\(succeeded)", session: diagnosticSession)
+                self?.diagnostics?.record("launch.openResult", detail: "success=\(succeeded)", context: diagnosticContext)
             #endif
             guard succeeded, let self else { return }
             self.recordBrowserOpen(
@@ -221,7 +221,7 @@ final class PickerCoordinator {
         source: OpenSource = .pickerClick
     ) {
         #if DEV_BUILD
-            let diagnosticSession = diagnostics?.session
+            let diagnosticContext = diagnostics?.context ?? PickerDiagnosticContext()
             diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: app.id) ?? 0) hasURL=\(state.pendingURL != nil)")
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
@@ -232,7 +232,7 @@ final class PickerCoordinator {
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
             #if DEV_BUILD
-                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", session: diagnosticSession)
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: app.id)
@@ -245,7 +245,7 @@ final class PickerCoordinator {
         #endif
         browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in
             #if DEV_BUILD
-                self?.diagnostics?.record("launch.openResult", detail: "count=\(results.count) succeeded=\(results.filter { $0 }.count)", session: diagnosticSession)
+                self?.diagnostics?.record("launch.openResult", detail: "count=\(results.count) succeeded=\(results.filter { $0 }.count)", context: diagnosticContext)
             #endif
             guard let self else { return }
             let successfulIndices = results.indices.filter {
