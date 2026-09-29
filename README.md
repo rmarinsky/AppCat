@@ -183,6 +183,10 @@ Before contributing, install the pinned tools with `mise install`, then run
 `mise exec -- lefthook install`. The commit hook scans staged changes; the push hook
 and CI scan every commit in the PR range. Run `mise exec -- bash scripts/check-secrets.sh tree`
 to scan tracked files. Scanner output never prints suspected secret values.
+These checks catch accidental disclosure; they are not an independent security boundary
+against a PR that changes its own workflow, scanner, or tool configuration. Review those
+changes explicitly. Checkout credentials are not persisted, and the scan job has no secrets
+or write permissions.
 
 ---
 
