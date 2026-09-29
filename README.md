@@ -179,6 +179,11 @@ menu bar scene or shortcut listeners. Picker tests prepare sessions with unshown
 they do not post input events. Use `bash scripts/test-picker-diagnostics.sh` for the smaller
 Foundation-only gesture/diagnostic checks. UI tests remain a separate, opt-in scheme.
 
+Before contributing, install the pinned tools with `mise install`, then run
+`mise exec -- lefthook install`. The commit hook scans staged changes; the push hook
+and CI scan every commit in the PR range. Run `mise exec -- bash scripts/check-secrets.sh tree`
+to scan tracked files. Scanner output never prints suspected secret values.
+
 ---
 
 ## ❓ FAQ
