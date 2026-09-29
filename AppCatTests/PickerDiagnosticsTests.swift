@@ -6,6 +6,42 @@
     import XCTest
 
     final class PickerDiagnosticsTests: XCTestCase {
+        @objc func testDelayedChangedAndSparseSamplesDoNotProvePersistence() {
+            var sample = PickerDiagnosticSnapshot()
+            sample.observedSession = UUID()
+            sample.serverVisible = true
+            var current = sample
+            current.serverVisible = nil
+            var journal = PickerDiagnosticJournal()
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 0, queriedAt: 0.01, deliveredAt: 0.02))
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 0.05, queriedAt: 0.06, deliveredAt: 0.5))
+            journal = PickerDiagnosticJournal()
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 0, queriedAt: 0.01, deliveredAt: 0.02))
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 2, queriedAt: 2.01, deliveredAt: 2.02))
+            journal = PickerDiagnosticJournal()
+            sample.sessionActive = true
+            sample.pending = true
+            current = sample
+            current.serverVisible = nil
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 0, queriedAt: 0.01, deliveredAt: 0.02))
+            current.pending = false
+            current.panelVisible = true
+            XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 4, queriedAt: 4.01, deliveredAt: 4.02))
+        }
+
+        @objc func testFreshContinuousSamplesProduceAnIncident() {
+            var sample = PickerDiagnosticSnapshot()
+            sample.observedSession = UUID()
+            sample.serverVisible = true
+            var current = sample
+            current.serverVisible = nil
+            var journal = PickerDiagnosticJournal()
+            for time in [0.0, 0.1, 0.2] {
+                XCTAssertNil(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: time, queriedAt: time + 0.01, deliveredAt: time + 0.02))
+            }
+            XCTAssertEqual(journal.sampledAnomaly(in: sample, currentState: current, capturedAt: 0.35, queriedAt: 0.36, deliveredAt: 0.37), "closed_panel_visible")
+        }
+
         @objc func testDiagnosticFilesContainReplayableMetadataAndBoundedIncidentSlots() throws {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             defer { try? FileManager.default.removeItem(at: directory) }

@@ -53,6 +53,7 @@
         private var candidate: String?
         private var candidateSince: TimeInterval = 0
         private var reported: Set<String> = []
+        private var lastSampleTime: TimeInterval?
         let capacity: Int
 
         init(capacity: Int = 256) {
@@ -101,6 +102,27 @@
             if candidate != reason { candidate = reason; candidateSince = uptime }
             guard uptime - candidateSince >= settling, reported.insert(reason).inserted else { return nil }
             return reason
+        }
+
+        mutating func sampledAnomaly(in sample: PickerDiagnosticSnapshot, currentState: PickerDiagnosticSnapshot,
+                                     capturedAt: TimeInterval, queriedAt: TimeInterval, deliveredAt: TimeInterval) -> String?
+        {
+            var capturedState = sample
+            capturedState.serverVisible = nil
+            guard capturedState == currentState,
+                  queriedAt >= capturedAt, deliveredAt >= queriedAt,
+                  deliveredAt - capturedAt <= 0.2
+            else {
+                candidate = nil
+                lastSampleTime = nil
+                return nil
+            }
+            // A gap in observation is not evidence of continuous visibility.
+            if let lastSampleTime, queriedAt - lastSampleTime > 0.25 {
+                candidate = nil
+            }
+            lastSampleTime = queriedAt
+            return anomaly(in: sample, at: queriedAt)
         }
     }
 

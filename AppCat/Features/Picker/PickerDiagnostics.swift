@@ -116,6 +116,7 @@
                         && ($0[kCGWindowIsOnscreen as String] as? Bool) == true
                     }
                 }
+                let queriedAt = ProcessInfo.processInfo.systemUptime
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     sampleInFlight = false
@@ -124,11 +125,16 @@
                     sample.serverVisible = visible
                     let time = ProcessInfo.processInfo.systemUptime
                     if sample != lastState || time - lastHeartbeat >= 1 {
-                        journal.append("window.sample", context: observedContext, state: sample, at: time)
+                        journal.append("window.sample",
+                                       detail: "capturedAt=\(now) queriedAt=\(queriedAt) deliveredAt=\(time)",
+                                       context: observedContext, state: sample, at: time)
                         lastState = sample
                         lastHeartbeat = time
                     }
-                    if let reason = journal.anomaly(in: sample, at: time) {
+                    guard let currentState = currentState() else { return }
+                    if let reason = journal.sampledAnomaly(in: sample, currentState: currentState,
+                                                           capturedAt: now, queriedAt: queriedAt, deliveredAt: time)
+                    {
                         journal.append("anomaly.\(reason)", context: observedContext, state: sample, at: time)
                         Log.picker.error("[picker-diagnostics] Incident: \(reason, privacy: .public)")
                         save(force: true, reason: reason)
