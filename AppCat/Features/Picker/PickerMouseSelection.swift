@@ -5,6 +5,7 @@ struct PickerMouseSelection {
     enum Action: Equatable {
         case passThrough
         case consume
+        case cancel
         case select(String)
     }
 
@@ -25,7 +26,10 @@ struct PickerMouseSelection {
 
     mutating func mouseUp(session: UUID?, item: String?, eventNumber: Int) -> Action {
         guard let press else { return .passThrough }
+        guard eventNumber == press.eventNumber else { return .passThrough }
         self.press = nil
+        guard session == press.session else { return .consume }
+        guard item == press.item else { return .cancel }
         return .select(press.item)
     }
 
