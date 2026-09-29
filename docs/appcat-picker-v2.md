@@ -138,7 +138,12 @@ Invocation-source policy:
 - Hold-`Option`+`Tab` stays non-key, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
   It reaches index 1 by presenting at 0 and stepping forward once, so it is excluded from the
   initial-focus rule above to avoid double-advancing.
-- Every picker item is clickable. A global hit-test fallback handles the first mouse-down only when
-  AppKit did not deliver it locally to the SwiftUI button.
+- A local mouse-down reserves the tile and consumes the event without launching or closing.
+  Only the matching local mouse-up on the same tile in the same session commits, once. Releasing
+  outside that tile cancels and closes without launching; Escape, close, and session replacement
+  invalidate the reservation. An unrelated mouse-up cannot commit the reserved tile.
+- Mouse ownership blocks modifier-release commits and disarms the toggle modifier watcher.
+  Global mouse observations never select a tile; a matching global release can only cancel.
+  SwiftUI button actions remain available for accessibility activation.
 - Routing configured shortcuts take precedence; remaining routing items receive positional keys in `1...0`, then `QWERTY...` order.
 - Manual toggle/service sessions expose only positional `1...0`; alphabetic input is type-ahead.
