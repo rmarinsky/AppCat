@@ -5,7 +5,7 @@ import XCTest
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
     func testReplacedLocalMouseHandlerCannotCommitCurrentSession() throws {
-        let fixture = MousePickerFixture(app: makeApp(id: "com.test.Editor", urlSchemes: []))
+        let fixture = MousePickerFixture(testCase: self, app: makeApp(id: "com.test.Editor", urlSchemes: []))
         let obsoleteHandler = fixture.begin()
         let currentHandler = fixture.begin()
 
@@ -28,7 +28,7 @@ final class BrowserLauncherTests: XCTestCase {
         let apps = (0 ..< 3).map { makeApp(id: "com.test.Editor\($0)", urlSchemes: []) }
         let link = try XCTUnwrap(URL(string: "https://example.com/repeated"))
         for target in [link, URL(fileURLWithPath: "/tmp/mouse-test.txt"), nil] {
-            let fixture = MousePickerFixture(app: apps[0])
+            let fixture = MousePickerFixture(testCase: self, app: apps[0])
             let runningApp = FakeRunningApplication()
             fixture.world.runningApplication = runningApp
             fixture.world.hasOpenWindows = true
@@ -62,7 +62,7 @@ final class BrowserLauncherTests: XCTestCase {
     func testLocalMouseReleaseOutsidePressedTileDismissesWithoutLaunching() throws {
         for releasePoint in [NSPoint(x: -10, y: 60), NSPoint(x: 156, y: 60)] {
             let app = makeApp(id: "com.test.Editor", urlSchemes: [])
-            let fixture = MousePickerFixture(app: app)
+            let fixture = MousePickerFixture(testCase: self, app: app)
             let handler = fixture.begin(items: [PickerItem(app: app), PickerItem(app: makeApp(id: "com.test.Other", urlSchemes: []))])
             XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10)))
             XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 11, location: releasePoint)))
@@ -76,7 +76,7 @@ final class BrowserLauncherTests: XCTestCase {
     func testEscapeAndAccessibilitySelectionInvalidatePendingMouseRelease() throws {
         for useAccessibility in [false, true] {
             let app = makeApp(id: "com.test.Editor", urlSchemes: [])
-            let fixture = MousePickerFixture(app: app)
+            let fixture = MousePickerFixture(testCase: self, app: app)
             let handler = fixture.begin()
             XCTAssertNotNil(handler(try fixture.mouse(.rightMouseDown, number: 9)))
             XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10)))
@@ -821,15 +821,26 @@ private final class MousePickerFixture {
     let controller: PickerWindowController
     let app: InstalledApp
 
-    init(app: InstalledApp) {
+    init(testCase: XCTestCase, app: InstalledApp) {
         self.app = app
         let testPanel = panel
+        let diagnosticDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("appcat-input-test-\(UUID().uuidString)")
+        let diagnosticQueue = DispatchQueue(label: "appcat.test.mouse-diagnostics")
+        testCase.addTeardownBlock {
+            // These fixtures never begin observation. Drain their queued writes before removal
+            // so a late write cannot recreate the directory after the test completes.
+            diagnosticQueue.sync {}
+            if FileManager.default.fileExists(atPath: diagnosticDirectory.path) {
+                try FileManager.default.removeItem(at: diagnosticDirectory)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: diagnosticDirectory.path))
+        }
         var preparedController: PickerWindowController?
         coordinator = PickerCoordinator(browserLauncher: BrowserLauncher(dependencies: world.dependencies()),
                                         makePickerController: { state, coordinator in
             let controller = PickerWindowController(appState: state, coordinator: coordinator, panel: testPanel)
-            controller.diagnostics = PickerDiagnostics(directory: FileManager.default.temporaryDirectory
-                .appendingPathComponent("appcat-input-test-\(UUID().uuidString)"))
+            controller.diagnostics = PickerDiagnostics(directory: diagnosticDirectory, queue: diagnosticQueue)
             preparedController = controller
             return controller
         })
