@@ -75,6 +75,12 @@ struct PickerDiagnosticJournal {
         if !state.sessionActive && (state.panelVisible || state.serverVisible == true) {
             reason = "closed_panel_visible"
             settling = 0.3
+        } else if state.pending {
+            reason = "presentation_stalled"
+            settling = 3
+        } else if state.sessionActive && state.stateVisible && !state.panelVisible {
+            reason = "active_panel_hidden"
+            settling = 1
         } else {
             reason = nil
             settling = 0.3
