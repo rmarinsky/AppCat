@@ -19,6 +19,10 @@ final class PickerCoordinator {
     weak var windowActivationTracker: WindowActivationTracker?
     var onHoldPickerMouseSelection: (() -> Void)?
 
+    #if DEV_BUILD
+        var diagnostics: PickerDiagnostics? { pickerController?.diagnostics }
+    #endif
+
     init() {
         browserLauncher = BrowserLauncher()
     }
@@ -116,6 +120,9 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) -> Bool {
+        #if DEV_BUILD
+            diagnostics?.record("selection.request", detail: "active=\(state.isPickerSessionActive) mouse=\(source == .pickerClick) item=\(diagnostics?.token(for: item.id) ?? 0)")
+        #endif
         guard state.isPickerSessionActive else { return false }
         if state.pickerInvocationSource == .holdOptionTab,
            source == .pickerClick
@@ -153,6 +160,10 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) {
+        #if DEV_BUILD
+            let diagnosticSession = diagnostics?.session
+            diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: browser.id) ?? 0) hasURL=\(state.pendingURL != nil)")
+        #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
@@ -160,6 +171,9 @@ final class PickerCoordinator {
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            #if DEV_BUILD
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", session: diagnosticSession)
+            #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: browser.id)
             }
@@ -178,6 +192,9 @@ final class PickerCoordinator {
             mode: mode,
             profile: profile
         ) { [weak self] succeeded in
+            #if DEV_BUILD
+                self?.diagnostics?.record("launch.openResult", detail: "success=\(succeeded)", session: diagnosticSession)
+            #endif
             guard succeeded, let self else { return }
             self.recordBrowserOpen(
                 pendingOpen,
@@ -203,6 +220,10 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) {
+        #if DEV_BUILD
+            let diagnosticSession = diagnostics?.session
+            diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: app.id) ?? 0) hasURL=\(state.pendingURL != nil)")
+        #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
@@ -210,6 +231,9 @@ final class PickerCoordinator {
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            #if DEV_BUILD
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", session: diagnosticSession)
+            #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: app.id)
             }
@@ -220,6 +244,9 @@ final class PickerCoordinator {
             if UITestRuntime.skipsExternalLaunch { return }
         #endif
         browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in
+            #if DEV_BUILD
+                self?.diagnostics?.record("launch.openResult", detail: "count=\(results.count) succeeded=\(results.filter { $0 }.count)", session: diagnosticSession)
+            #endif
             guard let self else { return }
             let successfulIndices = results.indices.filter {
                 results[$0]

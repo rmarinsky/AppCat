@@ -23,6 +23,10 @@ struct PickerDiagnosticSnapshot: Codable, Equatable {
     var focusedIndex = 0
     var renderedItems: [Int] = []
     var optionDown = false
+    var mouseButtons = 0
+    var windowLevel = 0
+    var ignoresMouseEvents = false
+    var frame: [Double] = []
 }
 
 struct PickerDiagnosticEvent: Codable {
@@ -93,18 +97,24 @@ struct PickerDiagnosticJournal {
 }
 
 /// Used only from the diagnostic I/O queue. Fixed slots bound storage across app launches.
-final class PickerDiagnosticStore {
+final class PickerDiagnosticStore: @unchecked Sendable {
     let directory: URL
     private let runID = UUID()
     private var incidentIndex = 0
+    // Protect mutable rotation state and atomic latest/incident writes even if another caller
+    // later uses a different queue. Production callers still use one utility queue.
+    private let lock = NSLock()
     init(directory: URL) { self.directory = directory }
 
     func write(_ events: [PickerDiagnosticEvent], reason: String? = nil) throws {
+        lock.lock()
+        defer { lock.unlock() }
         struct Envelope: Encodable {
             let formatVersion = 1
             let runID: UUID
             let pid: Int32
             let osVersion: String
+            let appVersion: String
             let reason: String?
             let events: [PickerDiagnosticEvent]
         }
@@ -116,6 +126,7 @@ final class PickerDiagnosticStore {
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(Envelope(runID: runID, pid: ProcessInfo.processInfo.processIdentifier,
                                                osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+                                               appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "test",
                                                reason: reason, events: Array(events.suffix(1024))))
         var names = ["latest.json"]
         if reason != nil {

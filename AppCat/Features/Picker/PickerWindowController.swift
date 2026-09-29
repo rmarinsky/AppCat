@@ -28,6 +28,7 @@ private class KeyablePanel: NSPanel {
         // Temporary ordering probe for the macOS 27 panel-after-dismissal reproduction.
         // Only lifecycle metadata is recorded: no titles, URLs, item names, or typed text.
         var diagnosticContext: (() -> String)?
+        var diagnosticOrdering: ((String, Bool) -> Void)?
 
         override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
             traceOrdering("order.before mode=\(place.rawValue)", includeStack: place != .out)
@@ -44,14 +45,11 @@ private class KeyablePanel: NSPanel {
         private func traceOrdering(_ operation: String, includeStack: Bool = false) {
             guard let diagnosticContext else { return }
             let context = diagnosticContext()
+            diagnosticOrdering?(operation, includeStack)
             let eventType = NSApp.currentEvent.map { Int($0.type.rawValue) } ?? -1
             Log.picker.notice(
                 "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.windowNumber) visible=\(self.isVisible) key=\(self.isKeyWindow) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) eventType=\(eventType) \(context, privacy: .public)"
             )
-            if includeStack {
-                let stack = Thread.callStackSymbols.prefix(18).joined(separator: " <- ")
-                Log.picker.notice("[DEBUG-picker-ordering] caller \(stack, privacy: .public)")
-            }
         }
     #endif
 }
@@ -216,11 +214,42 @@ final class PickerWindowController: NSObject {
     private let typeAheadResetDelay: UInt64 = 900_000_000
 
     #if DEV_BUILD
+        let diagnostics = PickerDiagnostics()
+
+        private func diagnosticSnapshot() -> PickerDiagnosticSnapshot {
+            var state = PickerDiagnosticSnapshot()
+            state.window = panel?.windowNumber ?? 0
+            state.activeSession = activeSessionID
+            state.sessionActive = appState.isPickerSessionActive
+            state.stateVisible = appState.isPickerVisible
+            state.pending = appState.isPickerPresentationPending
+            state.closing = isClosing
+            state.panelVisible = panel?.isVisible == true
+            state.panelKey = panel?.isKeyWindow == true
+            state.onActiveSpace = panel?.isOnActiveSpace == true
+            state.occlusionVisible = panel?.occlusionState.contains(.visible) == true
+            state.appActive = NSApp.isActive
+            state.activationPolicy = NSApp.activationPolicy().rawValue
+            state.source = String(describing: appState.pickerInvocationSource)
+            state.hasURL = appState.pendingURL != nil
+            state.itemCount = appState.pickerItemsSnapshot.count
+            state.focusedIndex = appState.focusedBrowserIndex
+            state.optionDown = NSEvent.modifierFlags.contains(.option)
+            state.mouseButtons = NSEvent.pressedMouseButtons
+            state.windowLevel = panel?.level.rawValue ?? 0
+            state.ignoresMouseEvents = panel?.ignoresMouseEvents == true
+            if let frame = panel?.frame {
+                state.frame = [frame.origin.x, frame.origin.y, frame.width, frame.height]
+            }
+            return state
+        }
+
         private var diagnosticContext: String {
             "session=\(activeSessionID?.uuidString ?? "none") source=\(String(describing: appState.pickerInvocationSource)) closing=\(isClosing) sessionActive=\(appState.isPickerSessionActive) stateVisible=\(appState.isPickerVisible) pending=\(appState.isPickerPresentationPending) hasURL=\(appState.pendingURL != nil)"
         }
 
         private func traceLifecycle(_ operation: String) {
+            diagnostics.record(operation)
             Log.picker.notice(
                 "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.panel?.windowNumber ?? -1) panelVisible=\(self.panel?.isVisible == true) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) \(self.diagnosticContext, privacy: .public)"
             )
@@ -269,6 +298,10 @@ final class PickerWindowController: NSObject {
         #endif
         isClosing = false
         activeSessionID = UUID()
+        #if DEV_BUILD
+            diagnostics.snapshot = { [weak self] in self?.diagnosticSnapshot() ?? PickerDiagnosticSnapshot() }
+            diagnostics.begin(activeSessionID!)
+        #endif
         let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
@@ -455,6 +488,7 @@ final class PickerWindowController: NSObject {
         }
         #if DEV_BUILD
             traceLifecycle("close.afterActivationPolicy")
+            diagnostics.closed()
         #endif
         Log.picker.debug("Picker dismissed")
     }
@@ -509,7 +543,13 @@ final class PickerWindowController: NSObject {
             let eventWindowIsPanel = event.window === panel
             guard eventWindowIsPanel else { return event }
             let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
+            #if DEV_BUILD
+                self.diagnostics.input(event, origin: "local.selection")
+            #endif
             let didSelect = self.openItemForMouseDown(at: screenLocation, eventType: event.type)
+            #if DEV_BUILD
+                self.diagnostics.record("mouse.selectionResult", detail: "consumed=\(didSelect)")
+            #endif
             switch Self.localMouseDownAction(
                 eventWindowIsPanel: eventWindowIsPanel,
                 didSelect: didSelect
@@ -1029,6 +1069,17 @@ final class PickerWindowController: NSObject {
         #if DEV_BUILD
             panel.diagnosticContext = { [weak self] in
                 self?.diagnosticContext ?? "controller=gone"
+            }
+            panel.diagnosticOrdering = { [weak self] operation, requestsFront in
+                guard let self else { return }
+                self.diagnostics.record(operation)
+                if requestsFront && self.activeSessionID == nil {
+                    // Symbolicate only anomalous front ordering, not the normal click path.
+                    for (index, frame) in Thread.callStackSymbols.prefix(18).enumerated() {
+                        self.diagnostics.record("unexpectedOrder.stack", detail: "frame=\(index) \(frame)")
+                    }
+                    self.diagnostics.flush()
+                }
             }
         #endif
         panel.isOpaque = false

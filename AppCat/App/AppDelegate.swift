@@ -165,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_: Notification) {
         #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("app.didBecomeActive")
             Log.picker.notice(
                 "[DEBUG-picker-ordering] app.didBecomeActive.begin appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) sessionActive=\(self.appState.isPickerSessionActive) stateVisible=\(self.appState.isPickerVisible)"
             )
@@ -344,6 +345,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cycleManualPicker(delta: Int) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("shortcut.holdStep", detail: "delta=\(delta) suppressed=\(suppressHoldPickerUntilOptionRelease)")
+        #endif
         guard appState.pendingURL == nil else { return }
         let stepAction = PickerHoldGestureSuppressionPolicy.stepAction(
             isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease
@@ -362,6 +366,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openFocusedManualPickerItem() {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("shortcut.optionRelease", detail: "suppressed=\(suppressHoldPickerUntilOptionRelease)")
+        #endif
         switch PickerHoldGestureSuppressionPolicy.releaseAction(
             isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease,
             invocationSource: appState.pickerInvocationSource,
@@ -378,6 +385,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentManualPicker(source: PickerInvocationSource) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("manual.request", detail: "source=\(String(describing: source))")
+        #endif
         cancelScheduledMainWindowOpen()
         pendingManualPickerPresentationID = nil
         pendingManualPickerAdvances = 0
@@ -437,6 +447,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleIncomingURLs(_ rawURLs: [URL]) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("routing.received", detail: "count=\(rawURLs.count)")
+        #endif
         guard !rawURLs.isEmpty else { return }
 
         // A routing request supersedes any scheduled main-window open — cancel it outright so a

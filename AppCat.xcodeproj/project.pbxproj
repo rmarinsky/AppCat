@@ -48,6 +48,7 @@
 		58C46CD1E6DA191C7C15ADBF /* SettingsViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */; };
 		62877887BADE0F144723D021 /* SettingsStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F736BF3E7C90149146A8F6 /* SettingsStorage.swift */; };
 		65897B9DFECBB096ED00D119 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 8086C1C813BEC629F492F003 /* LaunchAtLogin */; };
+		674680CC4542F0E790248301 /* PickerDiagnosticJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA7DEEE633E70FAEE856E7F /* PickerDiagnosticJournal.swift */; };
 		67DF010549ACAE53220A66CE /* HistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13638E9042BBEFA24B4E6CE9 /* HistoryStorage.swift */; };
 		693C6958BDF69AD9F4D2F690 /* BrowserLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0491754C74C89372721C048 /* BrowserLauncherTests.swift */; };
 		77892EA023F4988B3080E131 /* BrowserLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9684D6C87F338AF90103904 /* BrowserLauncher.swift */; };
@@ -100,6 +101,7 @@
 		BDF92975A60AE444BCD64D62 /* HotkeyTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80073AE11437E1A427A93FE9 /* HotkeyTarget.swift */; };
 		BE3A78E0721183605A6C2F6E /* SuggestionDismissalStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C705D6D3AB9C5D13C88915 /* SuggestionDismissalStorage.swift */; };
 		BF17226ADE49C459B4EDA367 /* FaviconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29879E6C0A0D1CA56C9ECEFB /* FaviconManager.swift */; };
+		C077A7CE5BDE37DAF8C84B5F /* PickerDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2EBE19CCEC1B31E5EFCAFE /* PickerDiagnostics.swift */; };
 		C094C7C30954EA5478B6A6C8 /* HistoryEntryCodableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A480C399D8F1E54C9CF5038 /* HistoryEntryCodableTests.swift */; };
 		C3E08AEB2FBB187E7B55F275 /* PickerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA403B4B37E525544CE498BF /* PickerSettingsView.swift */; };
 		C527C6627088DDE1EC5544E4 /* AppUsageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB364026B6DBCC6EAFA78D4B /* AppUsageStorage.swift */; };
@@ -113,6 +115,7 @@
 		D4A606BE2A93232F0143DA2C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 315F498587BEE16AF5A9D368 /* Localizable.strings */; };
 		D69200FCBD87A21F6D5B467B /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D4821EF374AAD3B3CEC4C4 /* HistoryManager.swift */; };
 		DD7FCA6B96CD367060F634EC /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EBDF2F6A9375FB7BE0E16F /* AppDelegate.swift */; };
+		E1FE16EF8F4E1FAFA59054B6 /* PickerDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D0E3847FFDCE6F47E2B3111 /* PickerDiagnosticsTests.swift */; };
 		E27654A33CF7E817AA9C69AE /* BrowserFileType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A587F95C0A99403B49AE465 /* BrowserFileType.swift */; };
 		E373F1CAF07A76B871EE8082 /* AppActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511A92B49AB5305AC1935290 /* AppActivityMonitor.swift */; };
 		E7736EC4F6630CD56A89BDCF /* UITestLaunchScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D06DB8D572F80D30F2D6CB /* UITestLaunchScenario.swift */; };
@@ -208,6 +211,7 @@
 		78D7376105EC55D676DDDF8A /* PickerCommitModifierWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerCommitModifierWatcher.swift; sourceTree = "<group>"; };
 		791CE5144C85EFFC99FFF08F /* URLRuleMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRuleMatcherTests.swift; sourceTree = "<group>"; };
 		7951135F97938D306DCAC8DC /* WindowActivationTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActivationTracker.swift; sourceTree = "<group>"; };
+		7D0E3847FFDCE6F47E2B3111 /* PickerDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerDiagnosticsTests.swift; sourceTree = "<group>"; };
 		7F1D4AAC73146A4A04147713 /* PickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerView.swift; sourceTree = "<group>"; };
 		80073AE11437E1A427A93FE9 /* HotkeyTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyTarget.swift; sourceTree = "<group>"; };
 		80D39017530BA8EA534110B8 /* PickerActivationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerActivationPermission.swift; sourceTree = "<group>"; };
@@ -237,6 +241,7 @@
 		B54EFE67B4ECDB1CD0007C3F /* PickerShortcutAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerShortcutAssigner.swift; sourceTree = "<group>"; };
 		B5F4044EDF9F6122F785A3AF /* BrowserCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserCell.swift; sourceTree = "<group>"; };
 		BAB1BCF38CDC65F97DE142C0 /* PickerUserJourneysUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerUserJourneysUITests.swift; sourceTree = "<group>"; };
+		BCA7DEEE633E70FAEE856E7F /* PickerDiagnosticJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerDiagnosticJournal.swift; sourceTree = "<group>"; };
 		BF389B1FE7F0E8414509B0E9 /* StatsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsManager.swift; sourceTree = "<group>"; };
 		BFD6F96CBDDA659C18409E6A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3BEC844E1BAAFD4B677AF48 /* URLResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLResolver.swift; sourceTree = "<group>"; };
@@ -245,6 +250,7 @@
 		C8A3236FB9D1A7DA668EE404 /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		C920A7B5EBBA62B380E48ABC /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		CAD3DBE64F3FB0C45CA99E5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CD2EBE19CCEC1B31E5EFCAFE /* PickerDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerDiagnostics.swift; sourceTree = "<group>"; };
 		D0491754C74C89372721C048 /* BrowserLauncherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserLauncherTests.swift; sourceTree = "<group>"; };
 		D0C4973092E1AFF59C4B13B2 /* LocalizationKeysetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationKeysetTests.swift; sourceTree = "<group>"; };
 		D74D89A753098030D87F5C95 /* URLRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLRule.swift; sourceTree = "<group>"; };
@@ -327,6 +333,8 @@
 			isa = PBXGroup;
 			children = (
 				B5F4044EDF9F6122F785A3AF /* BrowserCell.swift */,
+				BCA7DEEE633E70FAEE856E7F /* PickerDiagnosticJournal.swift */,
+				CD2EBE19CCEC1B31E5EFCAFE /* PickerDiagnostics.swift */,
 				6E4DC6DFF7272F0A3E05046E /* PickerInvocationSource.swift */,
 				B54EFE67B4ECDB1CD0007C3F /* PickerShortcutAssigner.swift */,
 				7F1D4AAC73146A4A04147713 /* PickerView.swift */,
@@ -553,6 +561,7 @@
 				12A368F6C4C340E238D2A4FA /* FileShortcutResolverTests.swift */,
 				4A480C399D8F1E54C9CF5038 /* HistoryEntryCodableTests.swift */,
 				D0C4973092E1AFF59C4B13B2 /* LocalizationKeysetTests.swift */,
+				7D0E3847FFDCE6F47E2B3111 /* PickerDiagnosticsTests.swift */,
 				7327F101385E633B8B4BCF1C /* PickerSessionTests.swift */,
 				34F0332F1C7EAE389D318421 /* SmokeTests.swift */,
 				F3B6ACACA3D2DDABA34C0C36 /* StatsManagerTests.swift */,
@@ -740,6 +749,7 @@
 				997BA84E8F08F283CC982BD9 /* FileShortcutResolverTests.swift in Sources */,
 				C094C7C30954EA5478B6A6C8 /* HistoryEntryCodableTests.swift in Sources */,
 				06385751AF3EAA0182154279 /* LocalizationKeysetTests.swift in Sources */,
+				E1FE16EF8F4E1FAFA59054B6 /* PickerDiagnosticsTests.swift in Sources */,
 				B57FA502957EF6A6E785F9F2 /* PickerSessionTests.swift in Sources */,
 				CEA20A8B9EE3FD840DFCEC31 /* SmokeTests.swift in Sources */,
 				A46BFDEB58E1353FD2220B32 /* StatsManagerTests.swift in Sources */,
@@ -815,6 +825,8 @@
 				4C6523DA4409E3421DD821F4 /* PickerActivationPermission.swift in Sources */,
 				F46AD7183B92E6D2489778AD /* PickerCommitModifierWatcher.swift in Sources */,
 				18547CD5334A220DDB99437C /* PickerCoordinator.swift in Sources */,
+				674680CC4542F0E790248301 /* PickerDiagnosticJournal.swift in Sources */,
+				C077A7CE5BDE37DAF8C84B5F /* PickerDiagnostics.swift in Sources */,
 				BDDDB9E7F10E34051E5A0145 /* PickerInvocationSource.swift in Sources */,
 				C3E08AEB2FBB187E7B55F275 /* PickerSettingsView.swift in Sources */,
 				3A83468C9E685F0A46AA5994 /* PickerShortcutAssigner.swift in Sources */,
