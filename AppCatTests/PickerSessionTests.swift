@@ -196,6 +196,25 @@ final class PickerSessionTests: XCTestCase {
         ), .ignore)
     }
 
+    @MainActor
+    func testDeferredGlobalMouseDownNormalizesWindowCoordinatesBeforeDeferring() async throws {
+        let panel = NSPanel(contentRect: NSRect(x: -600, y: 250, width: 200, height: 160),
+                            styleMask: .borderless, backing: .buffered, defer: false)
+        let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 60, y: 60),
+                                                    modifierFlags: [], timestamp: 1, windowNumber: panel.windowNumber,
+                                                    context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        XCTAssertTrue(event.window === panel)
+        let delivered = expectation(description: "Captured screen coordinates delivered")
+        PickerWindowController.deferGlobalMouseDownObservation(event: event, sessionID: UUID()) { observation in
+            XCTAssertEqual(observation.screenLocation, NSPoint(x: -540, y: 310))
+            delivered.fulfill()
+        }
+        panel.setFrameOrigin(NSPoint(x: 400, y: 500))
+        await fulfillment(of: [delivered], timeout: 1)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    @MainActor
     func testDeferredGlobalMouseDownUsesSynchronouslyCapturedPosition() async throws {
         let sessionID = UUID()
         let event = try XCTUnwrap(NSEvent.mouseEvent(
@@ -315,22 +334,6 @@ final class PickerSessionTests: XCTestCase {
             ),
             .ignore
         )
-    }
-
-    @MainActor
-    func testLocalTileMouseDownIsConsumedOnlyAfterSelection() {
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: true,
-            didSelect: true
-        ), .consume)
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: true,
-            didSelect: false
-        ), .passThrough)
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: false,
-            didSelect: true
-        ), .passThrough)
     }
 
     @MainActor
@@ -517,12 +520,8 @@ final class PickerSessionTests: XCTestCase {
         state.runningWindowsByAppID = [:]
         state.showWindowlessApps = true
 
-        // Build a real session so refreshManualPickerSession has a controller.
-        let previousPolicy = NSApp.activationPolicy()
-        NSApp.setActivationPolicy(.accessory)
-        defer { NSApp.setActivationPolicy(previousPolicy) }
-        if NSApp.isActive { NSApp.deactivate() }
-        coordinator.showPicker(state: state)
+        // Build the real session without presenting a panel or installing event monitors.
+        coordinator.preparePicker(state: state).prepareSession()
         defer { coordinator.dismissPicker(state: state) }
 
         state.isPickerVisible = true
@@ -560,11 +559,7 @@ final class PickerSessionTests: XCTestCase {
         state.runningWindowsByAppID = [:]
         state.showWindowlessApps = true
 
-        let previousPolicy = NSApp.activationPolicy()
-        NSApp.setActivationPolicy(.accessory)
-        defer { NSApp.setActivationPolicy(previousPolicy) }
-        if NSApp.isActive { NSApp.deactivate() }
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         defer { coordinator.dismissPicker(state: state) }
 
         state.isPickerVisible = true

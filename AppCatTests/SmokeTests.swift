@@ -391,14 +391,34 @@ final class SmokeTests: XCTestCase {
         XCTAssertFalse(panel.hidesOnDeactivate)
     }
 
-    func testPickerActivationPolicyIsAccessoryOnlyWhileThePickerIsPresented() {
+    func testPickerRestoresRegularActivationPolicyOnlyWhenApplicationIsActive() {
         XCTAssertEqual(PickerPanelInteractionPolicy.presentationActivationPolicy, .accessory)
         XCTAssertEqual(
-            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: true),
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(
+                isApplicationActive: true,
+                isMainWindowVisibleOnActiveSpace: true
+            ),
             .regular
         )
         XCTAssertEqual(
-            PickerPanelInteractionPolicy.dismissalActivationPolicy(isMainWindowVisibleOnActiveSpace: false),
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(
+                isApplicationActive: true,
+                isMainWindowVisibleOnActiveSpace: false
+            ),
+            .accessory
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(
+                isApplicationActive: false,
+                isMainWindowVisibleOnActiveSpace: true
+            ),
+            .accessory
+        )
+        XCTAssertEqual(
+            PickerPanelInteractionPolicy.dismissalActivationPolicy(
+                isApplicationActive: false,
+                isMainWindowVisibleOnActiveSpace: false
+            ),
             .accessory
         )
     }

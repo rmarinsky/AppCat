@@ -44,7 +44,15 @@ Pods/
 # Secrets
 .env
 .env.*
+!.env.example
+!.env.template
 secrets.json
+credentials.json
+*.pem
+*.key
+*.pfx
+*.dump
+*.sql.gz
 
 # Release artifacts
 release/

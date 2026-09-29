@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    secrets:
+      run: bash scripts/check-secrets.sh staged
+pre-push:
+  commands:
+    secrets:
+      run: bash scripts/check-secrets.sh range --push-refs
+      use_stdin: true

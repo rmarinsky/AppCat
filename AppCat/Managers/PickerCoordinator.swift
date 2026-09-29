@@ -11,6 +11,7 @@ final class PickerCoordinator {
     }
 
     private let browserLauncher: BrowserLauncher
+    private let makePickerController: @MainActor (AppState, PickerCoordinator) -> PickerWindowController
     private let urlResolver = URLResolver()
     private var pickerController: PickerWindowController?
     var historyManager: HistoryManager?
@@ -18,16 +19,31 @@ final class PickerCoordinator {
     var statsManager: StatsManager?
     weak var windowActivationTracker: WindowActivationTracker?
     var onHoldPickerMouseSelection: (() -> Void)?
+    var onPickerMousePress: (() -> Void)?
 
-    init() {
-        browserLauncher = BrowserLauncher()
+    #if DEV_BUILD
+        var diagnostics: PickerDiagnostics? { pickerController?.diagnostics }
+    #endif
+
+    convenience init() {
+        self.init(browserLauncher: BrowserLauncher())
     }
 
-    init(browserLauncher: BrowserLauncher) {
+    init(browserLauncher: BrowserLauncher,
+         makePickerController: @escaping @MainActor (AppState, PickerCoordinator) -> PickerWindowController = {
+             PickerWindowController(appState: $0, coordinator: $1)
+         })
+    {
         self.browserLauncher = browserLauncher
+        self.makePickerController = makePickerController
     }
 
     func showPicker(state: AppState) {
+        preparePicker(state: state).show()
+    }
+
+    /// Capture routing/switcher state without ordering a window or installing input monitors.
+    func preparePicker(state: AppState) -> PickerWindowController {
         // Every ordering input of a manual session is captured once, here, and never re-read for
         // the life of that session. Without this, a background app stealing focus mid-session (a
         // notification banner, a helper launching) would reshuffle the row under the user's
@@ -39,20 +55,20 @@ final class PickerCoordinator {
             state.manualPickerFrontmostKey = activationSnapshot?.frontmostKey
         }
         if pickerController == nil {
-            pickerController = PickerWindowController(appState: state, coordinator: self)
+            pickerController = makePickerController(state, self)
         }
         // Mark presentation pending before ordering front. `isPickerVisible` flips true only after
         // a successful orderFront so Dock reopen is not blocked during the deactivation wait.
         // Snapshot/focus seeding happens inside show() and does not depend on isPickerVisible.
         state.isPickerPresentationPending = true
-        pickerController?.show()
+        return pickerController!
     }
 
     /// Build the picker panel + SwiftUI hierarchy ahead of time (ordered out) so the first real
     /// presentation doesn't pay window/view-graph construction on the click-to-picker path.
     func prewarmPicker(state: AppState) {
         guard pickerController == nil, !state.isPickerSessionActive else { return }
-        pickerController = PickerWindowController(appState: state, coordinator: self)
+        pickerController = makePickerController(state, self)
         pickerController?.prewarm()
     }
 
@@ -74,6 +90,7 @@ final class PickerCoordinator {
 
     func openFocusedItem(state: AppState) {
         guard state.isPickerSessionActive else { return }
+        guard pickerController?.allowsModifierCommit != false else { return }
         guard let pickerController else {
             // No panel backing the session — clear stuck empty/OOB state.
             dismissPicker(state: state)
@@ -116,6 +133,9 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) -> Bool {
+        #if DEV_BUILD
+            diagnostics?.record("selection.request", detail: "active=\(state.isPickerSessionActive) mouse=\(source == .pickerClick) item=\(diagnostics?.token(for: item.id) ?? 0)")
+        #endif
         guard state.isPickerSessionActive else { return false }
         if state.pickerInvocationSource == .holdOptionTab,
            source == .pickerClick
@@ -153,6 +173,10 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) {
+        #if DEV_BUILD
+            let diagnosticContext = diagnostics?.context ?? PickerDiagnosticContext()
+            diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: browser.id) ?? 0) hasURL=\(state.pendingURL != nil)")
+        #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
@@ -160,6 +184,9 @@ final class PickerCoordinator {
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            #if DEV_BUILD
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
+            #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: browser.id)
             }
@@ -178,6 +205,9 @@ final class PickerCoordinator {
             mode: mode,
             profile: profile
         ) { [weak self] succeeded in
+            #if DEV_BUILD
+                self?.diagnostics?.record("launch.openResult", detail: "success=\(succeeded)", context: diagnosticContext)
+            #endif
             guard succeeded, let self else { return }
             self.recordBrowserOpen(
                 pendingOpen,
@@ -203,6 +233,10 @@ final class PickerCoordinator {
         state: AppState,
         source: OpenSource = .pickerClick
     ) {
+        #if DEV_BUILD
+            let diagnosticContext = diagnostics?.context ?? PickerDiagnosticContext()
+            diagnostics?.record("launch.request", detail: "target=\(diagnostics?.token(for: app.id) ?? 0) hasURL=\(state.pendingURL != nil)")
+        #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
             dismissPicker(state: state)
@@ -210,6 +244,9 @@ final class PickerCoordinator {
                 if UITestRuntime.skipsExternalLaunch { return }
             #endif
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            #if DEV_BUILD
+                diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
+            #endif
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: app.id)
             }
@@ -220,6 +257,9 @@ final class PickerCoordinator {
             if UITestRuntime.skipsExternalLaunch { return }
         #endif
         browserLauncher.open(urls: pendingOpen.launchURLs, with: app) { [weak self] results in
+            #if DEV_BUILD
+                self?.diagnostics?.record("launch.openResult", detail: "count=\(results.count) succeeded=\(results.filter { $0 }.count)", context: diagnosticContext)
+            #endif
             guard let self else { return }
             let successfulIndices = results.indices.filter {
                 results[$0]

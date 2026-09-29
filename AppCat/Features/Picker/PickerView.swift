@@ -866,7 +866,15 @@ struct PickerView: View {
         }
         .onAppear {
             prepareInitialFocus(with: items)
+            #if DEV_BUILD
+                pickerCoordinator?.diagnostics?.displayed(items.map(\.id))
+            #endif
         }
+        #if DEV_BUILD
+            .onChange(of: items.map(\.id)) { _, ids in
+                pickerCoordinator?.diagnostics?.displayed(ids)
+            }
+        #endif
         .frame(maxWidth: .infinity, minHeight: panelHeight, maxHeight: panelHeight, alignment: .top)
     }
 

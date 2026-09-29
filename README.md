@@ -36,7 +36,10 @@ The reason AppCat earns its name. Press `⌥Tab` anywhere to open a HUD switcher
 - Apps **with open windows first**, background/menu-bar apps dimmed below a divider (both toggleable).
 - **Ordered by the window you were most recently in**, so it opens focused on the one you just left — tap `⌥Tab` and release to bounce straight back. Each further press steps one window further back; `⇧⌥Tab` steps forward again. Apps you have never switched to fall back to how often you pick them.
 - Toggle-shortcut and service-key sessions support arrows, `Tab`, positional keys, and **type-to-focus**, then `Return`. Hold-to-switch sessions use `Tab` / `Shift+Tab` and open on `Option` release.
-- Every tile is clickable. Toggle/service pickers wait for a fresh window snapshot, and newly
+- Every tile is clickable: press and release on the same tile to select it. Releasing outside
+  that tile cancels the click and closes the picker without opening an app. A mouse press takes
+  priority over modifier-release selection until the click ends.
+- Toggle/service pickers wait for a fresh window snapshot, and newly
   launched apps use their current runtime icon without waiting for the installed-app rescan.
 
 Window awareness uses the Accessibility API (with a Window-menu fallback for Electron editors like VS Code, Cursor, and Zed), so it needs Accessibility permission.
@@ -167,6 +170,25 @@ open AppCat.xcodeproj
 Schemes:
 - **AppCat** → Release build → `AppCat.app`
 - **AppCat DEV** → Debug build with logging → `AppCat DEV.app` (separate bundle ID, safe to run alongside the release)
+
+### Tests without desktop interaction
+
+Run `bash scripts/test-appcat-headless.sh` for the full unit/integration XCTest suite.
+It builds the test bundle and loads it in a separate runner without starting AppCat's
+menu bar scene or shortcut listeners. Picker tests prepare sessions with unshown panels;
+they do not post input events. Use `bash scripts/test-picker-diagnostics.sh` for the smaller
+Foundation-only gesture/diagnostic checks. UI tests remain a separate, opt-in scheme.
+
+Before contributing, install the pinned tools with `mise install`, then run
+`mise exec -- lefthook install`. The commit hook scans staged changes; the push hook
+scans the refs Git is sending. CI scans the PR history with a pinned Gitleaks image and
+scans tracked files with pinned Gitleaks and ripsecrets versions. Run
+`mise exec -- bash scripts/check-secrets.sh tree` to scan tracked files. Scanner output
+never prints suspected secret values.
+These checks catch accidental disclosure; they are not an independent security boundary
+against a PR that changes its own workflow, scanner, or tool configuration. Review those
+changes explicitly. Checkout credentials are not persisted, and the scan job has no secrets
+or write permissions.
 
 ---
 

@@ -1,7 +1,101 @@
 @testable import AppCat
+import AppKit
 import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
+    @MainActor
+    func testReplacedLocalMouseHandlerCannotCommitCurrentSession() throws {
+        let fixture = MousePickerFixture(testCase: self, app: makeApp(id: "com.test.Editor", urlSchemes: []))
+        let obsoleteHandler = fixture.begin()
+        let currentHandler = fixture.begin()
+
+        XCTAssertNotNil(obsoleteHandler(try fixture.mouse(.leftMouseDown, number: 19)))
+        XCTAssertTrue(fixture.controller.allowsModifierCommit)
+        XCTAssertNil(currentHandler(try fixture.mouse(.leftMouseDown, number: 20)))
+        XCTAssertNotNil(obsoleteHandler(try fixture.mouse(.leftMouseUp, number: 21)))
+        XCTAssertTrue(fixture.world.openedURLs.isEmpty)
+        XCTAssertTrue(fixture.state.isPickerSessionActive)
+        XCTAssertFalse(fixture.controller.allowsModifierCommit)
+
+        XCTAssertNil(currentHandler(try fixture.mouse(.leftMouseUp, number: 22)))
+        XCTAssertEqual(fixture.world.openedURLs.count, 1)
+        XCTAssertFalse(fixture.state.isPickerSessionActive)
+        XCTAssertFalse(fixture.panel.isVisible)
+    }
+
+    @MainActor
+    func testLocalMouseClickConsumesBothEventsAndLaunchesEachTileOnce() throws {
+        let apps = (0 ..< 3).map { makeApp(id: "com.test.Editor\($0)", urlSchemes: []) }
+        let link = try XCTUnwrap(URL(string: "https://example.com/repeated"))
+        for target in [link, URL(fileURLWithPath: "/tmp/mouse-test.txt"), nil] {
+            let fixture = MousePickerFixture(testCase: self, app: apps[0])
+            let runningApp = FakeRunningApplication()
+            fixture.world.runningApplication = runningApp
+            fixture.world.hasOpenWindows = true
+            for (index, app) in apps.enumerated() {
+                let handler = fixture.begin(target: target, source: target == nil ? .holdOptionTab : .linkRouting,
+                                            items: apps.map { PickerItem(app: $0) })
+                let initialFocus = fixture.state.focusedBrowserIndex
+                let point = NSPoint(x: 60 + 96 * index, y: 60)
+                XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10, location: point)))
+                XCTAssertEqual(fixture.state.focusedBrowserIndex, initialFocus, "Press must not scroll the tile")
+                fixture.coordinator.openFocusedItem(state: fixture.state) // Option release while pressed.
+                XCTAssertTrue(fixture.state.isPickerSessionActive)
+                // Real physical down/up pairs can share the same event number.
+                XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: point)))
+                XCTAssertFalse(fixture.state.isPickerSessionActive)
+                XCTAssertFalse(fixture.panel.isVisible)
+                XCTAssertNotNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: point)))
+                XCTAssertFalse(fixture.coordinator.select(PickerItem(app: app), state: fixture.state))
+                if let target {
+                    XCTAssertEqual(fixture.world.openedURLs.count, index + 1)
+                    XCTAssertEqual(fixture.world.openedURLs.last?.urls, [target])
+                    XCTAssertEqual(fixture.world.openedURLs.last?.appURL, app.appURL)
+                } else {
+                    XCTAssertEqual(runningApp.activateCount, index + 1)
+                    XCTAssertTrue(fixture.world.openedURLs.isEmpty)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testLocalMouseReleaseOutsidePressedTileDismissesWithoutLaunching() throws {
+        for releasePoint in [NSPoint(x: -10, y: 60), NSPoint(x: 156, y: 60)] {
+            let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+            let fixture = MousePickerFixture(testCase: self, app: app)
+            let handler = fixture.begin(items: [PickerItem(app: app), PickerItem(app: makeApp(id: "com.test.Other", urlSchemes: []))])
+            XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10)))
+            XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: releasePoint)))
+            XCTAssertTrue(fixture.world.openedURLs.isEmpty)
+            XCTAssertFalse(fixture.state.isPickerSessionActive)
+            XCTAssertTrue(fixture.controller.allowsModifierCommit)
+        }
+    }
+
+    @MainActor
+    func testEscapeAndAccessibilitySelectionInvalidatePendingMouseRelease() throws {
+        for useAccessibility in [false, true] {
+            let app = makeApp(id: "com.test.Editor", urlSchemes: [])
+            let fixture = MousePickerFixture(testCase: self, app: app)
+            let handler = fixture.begin()
+            XCTAssertNotNil(handler(try fixture.mouse(.rightMouseDown, number: 9)))
+            XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10)))
+            if useAccessibility {
+                XCTAssertTrue(fixture.coordinator.select(PickerItem(app: app), state: fixture.state))
+            } else {
+                let escape = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                                          timestamp: 11, windowNumber: fixture.panel.windowNumber,
+                                                          context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                                                          isARepeat: false, keyCode: 53))
+                XCTAssertTrue(fixture.controller.handleKeyEvent(escape))
+            }
+            XCTAssertNotNil(handler(try fixture.mouse(.leftMouseUp, number: 12)))
+            XCTAssertEqual(fixture.world.openedURLs.count, useAccessibility ? 1 : 0)
+            XCTAssertFalse(fixture.state.isPickerSessionActive)
+        }
+    }
+
     @MainActor
     func testPickerSessionCommitsOnlyFirstSelection() throws {
         let world = FakeBrowserLauncherWorld()
@@ -289,7 +383,7 @@ final class BrowserLauncherTests: XCTestCase {
         let state = AppState()
         state.pickerInvocationSource = .serviceKey
 
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 1])
 
         stats.recordManualPickerSwitch(targetID: "com.test.editor")
@@ -297,7 +391,7 @@ final class BrowserLauncherTests: XCTestCase {
 
         coordinator.dismissPicker(state: state)
         state.pickerInvocationSource = .serviceKey
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 2])
         coordinator.dismissPicker(state: state)
     }
@@ -714,6 +808,76 @@ private final class FakeBrowserLauncherWorld {
 
 private enum BrowserLauncherTestError: Error {
     case failed
+}
+
+/// Uses the actual monitor callback, hit test, coordinator, and launcher. Only the AppKit
+/// window and external launch operations are faked; no event is posted to the desktop.
+@MainActor
+private final class MousePickerFixture {
+    let state = AppState()
+    let world = FakeBrowserLauncherWorld()
+    let panel = UnorderedPickerPanel(contentRect: NSRect(x: 100, y: 200, width: 400, height: 200),
+                                     styleMask: .borderless, backing: .buffered, defer: false)
+    let coordinator: PickerCoordinator
+    let controller: PickerWindowController
+    let app: InstalledApp
+
+    init(testCase: XCTestCase, app: InstalledApp) {
+        self.app = app
+        let testPanel = panel
+        let diagnosticDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("appcat-input-test-\(UUID().uuidString)")
+        let diagnosticQueue = DispatchQueue(label: "appcat.test.mouse-diagnostics")
+        testCase.addTeardownBlock {
+            // These fixtures never begin observation. Drain their queued writes before removal
+            // so a late write cannot recreate the directory after the test completes.
+            diagnosticQueue.sync {}
+            if FileManager.default.fileExists(atPath: diagnosticDirectory.path) {
+                try FileManager.default.removeItem(at: diagnosticDirectory)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: diagnosticDirectory.path))
+        }
+        var preparedController: PickerWindowController?
+        coordinator = PickerCoordinator(browserLauncher: BrowserLauncher(dependencies: world.dependencies()),
+                                        makePickerController: { state, coordinator in
+            let controller = PickerWindowController(appState: state, coordinator: coordinator, panel: testPanel)
+            controller.diagnostics = PickerDiagnostics(directory: diagnosticDirectory, queue: diagnosticQueue)
+            preparedController = controller
+            return controller
+        })
+        coordinator.prewarmPicker(state: state)
+        controller = preparedController!
+        state.pickerScale = 1
+    }
+
+    func begin(target: URL? = URL(string: "https://example.com/mouse-routing")!,
+               source: PickerInvocationSource = .linkRouting, items: [PickerItem]? = nil) -> (NSEvent) -> NSEvent?
+    {
+        state.clearPendingOpen()
+        if let target { state.setPendingOpen(displayURLs: [target], launchURLs: [target]) }
+        state.pickerInvocationSource = source
+        let session = controller.prepareSession()
+        state.isPickerVisible = true
+        state.pickerItemsSnapshot = items ?? [PickerItem(app: app)]
+        return controller.localMouseHandler(for: session)
+    }
+
+    func mouse(_ type: NSEvent.EventType, number: Int, location: NSPoint = NSPoint(x: 60, y: 60)) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.mouseEvent(with: type, location: location, modifierFlags: .option,
+                                        timestamp: Double(number), windowNumber: panel.windowNumber,
+                                        context: nil, eventNumber: number, clickCount: 1, pressure: 1))
+    }
+}
+
+@MainActor
+private final class UnorderedPickerPanel: NSPanel {
+    override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
+        XCTAssertEqual(place, .out, "Headless input tests must never present a window")
+    }
+
+    override func orderFrontRegardless() {
+        XCTFail("Headless input tests must never present a window")
+    }
 }
 
 @MainActor
