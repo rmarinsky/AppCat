@@ -36,7 +36,10 @@ The reason AppCat earns its name. Press `⌥Tab` anywhere to open a HUD switcher
 - Apps **with open windows first**, background/menu-bar apps dimmed below a divider (both toggleable).
 - **Ordered by the window you were most recently in**, so it opens focused on the one you just left — tap `⌥Tab` and release to bounce straight back. Each further press steps one window further back; `⇧⌥Tab` steps forward again. Apps you have never switched to fall back to how often you pick them.
 - Toggle-shortcut and service-key sessions support arrows, `Tab`, positional keys, and **type-to-focus**, then `Return`. Hold-to-switch sessions use `Tab` / `Shift+Tab` and open on `Option` release.
-- Every tile is clickable. Toggle/service pickers wait for a fresh window snapshot, and newly
+- Every tile is clickable: press and release on the same tile to select it. Releasing outside
+  that tile cancels the click and closes the picker without opening an app. A mouse press takes
+  priority over modifier-release selection until the click ends.
+- Toggle/service pickers wait for a fresh window snapshot, and newly
   launched apps use their current runtime icon without waiting for the installed-app rescan.
 
 Window awareness uses the Accessibility API (with a Window-menu fallback for Electron editors like VS Code, Cursor, and Zed), so it needs Accessibility permission.
