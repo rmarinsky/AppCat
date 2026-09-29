@@ -1,0 +1,33 @@
+import Foundation
+
+/// Owns a single local mouse gesture. Global observations can cancel it, never select.
+struct PickerMouseSelection {
+    enum Action: Equatable {
+        case passThrough
+        case consume
+        case select(String)
+    }
+
+    private struct Press {
+        let session: UUID
+        let item: String
+        let eventNumber: Int
+    }
+
+    private var press: Press?
+    var isTracking: Bool { press != nil }
+
+    mutating func mouseDown(session: UUID?, item: String?, eventNumber: Int) -> Action {
+        guard let session, let item else { return .passThrough }
+        press = Press(session: session, item: item, eventNumber: eventNumber)
+        return .consume
+    }
+
+    mutating func mouseUp(session: UUID?, item: String?, eventNumber: Int) -> Action {
+        guard let press else { return .passThrough }
+        self.press = nil
+        return .select(press.item)
+    }
+
+    mutating func cancel() { press = nil }
+}

@@ -11,5 +11,6 @@ xcrun swiftc -target "$(uname -m)-apple-macosx14.0" -D DEBUG -D DEV_BUILD -F "$p
     -Xlinker -rpath -Xlinker "$picker_swiftlibs" \
     -Xlinker -rpath -Xlinker "$picker_developer_dir/../SharedFrameworks" \
     AppCat/Features/Picker/PickerDiagnosticJournal.swift AppCatTests/PickerDiagnosticsTests.swift \
+    AppCat/Features/Picker/PickerMouseSelection.swift AppCatTests/PickerMouseSelectionTests.swift \
     scripts/PickerDiagnosticsTestMain.swift -o build/picker-diagnostics-tests/tests
 build/picker-diagnostics-tests/tests
