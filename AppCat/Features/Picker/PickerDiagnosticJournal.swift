@@ -1,0 +1,88 @@
+#if DEV_BUILD
+import Foundation
+
+/// Allow-listed metadata only. Never add URLs, titles, bundle IDs, or keyboard text.
+struct PickerDiagnosticSnapshot: Codable, Equatable {
+    var window = 0
+    var observedSession: UUID?
+    var activeSession: UUID?
+    var sessionActive = false
+    var stateVisible = false
+    var pending = false
+    var closing = false
+    var panelVisible = false
+    var serverVisible: Bool?
+    var panelKey = false
+    var onActiveSpace = false
+    var occlusionVisible = false
+    var appActive = false
+    var activationPolicy = 1
+    var source = "none"
+    var hasURL = false
+    var itemCount = 0
+    var focusedIndex = 0
+    var renderedItems: [Int] = []
+    var optionDown = false
+}
+
+struct PickerDiagnosticEvent: Codable {
+    let sequence: Int
+    let uptime: TimeInterval
+    let date: Date
+    let session: UUID?
+    let gesture: UUID?
+    let name: String
+    let detail: String
+    let state: PickerDiagnosticSnapshot?
+}
+
+struct PickerDiagnosticJournal {
+    private(set) var events: [PickerDiagnosticEvent] = []
+    private var sequence = 0
+    private var scope = ""
+    private var candidate: String?
+    private var candidateSince: TimeInterval = 0
+    private var reported: Set<String> = []
+    let capacity: Int
+
+    init(capacity: Int = 256) {
+        self.capacity = max(1, min(capacity, 1024))
+    }
+
+    mutating func append(_ name: String, detail: String = "", session: UUID? = nil,
+                         gesture: UUID? = nil, state: PickerDiagnosticSnapshot? = nil,
+                         at uptime: TimeInterval, date: Date = Date()) {
+        sequence += 1
+        events.append(.init(sequence: sequence, uptime: uptime, date: date, session: session,
+                            gesture: gesture, name: name, detail: String(detail.prefix(512)), state: state))
+        if events.count > capacity { events.removeFirst(events.count - capacity) }
+    }
+
+    mutating func anomaly(in state: PickerDiagnosticSnapshot, at uptime: TimeInterval) -> String? {
+        let newScope = "\(state.window):\(state.observedSession?.uuidString ?? "none")"
+        if scope != newScope {
+            scope = newScope
+            candidate = nil
+            reported = []
+        }
+        // A sample dispatched before replacement must not diagnose the replacement session.
+        guard state.activeSession == nil || state.activeSession == state.observedSession else {
+            candidate = nil
+            return nil
+        }
+        let reason: String?
+        let settling: TimeInterval
+        if !state.sessionActive && (state.panelVisible || state.serverVisible == true) {
+            reason = "closed_panel_visible"
+            settling = 0.3
+        } else {
+            reason = nil
+            settling = 0.3
+        }
+        guard let reason else { candidate = nil; return nil }
+        if candidate != reason { candidate = reason; candidateSince = uptime }
+        guard uptime - candidateSince >= settling, reported.insert(reason).inserted else { return nil }
+        return reason
+    }
+}
+#endif
