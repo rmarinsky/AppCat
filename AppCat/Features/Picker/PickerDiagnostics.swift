@@ -91,7 +91,13 @@
                 }
             }
             let number = event.type == .flagsChanged ? -1 : event.eventNumber
-            record("input.\(origin)", detail: "type=\(event.type.rawValue) event=\(number) timestamp=\(event.timestamp) option=\(event.modifierFlags.contains(.option)) window=\(event.windowNumber)")
+            var position = ""
+            if event.type != .flagsChanged {
+                let point = event.locationInWindow
+                let screenPoint = event.window?.convertPoint(toScreen: point) ?? point
+                position = " hasWindow=\(event.window != nil) x=\(point.x) y=\(point.y) screenX=\(screenPoint.x) screenY=\(screenPoint.y)"
+            }
+            record("input.\(origin)", detail: "type=\(event.type.rawValue) event=\(number) timestamp=\(event.timestamp) option=\(event.modifierFlags.contains(.option)) window=\(event.windowNumber)\(position)")
         }
 
         private func currentState() -> PickerDiagnosticSnapshot? {

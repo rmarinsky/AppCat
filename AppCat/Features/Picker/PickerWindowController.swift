@@ -31,21 +31,21 @@ private class KeyablePanel: NSPanel {
         var diagnosticOrdering: ((String, Bool) -> Void)?
 
         override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
-            traceOrdering("order.before mode=\(place.rawValue)", includeStack: place != .out)
+            traceOrdering("order.before mode=\(place.rawValue)", ordersWindowIn: place != .out)
             super.order(place, relativeTo: otherWin)
             traceOrdering("order.after mode=\(place.rawValue)")
         }
 
         override func orderFrontRegardless() {
-            traceOrdering("orderFrontRegardless.before", includeStack: true)
+            traceOrdering("orderFrontRegardless.before", ordersWindowIn: true)
             super.orderFrontRegardless()
             traceOrdering("orderFrontRegardless.after")
         }
 
-        private func traceOrdering(_ operation: String, includeStack: Bool = false) {
+        private func traceOrdering(_ operation: String, ordersWindowIn: Bool = false) {
             guard let diagnosticContext else { return }
             let context = diagnosticContext()
-            diagnosticOrdering?(operation, includeStack)
+            diagnosticOrdering?(operation, ordersWindowIn)
             let eventType = NSApp.currentEvent.map { Int($0.type.rawValue) } ?? -1
             Log.picker.notice(
                 "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.windowNumber) visible=\(self.isVisible) key=\(self.isKeyWindow) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) eventType=\(eventType) \(context, privacy: .public)"
@@ -1113,10 +1113,10 @@ final class PickerWindowController: NSObject {
             panel.diagnosticContext = { [weak self] in
                 self?.diagnosticContext ?? "controller=gone"
             }
-            panel.diagnosticOrdering = { [weak self] operation, requestsFront in
+            panel.diagnosticOrdering = { [weak self] operation, ordersWindowIn in
                 guard let self else { return }
                 self.diagnostics.record(operation)
-                if requestsFront && self.activeSessionID == nil {
+                if ordersWindowIn && self.activeSessionID == nil {
                     // Symbolicate only anomalous front ordering, not the normal click path.
                     for (index, frame) in Thread.callStackSymbols.prefix(18).enumerated() {
                         self.diagnostics.record("unexpectedOrder.stack", detail: "frame=\(index) \(frame)")

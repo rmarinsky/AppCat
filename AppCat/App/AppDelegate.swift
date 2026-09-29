@@ -244,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Second line of defense — the primary one is explicit cancellation on incoming URLs.
             guard self.appState.pendingURL == nil, !self.appState.isPickerVisible else {
                 Log.app.info(
-                    "Skipping scheduled main window open: pendingURL=\(self.appState.pendingURL?.absoluteString ?? "nil", privacy: .public), pickerVisible=\(self.appState.isPickerVisible, privacy: .public)"
+                    "Skipping scheduled main window open: hasPendingURL=\(self.appState.pendingURL != nil, privacy: .public), pickerVisible=\(self.appState.isPickerVisible, privacy: .public)"
                 )
                 return
             }
