@@ -382,7 +382,7 @@ final class BrowserLauncherTests: XCTestCase {
         let state = AppState()
         state.pickerInvocationSource = .serviceKey
 
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 1])
 
         stats.recordManualPickerSwitch(targetID: "com.test.editor")
@@ -390,7 +390,7 @@ final class BrowserLauncherTests: XCTestCase {
 
         coordinator.dismissPicker(state: state)
         state.pickerInvocationSource = .serviceKey
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         XCTAssertEqual(state.manualPickerTargetCounts, ["com.test.editor": 2])
         coordinator.dismissPicker(state: state)
     }

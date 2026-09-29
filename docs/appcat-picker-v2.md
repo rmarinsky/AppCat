@@ -142,6 +142,8 @@ Invocation-source policy:
   Only the matching local mouse-up on the same tile in the same session commits, once. Releasing
   outside that tile cancels and closes without launching; Escape, close, and session replacement
   invalidate the reservation. An unrelated mouse-up cannot commit the reserved tile.
+  Removed local-monitor callbacks cannot act on replacement sessions; an old-session release
+  cannot clear a current press. Event coordinates are captured in screen space before deferral.
 - Mouse ownership blocks modifier-release commits and disarms the toggle modifier watcher.
   Global mouse observations never select a tile; a matching global release can only cancel.
   SwiftUI button actions remain available for accessibility activation.

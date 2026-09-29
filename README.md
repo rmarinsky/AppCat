@@ -171,6 +171,14 @@ Schemes:
 - **AppCat** → Release build → `AppCat.app`
 - **AppCat DEV** → Debug build with logging → `AppCat DEV.app` (separate bundle ID, safe to run alongside the release)
 
+### Tests without desktop interaction
+
+Run `bash scripts/test-appcat-headless.sh` for the full unit/integration XCTest suite.
+It builds the test bundle and loads it in a separate runner without starting AppCat's
+menu bar scene or shortcut listeners. Picker tests prepare sessions with unshown panels;
+they do not post input events. Use `bash scripts/test-picker-diagnostics.sh` for the smaller
+Foundation-only gesture/diagnostic checks. UI tests remain a separate, opt-in scheme.
+
 ---
 
 ## ❓ FAQ

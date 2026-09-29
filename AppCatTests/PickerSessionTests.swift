@@ -520,12 +520,8 @@ final class PickerSessionTests: XCTestCase {
         state.runningWindowsByAppID = [:]
         state.showWindowlessApps = true
 
-        // Build a real session so refreshManualPickerSession has a controller.
-        let previousPolicy = NSApp.activationPolicy()
-        NSApp.setActivationPolicy(.accessory)
-        defer { NSApp.setActivationPolicy(previousPolicy) }
-        if NSApp.isActive { NSApp.deactivate() }
-        coordinator.showPicker(state: state)
+        // Build the real session without presenting a panel or installing event monitors.
+        coordinator.preparePicker(state: state).prepareSession()
         defer { coordinator.dismissPicker(state: state) }
 
         state.isPickerVisible = true
@@ -563,11 +559,7 @@ final class PickerSessionTests: XCTestCase {
         state.runningWindowsByAppID = [:]
         state.showWindowlessApps = true
 
-        let previousPolicy = NSApp.activationPolicy()
-        NSApp.setActivationPolicy(.accessory)
-        defer { NSApp.setActivationPolicy(previousPolicy) }
-        if NSApp.isActive { NSApp.deactivate() }
-        coordinator.showPicker(state: state)
+        coordinator.preparePicker(state: state).prepareSession()
         defer { coordinator.dismissPicker(state: state) }
 
         state.isPickerVisible = true

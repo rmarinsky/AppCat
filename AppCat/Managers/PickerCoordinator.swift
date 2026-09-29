@@ -39,6 +39,11 @@ final class PickerCoordinator {
     }
 
     func showPicker(state: AppState) {
+        preparePicker(state: state).show()
+    }
+
+    /// Capture routing/switcher state without ordering a window or installing input monitors.
+    func preparePicker(state: AppState) -> PickerWindowController {
         // Every ordering input of a manual session is captured once, here, and never re-read for
         // the life of that session. Without this, a background app stealing focus mid-session (a
         // notification banner, a helper launching) would reshuffle the row under the user's
@@ -56,7 +61,7 @@ final class PickerCoordinator {
         // a successful orderFront so Dock reopen is not blocked during the deactivation wait.
         // Snapshot/focus seeding happens inside show() and does not depend on isPickerVisible.
         state.isPickerPresentationPending = true
-        pickerController?.show()
+        return pickerController!
     }
 
     /// Build the picker panel + SwiftUI hierarchy ahead of time (ordered out) so the first real
