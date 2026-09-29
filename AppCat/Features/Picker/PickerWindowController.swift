@@ -575,6 +575,11 @@ final class PickerWindowController: NSObject {
                 return nil
             case let .select(id):
                 if let item, item.id == id {
+                    // Do not move focus on mouse-down: SwiftUI centers the focused tile and
+                    // would scroll it away from the pointer before the matching mouse-up.
+                    if let index = self.pickerItemsForCurrentSession().firstIndex(where: { $0.id == id }) {
+                        self.appState.focusedBrowserIndex = index
+                    }
                     self.coordinator.select(item, state: self.appState, source: .pickerClick)
                 }
                 return nil
@@ -898,7 +903,6 @@ final class PickerWindowController: NSObject {
             return nil
         }
 
-        appState.focusedBrowserIndex = index
         return items[index]
     }
 
