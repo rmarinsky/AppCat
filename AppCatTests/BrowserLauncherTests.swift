@@ -41,10 +41,11 @@ final class BrowserLauncherTests: XCTestCase {
                 XCTAssertEqual(fixture.state.focusedBrowserIndex, initialFocus, "Press must not scroll the tile")
                 fixture.coordinator.openFocusedItem(state: fixture.state) // Option release while pressed.
                 XCTAssertTrue(fixture.state.isPickerSessionActive)
-                XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 11, location: point)))
+                // Real physical down/up pairs can share the same event number.
+                XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: point)))
                 XCTAssertFalse(fixture.state.isPickerSessionActive)
                 XCTAssertFalse(fixture.panel.isVisible)
-                XCTAssertNotNil(handler(try fixture.mouse(.leftMouseUp, number: 12, location: point)))
+                XCTAssertNotNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: point)))
                 XCTAssertFalse(fixture.coordinator.select(PickerItem(app: app), state: fixture.state))
                 if let target {
                     XCTAssertEqual(fixture.world.openedURLs.count, index + 1)
@@ -65,7 +66,7 @@ final class BrowserLauncherTests: XCTestCase {
             let fixture = MousePickerFixture(testCase: self, app: app)
             let handler = fixture.begin(items: [PickerItem(app: app), PickerItem(app: makeApp(id: "com.test.Other", urlSchemes: []))])
             XCTAssertNil(handler(try fixture.mouse(.leftMouseDown, number: 10)))
-            XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 11, location: releasePoint)))
+            XCTAssertNil(handler(try fixture.mouse(.leftMouseUp, number: 10, location: releasePoint)))
             XCTAssertTrue(fixture.world.openedURLs.isEmpty)
             XCTAssertFalse(fixture.state.isPickerSessionActive)
             XCTAssertTrue(fixture.controller.allowsModifierCommit)
