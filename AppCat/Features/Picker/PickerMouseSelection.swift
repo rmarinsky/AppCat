@@ -16,7 +16,13 @@ struct PickerMouseSelection {
     }
 
     private var press: Press?
-    var isTracking: Bool { press != nil }
+    var isTracking: Bool {
+        press != nil
+    }
+
+    var allowsModifierCommit: Bool {
+        !isTracking
+    }
 
     mutating func mouseDown(session: UUID?, item: String?, eventNumber: Int) -> Action {
         guard let session, let item else { return .passThrough }
@@ -33,5 +39,7 @@ struct PickerMouseSelection {
         return .select(press.item)
     }
 
-    mutating func cancel() { press = nil }
+    mutating func cancel() {
+        press = nil
+    }
 }

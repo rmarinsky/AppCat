@@ -1,10 +1,20 @@
 #if canImport(AppCat)
-@testable import AppCat
+    @testable import AppCat
 #endif
 import Foundation
 import XCTest
 
 final class PickerMouseSelectionTests: XCTestCase {
+    @objc func testModifierReleaseCannotCommitWhileMouseOwnsTheGesture() {
+        var mouse = PickerMouseSelection()
+        let session = UUID()
+        XCTAssertTrue(mouse.allowsModifierCommit)
+        _ = mouse.mouseDown(session: session, item: "first", eventNumber: 10)
+        XCTAssertFalse(mouse.allowsModifierCommit)
+        XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: 10), .select("first"))
+        XCTAssertTrue(mouse.allowsModifierCommit)
+    }
+
     @objc func testReleaseOutsideOriginalTileCancelsWithoutOpeningAnotherTile() {
         let session = UUID()
         for releasedItem: String? in [nil, "second"] {
@@ -37,6 +47,7 @@ final class PickerMouseSelectionTests: XCTestCase {
         XCTAssertEqual(mouse.mouseDown(session: nil, item: "first", eventNumber: 11), .passThrough)
         XCTAssertEqual(mouse.mouseDown(session: session, item: nil, eventNumber: 11), .passThrough)
     }
+
     @objc func testPressConsumesWithoutSelectingAndReleaseSelectsOnce() {
         var mouse = PickerMouseSelection()
         let session = UUID()

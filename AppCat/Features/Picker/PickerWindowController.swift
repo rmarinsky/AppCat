@@ -90,11 +90,6 @@ struct PickerGlobalMouseDownObservation: Equatable {
     let sessionID: UUID
 }
 
-enum PickerLocalMouseDownAction: Equatable {
-    case passThrough
-    case consume
-}
-
 enum PickerPanelInteractionPolicy {
     static let collectionBehavior: NSWindow.CollectionBehavior = [
         .canJoinAllSpaces,
@@ -201,6 +196,8 @@ final class PickerWindowController: NSObject {
     private unowned let coordinator: PickerCoordinator
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
+    private var mouseSelection = PickerMouseSelection()
+    var allowsModifierCommit: Bool { mouseSelection.allowsModifierCommit }
     private var keyMonitor: Any?
     private var ignoreDismissUntil: Date = .distantPast
     private var isClosing = false
@@ -293,6 +290,7 @@ final class PickerWindowController: NSObject {
     }
 
     func show() {
+        mouseSelection.cancel()
         #if DEV_BUILD
             traceLifecycle("show.request")
         #endif
@@ -452,6 +450,7 @@ final class PickerWindowController: NSObject {
     }
 
     func close() {
+        mouseSelection.cancel()
         #if DEV_BUILD
             traceLifecycle("close.begin")
         #endif
@@ -506,9 +505,19 @@ final class PickerWindowController: NSObject {
 
         // Dismiss on click outside
         guard let observedSessionID = activeSessionID else { return }
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .leftMouseUp]) { [weak self] event in
+            let isMouseUp = event.type == .leftMouseUp
+            let eventNumber = event.eventNumber
             Self.deferGlobalMouseDownObservation(event: event, sessionID: observedSessionID) { [weak self] observation in
                 guard let self else { return }
+                if isMouseUp {
+                    guard observation.sessionID == self.activeSessionID else { return }
+                    // A release delivered to another app cannot select a picker tile.
+                    if self.mouseSelection.mouseUp(session: observation.sessionID, item: nil, eventNumber: eventNumber) == .cancel {
+                        self.close()
+                    }
+                    return
+                }
                 switch Self.globalMouseDownAction(
                     at: observation.screenLocation,
                     panelFrame: self.panel?.frame,
@@ -536,27 +545,38 @@ final class PickerWindowController: NSObject {
             }
         }
 
-        // Intercept the panel's mouse-down before SwiftUI dispatch and use the same selection path
-        // as keyboard handling. Returning nil prevents a second Button action.
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        // Own both halves of the click. Keep the panel alive until mouse-up and prevent SwiftUI
+        // from running a second Button action. Keyboard/accessibility keep their existing paths.
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
             guard let self, let panel = self.panel else { return event }
             let eventWindowIsPanel = event.window === panel
-            guard eventWindowIsPanel else { return event }
-            let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
+            let isDown = event.type == .leftMouseDown
+            guard eventWindowIsPanel || (!isDown && self.mouseSelection.isTracking) else { return event }
             #if DEV_BUILD
                 self.diagnostics.input(event, origin: "local.selection")
             #endif
-            let didSelect = self.openItemForMouseDown(at: screenLocation, eventType: event.type)
+            let item = eventWindowIsPanel
+                ? self.itemForMouseEvent(at: panel.convertPoint(toScreen: event.locationInWindow)) : nil
+            let action = isDown
+                ? self.mouseSelection.mouseDown(session: self.activeSessionID, item: item?.id, eventNumber: event.eventNumber)
+                : self.mouseSelection.mouseUp(session: self.activeSessionID, item: item?.id, eventNumber: event.eventNumber)
             #if DEV_BUILD
-                self.diagnostics.record("mouse.selectionResult", detail: "consumed=\(didSelect)")
+                // Do not stringify .select: its associated item ID can contain private content.
+                self.diagnostics.record(isDown ? "mouse.press" : "mouse.release", detail: "tracking=\(self.mouseSelection.isTracking)")
             #endif
-            switch Self.localMouseDownAction(
-                eventWindowIsPanel: eventWindowIsPanel,
-                didSelect: didSelect
-            ) {
+            switch action {
             case .passThrough:
                 return event
             case .consume:
+                if isDown { self.coordinator.onPickerMousePress?() }
+                return nil
+            case .cancel:
+                self.close()
+                return nil
+            case let .select(id):
+                if let item, item.id == id {
+                    self.coordinator.select(item, state: self.appState, source: .pickerClick)
+                }
                 return nil
             }
         }
@@ -858,12 +878,12 @@ final class PickerWindowController: NSObject {
         coordinator.select(items[appState.focusedBrowserIndex], state: appState, source: .pickerHotkey)
     }
 
-    private func openItemForMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
-        guard eventType == .leftMouseDown,
-              appState.isPickerVisible,
+    private func itemForMouseEvent(at screenLocation: NSPoint) -> PickerItem? {
+        guard appState.isPickerVisible,
+              !isClosing,
               let panel
         else {
-            return false
+            return nil
         }
 
         let items = pickerItemsForCurrentSession()
@@ -875,11 +895,11 @@ final class PickerWindowController: NSObject {
             scale: pickerScale,
             showsIncognitoHint: appState.showsPickerIncognitoHint
         ) else {
-            return false
+            return nil
         }
 
         appState.focusedBrowserIndex = index
-        return coordinator.select(items[index], state: appState, source: .pickerClick)
+        return items[index]
     }
 
     /// Whether this Tab event *is* the configured activation chord, which the global hot key has
@@ -946,13 +966,6 @@ final class PickerWindowController: NSObject {
             return requiresKeyboardFocus ? .refocus : .ignore
         }
         return .dismiss
-    }
-
-    static func localMouseDownAction(
-        eventWindowIsPanel: Bool,
-        didSelect: Bool
-    ) -> PickerLocalMouseDownAction {
-        eventWindowIsPanel && didSelect ? .consume : .passThrough
     }
 
     static func itemIndexForManualPickerClick(

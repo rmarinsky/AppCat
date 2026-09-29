@@ -48,7 +48,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         super.init()
         pickerCoordinator.onHoldPickerMouseSelection = { [weak self] in
-            self?.suppressHoldPickerUntilOptionRelease = true
+            self?.suppressHoldPickerUntilOptionRelease = NSEvent.modifierFlags.contains(.option)
+        }
+        pickerCoordinator.onPickerMousePress = { [weak self] in
+            guard let self else { return }
+            // Once the mouse owns a gesture, modifier release must not commit another item.
+            self.commitModifierWatcher.disarm()
+            self.pendingManualPickerCommit = false
+            if self.appState.pickerInvocationSource == .holdOptionTab {
+                self.suppressHoldPickerUntilOptionRelease = true
+            }
         }
     }
 

@@ -18,6 +18,7 @@ final class PickerCoordinator {
     var statsManager: StatsManager?
     weak var windowActivationTracker: WindowActivationTracker?
     var onHoldPickerMouseSelection: (() -> Void)?
+    var onPickerMousePress: (() -> Void)?
 
     #if DEV_BUILD
         var diagnostics: PickerDiagnostics? { pickerController?.diagnostics }
@@ -78,6 +79,7 @@ final class PickerCoordinator {
 
     func openFocusedItem(state: AppState) {
         guard state.isPickerSessionActive else { return }
+        guard pickerController?.allowsModifierCommit != false else { return }
         guard let pickerController else {
             // No panel backing the session — clear stuck empty/OOB state.
             dismissPicker(state: state)

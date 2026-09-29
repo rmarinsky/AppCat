@@ -318,22 +318,6 @@ final class PickerSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testLocalTileMouseDownIsConsumedOnlyAfterSelection() {
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: true,
-            didSelect: true
-        ), .consume)
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: true,
-            didSelect: false
-        ), .passThrough)
-        XCTAssertEqual(PickerWindowController.localMouseDownAction(
-            eventWindowIsPanel: false,
-            didSelect: true
-        ), .passThrough)
-    }
-
-    @MainActor
     func testManualPickerClickHitTestReturnsClickedItemIndex() {
         let panelFrame = NSRect(
             x: 100,
