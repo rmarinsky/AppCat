@@ -34,10 +34,9 @@ struct PickerMouseSelection {
         guard let press else { return .passThrough }
         // An obsolete callback must not release another session's current gesture.
         guard session == press.session else { return .passThrough }
-        // AppKit increments this counter for each mouse/tracking event. The matching release
-        // therefore has a later number than the press; an older delayed release must not cancel
-        // a newer gesture.
-        guard eventNumber > press.eventNumber else { return .passThrough }
+        // Physical down/up pairs can share an event number (observed on macOS 27).
+        // Reject older releases, but do not leave an equal-numbered click pending.
+        guard eventNumber >= press.eventNumber else { return .passThrough }
         self.press = nil
         guard item == press.item else { return .cancel }
         return .select(press.item)

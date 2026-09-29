@@ -60,12 +60,18 @@ final class PickerMouseSelectionTests: XCTestCase {
     }
 
     @objc func testPressConsumesWithoutSelectingAndReleaseSelectsOnce() {
-        var mouse = PickerMouseSelection()
-        let session = UUID()
-        XCTAssertEqual(mouse.mouseDown(session: session, item: "first", eventNumber: 10), .consume)
-        XCTAssertTrue(mouse.isTracking)
-        XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: 11), .select("first"))
-        XCTAssertFalse(mouse.isTracking)
-        XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: 12), .passThrough)
+        // Physical macOS 27 clicks in the diagnostic trace paired down/up as 8410/8410.
+        // Retain coverage for later-numbered releases as well.
+        for releaseNumber in [8410, 8411] {
+            var mouse = PickerMouseSelection()
+            let session = UUID()
+            XCTAssertEqual(mouse.mouseDown(session: session, item: "first", eventNumber: 8410), .consume)
+            XCTAssertTrue(mouse.isTracking)
+            XCTAssertFalse(mouse.allowsModifierCommit)
+            XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: releaseNumber), .select("first"))
+            XCTAssertFalse(mouse.isTracking)
+            XCTAssertTrue(mouse.allowsModifierCommit)
+            XCTAssertEqual(mouse.mouseUp(session: session, item: "first", eventNumber: releaseNumber), .passThrough)
+        }
     }
 }
