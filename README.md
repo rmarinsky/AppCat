@@ -27,7 +27,8 @@ Figma. Document links (`design`, `file`, `proto`, `board`, `slides`, `deck`, `ma
 remain eligible for native routing. An HTTP(S) request is not routed straight back
 to its sending native app when macOS supplies the sender identity. Figma and Figma
 Beta browser requests exclude both desktop variants. Browser rules and profile
-choices still apply, and callback query parameters remain intact.
+choices still apply, and callback query parameters remain intact. Links buffered during
+startup stay in one batch; all sender restrictions apply to that batch.
 
 Set AppCat as your default browser and it intercepts every link:
 

@@ -200,12 +200,12 @@ final class PickerCoordinator {
             return
         }
         guard state.canRouteToNativeApp(app.id) else { return }
-        let sourceBundleID = state.pendingSourceBundleID
+        let sourceBundleIDs = state.pendingSourceBundleIDs
         dismissPickerForSelection(pendingOpen, state: state)
         #if DEBUG
             if UITestRuntime.isEnabled { return }
         #endif
-        browserLauncher.open(urls: pendingOpen.launchURLs, with: app, sourceBundleID: sourceBundleID) { [weak self] results in
+        browserLauncher.open(urls: pendingOpen.launchURLs, with: app, sourceBundleIDs: sourceBundleIDs) { [weak self] results in
             guard let self else { return }
             let successfulIndices = results.indices.filter {
                 results[$0]

@@ -3,6 +3,26 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testBufferedRequestsKeepBothURLsAndAllSenderRestrictions() throws {
+        let first = try XCTUnwrap(URL(string: "https://www.figma.com/design/First/One"))
+        let second = try XCTUnwrap(URL(string: "https://www.figma.com/design/Second/Two"))
+        let batch = AppDelegate.mergeBufferedRequests([
+            (urls: [first], sourceBundleIDs: ["com.figma.Desktop"]),
+            (urls: [second], sourceBundleIDs: ["com.example.Other"])
+        ])
+        let state = AppState()
+        let app = makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])
+        state.apps = [app]
+        state.setPendingOpen(displayURLs: batch.urls, launchURLs: batch.urls, sourceBundleIDs: batch.sourceBundleIDs)
+        XCTAssertEqual(state.pendingDisplayURLs, [first, second])
+        XCTAssertEqual(state.launchURLsForPendingOpen, [first, second])
+        XCTAssertEqual(state.pendingSourceBundleIDs, ["com.figma.Desktop", "com.example.Other"])
+        XCTAssertTrue(state.routingApps.isEmpty)
+        state.clearPendingOpen()
+        XCTAssertTrue(state.pendingSourceBundleIDs.isEmpty)
+    }
+
+    @MainActor
     func testFigmaSenderCannotRouteItsBrowserRequestBackToDesktop() throws {
         let world = FakeBrowserLauncherWorld()
         let launcher = BrowserLauncher(dependencies: world.dependencies())
@@ -11,15 +31,15 @@ final class BrowserLauncherTests: XCTestCase {
         let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd/Product"))
         let state = AppState()
         state.apps = [app]
-        state.setPendingOpen(displayURLs: [url], launchURLs: [url], sourceBundleID: app.id)
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url], sourceBundleIDs: [app.id])
         XCTAssertTrue(state.routingApps.isEmpty)
         let rule = URLRule(pattern: "figma.com", matchType: .host, browserID: app.id, targetType: .app)
         let browserRule = URLRule(pattern: "figma.com", matchType: .host, browserID: makeBrowser().id, targetType: .browser)
-        guard case .browser? = URLRulesManager().findMatch(for: url, browsers: [makeBrowser()], apps: [app], rules: [rule, browserRule], sourceBundleID: app.id) else {
+        guard case .browser? = URLRulesManager().findMatch(for: url, browsers: [makeBrowser()], apps: [app], rules: [rule, browserRule], sourceBundleIDs: [app.id]) else {
             return XCTFail("A same-app rule must yield to an explicit browser rule")
         }
         var result: Bool?
-        launcher.open(url: url, with: app, sourceBundleID: app.id) { result = $0 }
+        launcher.open(url: url, with: app, sourceBundleIDs: [app.id]) { result = $0 }
         XCTAssertEqual(result, false)
         XCTAssertTrue(world.openedURLs.isEmpty)
         let coordinator = PickerCoordinator(browserLauncher: launcher)
@@ -27,7 +47,7 @@ final class BrowserLauncherTests: XCTestCase {
         XCTAssertTrue(world.openedURLs.isEmpty)
         XCTAssertEqual(state.pendingURL, url)
         state.clearPendingOpen()
-        XCTAssertNil(state.pendingSourceBundleID)
+        XCTAssertTrue(state.pendingSourceBundleIDs.isEmpty)
         state.setPendingOpen(displayURLs: [url], launchURLs: [url])
         XCTAssertEqual(state.routingApps.map(\.id), [app.id])
     }

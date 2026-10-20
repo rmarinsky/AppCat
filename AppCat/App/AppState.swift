@@ -14,7 +14,7 @@ final class AppState {
     /// URLs that should be launched. For wrapped links and shortcut files, this can differ
     /// from the display/rule-matching URLs stored in `pendingURL` and `pendingAdditionalURLs`.
     var pendingLaunchURLs: [URL] = []
-    var pendingSourceBundleID: String?
+    var pendingSourceBundleIDs: Set<String> = []
     var pendingURLTitle: String?
     var browsers: [InstalledBrowser] = []
     var apps: [InstalledApp] = []
@@ -199,18 +199,18 @@ final class AppState {
 
     func canRouteToNativeApp(_ bundleID: String) -> Bool {
         (pendingDisplayURLs + launchURLsForPendingOpen).allSatisfy {
-            AppDefinition.allowsNativeApp(for: $0, targetBundleID: bundleID, sourceBundleID: pendingSourceBundleID)
+            AppDefinition.allowsNativeApp(for: $0, targetBundleID: bundleID, sourceBundleIDs: pendingSourceBundleIDs)
         }
     }
 
-    func setPendingOpen(displayURLs: [URL], launchURLs: [URL], sourceBundleID: String? = nil) {
+    func setPendingOpen(displayURLs: [URL], launchURLs: [URL], sourceBundleIDs: Set<String> = []) {
         guard let firstDisplayURL = displayURLs.first else {
             clearPendingOpen()
             return
         }
 
         let normalizedLaunchURLs = launchURLs.count == displayURLs.count ? launchURLs : displayURLs
-        pendingSourceBundleID = sourceBundleID
+        pendingSourceBundleIDs = sourceBundleIDs
         pendingURL = firstDisplayURL
         pendingAdditionalURLs = Array(displayURLs.dropFirst())
         pendingLaunchURLs = normalizedLaunchURLs
@@ -218,7 +218,7 @@ final class AppState {
     }
 
     func clearPendingOpen() {
-        pendingSourceBundleID = nil
+        pendingSourceBundleIDs = []
         pendingURL = nil
         pendingAdditionalURLs = []
         pendingLaunchURLs = []
