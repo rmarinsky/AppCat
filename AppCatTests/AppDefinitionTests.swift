@@ -2,6 +2,16 @@
 import XCTest
 
 final class AppDefinitionTests: XCTestCase {
+    func testFigmaAuthenticationAndUnknownPagesStayInBrowser() throws {
+        for id in ["com.figma.Desktop", "com.figma.Desktop.beta"] {
+            let definition = try XCTUnwrap(AppDefinition.registryByID[id])
+            for path in ["login?redirect_uri=figma%3A%2F%2Fcallback&state=abc", "oauth/authorize?client_id=test", "desktop_auth", "settings", "design", "unknown/123"] {
+                let url = try XCTUnwrap(URL(string: "https://www.figma.com/" + path))
+                XCTAssertNil(definition.convertURL?(url), path)
+            }
+        }
+    }
+
     func testFigmaConverterBuildsDesktopDeepLink() throws {
         let definition = try XCTUnwrap(AppDefinition.registryByID["com.figma.Desktop"])
         let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd1234/Product?node-id=1-2&t=token#comment"))

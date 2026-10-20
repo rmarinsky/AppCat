@@ -777,7 +777,7 @@ struct PickerView: View {
             for: appState.pendingURL,
             pickerBrowsers: appState.pickerBrowsers,
             allBrowsers: appState.browsers,
-            apps: appState.apps,
+            apps: appState.routingApps,
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,

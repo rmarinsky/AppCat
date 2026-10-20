@@ -22,12 +22,21 @@ Stop launching the wrong browser profile, stop dragging files onto Dock icons, a
 ## 🚀 What AppCat does
 
 ### 🔗 Link routing
+
 Set AppCat as your default browser and it intercepts every link:
 
 - A floating picker appears near your cursor with your **browsers, browser profiles, and any native app** that handles the URL's host (e.g. a Figma link offers Figma.app).
 - If a **URL rule** matches, the link is routed automatically — no picker.
 - **Private/incognito:** hold `Option` or `Shift` while pressing a picker key to open the link in a private window.
 - Multiple links at once open together in the target you choose.
+
+**Native-app routing exceptions:** Figma sign-in and unknown web routes stay in a browser, even when a domain rule targets
+Figma. Document links (`design`, `file`, `proto`, `board`, `slides`, `deck`, `make`)
+remain eligible for native routing. An HTTP(S) request is not routed straight back
+to its sending native app when macOS supplies the sender identity. Figma and Figma
+Beta browser requests exclude both desktop variants. Browser rules and profile
+choices still apply, and callback query parameters remain intact. Links buffered during
+startup stay in one batch; all sender restrictions apply to that batch.
 
 ### 🐈 App & window switcher (`⌥Tab`)
 The reason AppCat earns its name. Press `⌥Tab` anywhere to open a HUD switcher showing:

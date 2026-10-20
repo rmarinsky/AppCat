@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// launch kAEGetURL event is delivered right after `applicationWillFinishLaunching`). Buffer
     /// them until launch configuration is ready, then flush.
     private var isLaunchConfigured = false
-    private var bufferedLaunchURLs: [URL] = []
+    private var bufferedLaunchRequests: [(urls: [URL], sourceBundleIDs: Set<String>)] = []
 
     override init() {
         super.init()
@@ -441,7 +441,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - URL Handling
 
     func application(_: NSApplication, open urls: [URL]) {
-        handleIncomingURLs(urls)
+        handleIncomingURLs(urls, sourceBundleIDs: Self.senderBundleIDs(from: NSAppleEventManager.shared().currentAppleEvent))
     }
 
     @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReply _: NSAppleEventDescriptor) {
@@ -452,10 +452,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        handleIncomingURLs([rawURL])
+        handleIncomingURLs([rawURL], sourceBundleIDs: Self.senderBundleIDs(from: event))
     }
 
-    private func handleIncomingURLs(_ rawURLs: [URL]) {
+    static func senderBundleIDs(from event: NSAppleEventDescriptor?) -> Set<String> {
+        guard let pid = event?.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value,
+              pid > 0,
+              let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier else { return [] }
+        return [bundleID]
+    }
+
+    private func handleIncomingURLs(_ rawURLs: [URL], sourceBundleIDs: Set<String> = []) {
         #if DEV_BUILD
             pickerCoordinator.diagnostics?.record("routing.received", detail: "count=\(rawURLs.count)")
         #endif
@@ -467,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard isLaunchConfigured else {
             // Launch config (browsers/rules/apps) isn't loaded yet — routing now would misfire.
-            bufferedLaunchURLs.append(contentsOf: rawURLs)
+            bufferedLaunchRequests.append((rawURLs, sourceBundleIDs))
             Log.app.info("Buffered \(rawURLs.count) URL(s) until launch configuration completes")
             return
         }
@@ -478,7 +485,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let url = displayURLs.first else { return }
 
         appState.pickerInvocationSource = .linkRouting
-        appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
+        appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs, sourceBundleIDs: sourceBundleIDs)
 
         if rawURLs.count > 1 {
             Log.app.info("Received \(rawURLs.count) URL(s); primary: \(url.absoluteString)")
@@ -491,8 +498,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let match = urlRulesManager.findMatch(
             for: url,
             browsers: appState.browsers,
-            apps: appState.apps,
-            rules: appState.urlRules
+            apps: appState.routingApps,
+            rules: appState.urlRules.filter { $0.targetType != .app || appState.canRouteToNativeApp($0.browserID) },
+            sourceBundleIDs: sourceBundleIDs
         ) {
             let source = OpenSource.autoRoute(ruleID: match.ruleID)
             switch match {
@@ -506,6 +514,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         pickerCoordinator.showPicker(state: appState)
+    }
+
+    /// Startup links share one picker batch; retain every sender restriction for that batch.
+    static func mergeBufferedRequests(_ requests: [(urls: [URL], sourceBundleIDs: Set<String>)])
+        -> (urls: [URL], sourceBundleIDs: Set<String>) {
+        (requests.flatMap(\.urls), Set(requests.flatMap(\.sourceBundleIDs)))
     }
 
     /// End every manual-picker input path before a URL starts a new routing session. In
@@ -537,10 +551,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     #endif
 
     private func flushBufferedLaunchURLs() {
-        guard !bufferedLaunchURLs.isEmpty else { return }
-        let urls = bufferedLaunchURLs
-        bufferedLaunchURLs = []
-        handleIncomingURLs(urls)
+        guard !bufferedLaunchRequests.isEmpty else { return }
+        let request = Self.mergeBufferedRequests(bufferedLaunchRequests)
+        bufferedLaunchRequests = []
+        handleIncomingURLs(request.urls, sourceBundleIDs: request.sourceBundleIDs)
     }
 
     private func normalizeIncomingURL(_ rawURL: URL) -> (displayURL: URL, launchURL: URL) {
