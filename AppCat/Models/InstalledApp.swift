@@ -72,6 +72,7 @@ struct InstalledApp: Identifiable, Equatable {
 
     /// Check if this app handles the given URL based on host patterns
     func matchesHost(of url: URL) -> Bool {
+        guard AppDefinition.allowsNativeApp(for: url) else { return false }
         guard let host = url.host?.lowercased() else { return false }
         return hostPatterns.contains { pattern in
             let p = pattern.lowercased()

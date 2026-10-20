@@ -79,6 +79,8 @@ enum URLUnwrapper {
 
     private static func unwrap(_ url: URL, depth: Int) -> URL {
         guard depth < maxRecursion else { return url }
+        // Figma query tokens can carry an authentication callback, not a link wrapper.
+        guard !AppDefinition.isFigmaWebURL(url) else { return url }
         guard let host = url.host?.lowercased() else { return url }
 
         // 1. Host/path-specific redirectors

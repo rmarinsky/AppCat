@@ -253,8 +253,13 @@ final class BrowserLauncher {
         with app: InstalledApp,
         completion: @escaping @MainActor (Bool) -> Void = { _ in }
     ) {
+        let candidates = Self.candidateURLs(for: url, app: app)
+        guard !candidates.isEmpty else {
+            completion(false)
+            return
+        }
         openCandidateURLs(
-            Self.candidateURLs(for: url, app: app)[...],
+            candidates[...],
             originalURL: url,
             app: app,
             completion: completion
@@ -345,6 +350,7 @@ final class BrowserLauncher {
     }
 
     static func candidateURLs(for url: URL, app: InstalledApp) -> [URL] {
+        guard AppDefinition.allowsNativeApp(for: url) else { return [] }
         var urls: [URL] = []
         if !url.isFileURL,
            let definition = AppDefinition.registryByID[app.id],

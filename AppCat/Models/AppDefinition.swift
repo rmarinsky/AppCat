@@ -358,6 +358,12 @@ struct AppDefinition {
         return dict
     }()
 
+    /// Authentication and unknown Figma routes belong to a browser, regardless of app rules.
+    static func allowsNativeApp(for url: URL) -> Bool {
+        let destination = URLUnwrapper.unwrap(url)
+        return !isFigmaWebURL(destination) || isFigmaDocumentURL(destination)
+    }
+
     static func isFigmaWebURL(_ url: URL) -> Bool {
         guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
               let host = url.host?.lowercased() else { return false }

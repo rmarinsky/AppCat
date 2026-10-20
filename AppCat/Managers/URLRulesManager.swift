@@ -14,7 +14,8 @@ final class URLRulesManager {
     }
 
     func findMatch(for url: URL, browsers: [InstalledBrowser], apps: [InstalledApp], rules: [URLRule]) -> URLRuleMatch? {
-        guard let rule = urlRuleMatcher.findMatchingRule(for: url, rules: rules) else {
+        let eligibleRules = rules.filter { $0.targetType != .app || AppDefinition.allowsNativeApp(for: url) }
+        guard let rule = urlRuleMatcher.findMatchingRule(for: url, rules: eligibleRules) else {
             return nil
         }
 

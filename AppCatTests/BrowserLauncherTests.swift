@@ -3,6 +3,47 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testFigmaLoginCannotEscapeIntoNativeRoutingAndKeepsItsCallback() throws {
+        let world = FakeBrowserLauncherWorld()
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        var app = makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])
+        app.hostPatterns = ["figma.com"]
+        let payload = Data(#"{"redirect_uri":"https://www.figma.com/design/AbCd/Return"}"#.utf8)
+            .base64EncodedString().replacingOccurrences(of: "=", with: "")
+        let url = try XCTUnwrap(URL(string: "https://www.figma.com/desktop_auth?state=e30." + payload + ".sig&redirect_uri=figma%3A%2F%2Fcallback%3Fcode%3Dabc"))
+        XCTAssertEqual(URLUnwrapper.unwrap(url), url)
+        let rule = URLRule(pattern: "figma.com", matchType: .host, browserID: app.id, targetType: .app)
+        XCTAssertNil(URLRulesManager().findMatch(for: url, browsers: [], apps: [app], rules: [rule]))
+        XCTAssertTrue(PickerItem.matchingApps(for: url, in: [app]).isEmpty)
+        var result: Bool?
+        launcher.open(url: url, with: app) { result = $0 }
+        XCTAssertEqual(result, false)
+        XCTAssertTrue(world.openedURLs.isEmpty)
+        XCTAssertTrue(world.activatedApplicationWindowAppIDs.isEmpty)
+        launcher.open(urls: [url], with: makeBrowser()) { result = $0 }
+        XCTAssertEqual(result, true)
+        XCTAssertEqual(world.openedURLs.count, 1)
+        XCTAssertEqual(world.openedURLs.first?.urls, [url])
+        XCTAssertEqual(world.openedURLs.first?.appURL, makeBrowser().appURL)
+    }
+
+    @MainActor
+    func testFigmaDocumentStillUsesRulePickerAndDeepLink() throws {
+        let world = FakeBrowserLauncherWorld()
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        var app = makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])
+        app.hostPatterns = ["figma.com"]
+        let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd/Product?node-id=1%3A2#comment"))
+        let rule = URLRule(pattern: "figma.com", matchType: .host, browserID: app.id, targetType: .app)
+        guard case .app? = URLRulesManager().findMatch(for: url, browsers: [], apps: [app], rules: [rule]) else {
+            return XCTFail("Document links must still match native app rules")
+        }
+        XCTAssertEqual(PickerItem.matchingApps(for: url, in: [app]).map(\.id), [app.id])
+        launcher.open(url: url, with: app)
+        XCTAssertEqual(world.openedURLs.first?.urls.first?.absoluteString, "figma://design/AbCd/Product?node-id=1%3A2#comment")
+    }
+
+    @MainActor
     func testFailedBrowserOpenDoesNotRecordRoutingStats() async throws {
         let world = FakeBrowserLauncherWorld()
         world.openErrors = [BrowserLauncherTestError.failed]
