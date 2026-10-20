@@ -13,8 +13,8 @@ final class URLRulesManager {
         RulesStorage.shared.save(rules)
     }
 
-    func findMatch(for url: URL, browsers: [InstalledBrowser], apps: [InstalledApp], rules: [URLRule]) -> URLRuleMatch? {
-        let eligibleRules = rules.filter { $0.targetType != .app || AppDefinition.allowsNativeApp(for: url) }
+    func findMatch(for url: URL, browsers: [InstalledBrowser], apps: [InstalledApp], rules: [URLRule], sourceBundleID: String? = nil) -> URLRuleMatch? {
+        let eligibleRules = rules.filter { $0.targetType != .app || AppDefinition.allowsNativeApp(for: url, targetBundleID: $0.browserID, sourceBundleID: sourceBundleID) }
         guard let rule = urlRuleMatcher.findMatchingRule(for: url, rules: eligibleRules) else {
             return nil
         }

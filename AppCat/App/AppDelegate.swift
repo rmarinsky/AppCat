@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// launch kAEGetURL event is delivered right after `applicationWillFinishLaunching`). Buffer
     /// them until launch configuration is ready, then flush.
     private var isLaunchConfigured = false
-    private var bufferedLaunchURLs: [URL] = []
+    private var bufferedLaunchRequests: [(urls: [URL], sourceBundleID: String?)] = []
 
     // MARK: - Lifecycle
 
@@ -303,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - URL Handling
 
     func application(_: NSApplication, open urls: [URL]) {
-        handleIncomingURLs(urls)
+        handleIncomingURLs(urls, sourceBundleID: Self.senderBundleID(from: NSAppleEventManager.shared().currentAppleEvent))
     }
 
     @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, withReply _: NSAppleEventDescriptor) {
@@ -314,10 +314,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        handleIncomingURLs([rawURL])
+        handleIncomingURLs([rawURL], sourceBundleID: Self.senderBundleID(from: event))
     }
 
-    private func handleIncomingURLs(_ rawURLs: [URL]) {
+    static func senderBundleID(from event: NSAppleEventDescriptor?) -> String? {
+        guard let pid = event?.attributeDescriptor(forKeyword: AEKeyword(keySenderPIDAttr))?.int32Value,
+              pid > 0 else { return nil }
+        return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+    }
+
+    private func handleIncomingURLs(_ rawURLs: [URL], sourceBundleID: String? = nil) {
         // A routing request supersedes any scheduled main-window open — cancel it outright so a
         // late-firing timer can never pop the main window over the picker.
         cancelScheduledMainWindowOpen()
@@ -325,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard isLaunchConfigured else {
             // Launch config (browsers/rules/apps) isn't loaded yet — routing now would misfire.
-            bufferedLaunchURLs.append(contentsOf: rawURLs)
+            bufferedLaunchRequests.append((rawURLs, sourceBundleID))
             Log.app.info("Buffered \(rawURLs.count) URL(s) until launch configuration completes")
             return
         }
@@ -336,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let url = displayURLs.first else { return }
 
         appState.pickerInvocationSource = .linkRouting
-        appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs)
+        appState.setPendingOpen(displayURLs: displayURLs, launchURLs: launchURLs, sourceBundleID: sourceBundleID)
 
         if rawURLs.count > 1 {
             Log.app.info("Received \(rawURLs.count) URL(s); primary: \(url.absoluteString)")
@@ -349,8 +355,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let match = urlRulesManager.findMatch(
             for: url,
             browsers: appState.browsers,
-            apps: appState.apps,
-            rules: appState.urlRules
+            apps: appState.routingApps,
+            rules: appState.urlRules.filter { $0.targetType != .app || appState.canRouteToNativeApp($0.browserID) },
+            sourceBundleID: sourceBundleID
         ) {
             let source = OpenSource.autoRoute(ruleID: match.ruleID)
             switch match {
@@ -367,10 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func flushBufferedLaunchURLs() {
-        guard !bufferedLaunchURLs.isEmpty else { return }
-        let urls = bufferedLaunchURLs
-        bufferedLaunchURLs = []
-        handleIncomingURLs(urls)
+        let requests = bufferedLaunchRequests
+        bufferedLaunchRequests = []
+        for request in requests {
+            handleIncomingURLs(request.urls, sourceBundleID: request.sourceBundleID)
+        }
     }
 
     private func normalizeIncomingURL(_ rawURL: URL) -> (displayURL: URL, launchURL: URL) {

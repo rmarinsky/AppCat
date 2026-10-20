@@ -22,6 +22,13 @@ Stop launching the wrong browser profile, stop dragging files onto Dock icons, a
 ## 🚀 What AppCat does
 
 ### 🔗 Link routing
+Figma sign-in and unknown web routes stay in a browser, even when a domain rule targets
+Figma. Document links (`design`, `file`, `proto`, `board`, `slides`, `deck`, `make`)
+remain eligible for native routing. An HTTP(S) request is not routed straight back
+to its sending native app when macOS supplies the sender identity. Figma and Figma
+Beta browser requests exclude both desktop variants. Browser rules and profile
+choices still apply, and callback query parameters remain intact.
+
 Set AppCat as your default browser and it intercepts every link:
 
 - A floating picker appears near your cursor with your **browsers, browser profiles, and any native app** that handles the URL's host (e.g. a Figma link offers Figma.app).

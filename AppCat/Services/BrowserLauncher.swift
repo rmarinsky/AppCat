@@ -251,9 +251,10 @@ final class BrowserLauncher {
     func open(
         url: URL,
         with app: InstalledApp,
+        sourceBundleID: String? = nil,
         completion: @escaping @MainActor (Bool) -> Void = { _ in }
     ) {
-        let candidates = Self.candidateURLs(for: url, app: app)
+        let candidates = Self.candidateURLs(for: url, app: app, sourceBundleID: sourceBundleID)
         guard !candidates.isEmpty else {
             completion(false)
             return
@@ -269,6 +270,7 @@ final class BrowserLauncher {
     func open(
         urls: [URL],
         with app: InstalledApp,
+        sourceBundleID: String? = nil,
         completion: @escaping @MainActor ([Bool]) -> Void = { _ in }
     ) {
         guard !urls.isEmpty else {
@@ -279,7 +281,7 @@ final class BrowserLauncher {
         var results = Array(repeating: false, count: urls.count)
         var remaining = urls.count
         for (index, url) in urls.enumerated() {
-            open(url: url, with: app) { succeeded in
+            open(url: url, with: app, sourceBundleID: sourceBundleID) { succeeded in
                 results[index] = succeeded
                 remaining -= 1
                 if remaining == 0 {
@@ -349,8 +351,8 @@ final class BrowserLauncher {
         }
     }
 
-    static func candidateURLs(for url: URL, app: InstalledApp) -> [URL] {
-        guard AppDefinition.allowsNativeApp(for: url) else { return [] }
+    static func candidateURLs(for url: URL, app: InstalledApp, sourceBundleID: String? = nil) -> [URL] {
+        guard AppDefinition.allowsNativeApp(for: url, targetBundleID: app.id, sourceBundleID: sourceBundleID) else { return [] }
         var urls: [URL] = []
         if !url.isFileURL,
            let definition = AppDefinition.registryByID[app.id],

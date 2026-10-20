@@ -577,7 +577,7 @@ final class PickerWindowController: NSObject {
             for: appState.pendingURL,
             pickerBrowsers: appState.pickerBrowsers,
             allBrowsers: appState.browsers,
-            apps: appState.apps,
+            apps: appState.routingApps,
             appUsage: appState.appUsage,
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
@@ -628,7 +628,7 @@ final class PickerWindowController: NSObject {
         )
         let appCount = PickerItem.matchingApps(
             for: pendingURL,
-            in: appState.apps,
+            in: appState.routingApps,
             excludingBundleIDs: browserIDs,
             includingLaunchServicesCandidates: false
         ).count

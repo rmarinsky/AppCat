@@ -3,6 +3,36 @@ import XCTest
 
 final class BrowserLauncherTests: XCTestCase {
     @MainActor
+    func testFigmaSenderCannotRouteItsBrowserRequestBackToDesktop() throws {
+        let world = FakeBrowserLauncherWorld()
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        var app = makeApp(id: "com.figma.Desktop", urlSchemes: ["figma"])
+        app.hostPatterns = ["figma.com"]
+        let url = try XCTUnwrap(URL(string: "https://www.figma.com/design/AbCd/Product"))
+        let state = AppState()
+        state.apps = [app]
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url], sourceBundleID: app.id)
+        XCTAssertTrue(state.routingApps.isEmpty)
+        let rule = URLRule(pattern: "figma.com", matchType: .host, browserID: app.id, targetType: .app)
+        let browserRule = URLRule(pattern: "figma.com", matchType: .host, browserID: makeBrowser().id, targetType: .browser)
+        guard case .browser? = URLRulesManager().findMatch(for: url, browsers: [makeBrowser()], apps: [app], rules: [rule, browserRule], sourceBundleID: app.id) else {
+            return XCTFail("A same-app rule must yield to an explicit browser rule")
+        }
+        var result: Bool?
+        launcher.open(url: url, with: app, sourceBundleID: app.id) { result = $0 }
+        XCTAssertEqual(result, false)
+        XCTAssertTrue(world.openedURLs.isEmpty)
+        let coordinator = PickerCoordinator(browserLauncher: launcher)
+        coordinator.openURL(with: app, state: state)
+        XCTAssertTrue(world.openedURLs.isEmpty)
+        XCTAssertEqual(state.pendingURL, url)
+        state.clearPendingOpen()
+        XCTAssertNil(state.pendingSourceBundleID)
+        state.setPendingOpen(displayURLs: [url], launchURLs: [url])
+        XCTAssertEqual(state.routingApps.map(\.id), [app.id])
+    }
+
+    @MainActor
     func testFigmaLoginCannotEscapeIntoNativeRoutingAndKeepsItsCallback() throws {
         let world = FakeBrowserLauncherWorld()
         let launcher = BrowserLauncher(dependencies: world.dependencies())

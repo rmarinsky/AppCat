@@ -359,8 +359,12 @@ struct AppDefinition {
     }()
 
     /// Authentication and unknown Figma routes belong to a browser, regardless of app rules.
-    static func allowsNativeApp(for url: URL) -> Bool {
+    static func allowsNativeApp(for url: URL, targetBundleID: String? = nil, sourceBundleID: String? = nil) -> Bool {
         let destination = URLUnwrapper.unwrap(url)
+        guard ["http", "https"].contains(destination.scheme?.lowercased() ?? "") else { return true }
+        if let sourceBundleID, sourceBundleID == targetBundleID { return false }
+        if isFigmaWebURL(destination),
+           ["com.figma.Desktop", "com.figma.Desktop.beta"].contains(sourceBundleID ?? "") { return false }
         return !isFigmaWebURL(destination) || isFigmaDocumentURL(destination)
     }
 
