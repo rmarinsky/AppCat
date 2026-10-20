@@ -358,6 +358,19 @@ struct AppDefinition {
         return dict
     }()
 
+    static func isFigmaWebURL(_ url: URL) -> Bool {
+        guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host?.lowercased() else { return false }
+        return host == "figma.com" || host.hasSuffix(".figma.com")
+    }
+
+    static func isFigmaDocumentURL(_ url: URL) -> Bool {
+        guard isFigmaWebURL(url),
+              ["figma.com", "www.figma.com"].contains(url.host?.lowercased() ?? "") else { return false }
+        let parts = url.path.split(separator: "/")
+        return parts.count >= 2 && ["design", "file", "proto", "board", "slides", "deck", "make"].contains(String(parts[0]))
+    }
+
     static func figmaURLConverter(scheme: String) -> (URL) -> URL? {
         { url in
             figmaDeepLink(for: url, scheme: scheme)
@@ -365,7 +378,8 @@ struct AppDefinition {
     }
 
     static func figmaDeepLink(for url: URL, scheme: String) -> URL? {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+        guard isFigmaDocumentURL(url),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let sourceScheme = components.scheme?.lowercased(),
               ["http", "https"].contains(sourceScheme),
               let host = components.host?.lowercased(),
