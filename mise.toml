@@ -1,0 +1,4 @@
+[tools]
+"cargo:ripsecrets" = "0.1.11"
+"aqua:gitleaks/gitleaks" = "8.30.1"
+"aqua:evilmartians/lefthook" = "2.1.10"

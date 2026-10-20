@@ -97,11 +97,25 @@ targets:
           - "**/.DS_Store"
     dependencies:
       - target: AppCat
+      - target: AppCatUITestReceiver
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat.uitests
         TEST_TARGET_NAME: AppCat
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: "8JL9TM5WLG"
+
+  AppCatUITestReceiver:
+    type: application
+    platform: macOS
+    sources:
+      - path: AppCatUITestReceiver
+    settings:
+      base:
+        PRODUCT_NAME: "AppCat UI Test Receiver"
+        PRODUCT_BUNDLE_IDENTIFIER: ua.com.rmarinsky.appcat.uitest-receiver
+        INFOPLIST_FILE: AppCatUITestReceiver/Info.plist
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: "8JL9TM5WLG"
 
@@ -124,6 +138,7 @@ schemes:
     build:
       targets:
         AppCat: all
+        AppCatUITestReceiver: all
         AppCatUITests: [test]
     test:
       config: Debug

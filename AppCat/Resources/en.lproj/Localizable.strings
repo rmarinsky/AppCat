@@ -287,7 +287,7 @@
 "Input Monitoring" = "Input Monitoring";
 "Required for hold-to-switch and service-key taps." = "Required for hold-to-switch and service-key taps.";
 "Open Settings" = "Open Settings";
-"Default is ⌥Tab. Record any macOS-accepted global shortcut here." = "Default is ⌥Tab. Record any macOS-accepted global shortcut here.";
+"Default is ⌥Tab. Opens on the window you were in before; press again to step back, release ⌥ to switch." = "Default is ⌥Tab. Opens on the window you were in before; press again to step back, release ⌥ to switch.";
 "Re-open last picker" = "Re-open last picker";
 "Select browser" = "Select browser";
 "Confirm selection" = "Confirm selection";

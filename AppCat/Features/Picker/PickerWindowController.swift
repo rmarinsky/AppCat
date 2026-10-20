@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
 private enum PickerPanelViewID {
@@ -22,10 +23,43 @@ private class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool {
         true
     }
+
+    #if DEV_BUILD
+        // Temporary ordering probe for the macOS 27 panel-after-dismissal reproduction.
+        // Only lifecycle metadata is recorded: no titles, URLs, item names, or typed text.
+        var diagnosticContext: (() -> String)?
+        var diagnosticOrdering: ((String, Bool) -> Void)?
+
+        override func order(_ place: NSWindow.OrderingMode, relativeTo otherWin: Int) {
+            traceOrdering("order.before mode=\(place.rawValue)", ordersWindowIn: place != .out)
+            super.order(place, relativeTo: otherWin)
+            traceOrdering("order.after mode=\(place.rawValue)")
+        }
+
+        override func orderFrontRegardless() {
+            traceOrdering("orderFrontRegardless.before", ordersWindowIn: true)
+            super.orderFrontRegardless()
+            traceOrdering("orderFrontRegardless.after")
+        }
+
+        private func traceOrdering(_ operation: String, ordersWindowIn: Bool = false) {
+            guard let diagnosticContext else { return }
+            let context = diagnosticContext()
+            diagnosticOrdering?(operation, ordersWindowIn)
+            let eventType = NSApp.currentEvent.map { Int($0.type.rawValue) } ?? -1
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.windowNumber) visible=\(self.isVisible) key=\(self.isKeyWindow) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) eventType=\(eventType) \(context, privacy: .public)"
+            )
+        }
+    #endif
 }
 
 final class PickerHostingView<Content: View>: NSHostingView<Content> {
     override var acceptsFirstResponder: Bool {
+        true
+    }
+
+    override var needsPanelToBecomeKey: Bool {
         true
     }
 
@@ -43,6 +77,17 @@ enum PickerPanelKeyResignAction: Equatable {
     case ignore
     case refocus
     case dismiss
+}
+
+enum PickerGlobalMouseDownAction: Equatable {
+    case ignore
+    case refocus
+    case dismiss
+}
+
+struct PickerGlobalMouseDownObservation: Equatable {
+    let screenLocation: NSPoint
+    let sessionID: UUID
 }
 
 enum PickerPanelInteractionPolicy {
@@ -65,9 +110,11 @@ enum PickerPanelInteractionPolicy {
     ]
 
     static func dismissalActivationPolicy(
+        isApplicationActive: Bool,
         isMainWindowVisibleOnActiveSpace: Bool
     ) -> NSApplication.ActivationPolicy {
-        isMainWindowVisibleOnActiveSpace ? .regular : .accessory
+        guard isApplicationActive else { return .accessory }
+        return isMainWindowVisibleOnActiveSpace ? .regular : .accessory
     }
 
     static func shouldRestoreRegularPolicy(
@@ -95,14 +142,20 @@ enum PickerPanelInteractionPolicy {
     static func keyResignAction(
         requiresKeyboardFocus: Bool,
         isInDismissGracePeriod: Bool,
-        isPointerInsidePanel: Bool
+        isPointerInsidePanel: Bool,
+        isPanelKey: Bool = false,
+        observedSessionID: UUID?,
+        activeSessionID: UUID?
     ) -> PickerPanelKeyResignAction {
+        guard !isPanelKey else { return .ignore }
+        guard let observedSessionID, observedSessionID == activeSessionID else { return .ignore }
         guard requiresKeyboardFocus else { return .ignore }
         return (isInDismissGracePeriod || isPointerInsidePanel) ? .refocus : .dismiss
     }
 
     static func apply(to panel: NSPanel) {
         panel.isFloatingPanel = true
+        panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = false
         panel.level = windowLevel
@@ -143,9 +196,13 @@ final class PickerWindowController: NSObject {
     private unowned let coordinator: PickerCoordinator
     private var globalClickMonitor: Any?
     private var localClickMonitor: Any?
+    private var mouseSelection = PickerMouseSelection()
+    var allowsModifierCommit: Bool { mouseSelection.allowsModifierCommit }
     private var keyMonitor: Any?
     private var ignoreDismissUntil: Date = .distantPast
     private var isClosing = false
+    private var activeSessionID: UUID?
+    private var keyedSessionID: UUID?
     private var presentationDeactivationObserver: NSObjectProtocol?
     private var presentationWorkItem: DispatchWorkItem?
     private let dismissGraceInterval: TimeInterval = 0.12
@@ -153,9 +210,53 @@ final class PickerWindowController: NSObject {
     private var typeAheadResetTask: Task<Void, Never>?
     private let typeAheadResetDelay: UInt64 = 900_000_000
 
-    init(appState: AppState, coordinator: PickerCoordinator) {
+    #if DEV_BUILD
+        var diagnostics = PickerDiagnostics()
+
+        private func diagnosticSnapshot() -> PickerDiagnosticSnapshot {
+            var state = PickerDiagnosticSnapshot()
+            state.window = panel?.windowNumber ?? 0
+            state.activeSession = activeSessionID
+            state.sessionActive = appState.isPickerSessionActive
+            state.stateVisible = appState.isPickerVisible
+            state.pending = appState.isPickerPresentationPending
+            state.closing = isClosing
+            state.panelVisible = panel?.isVisible == true
+            state.panelKey = panel?.isKeyWindow == true
+            state.onActiveSpace = panel?.isOnActiveSpace == true
+            state.occlusionVisible = panel?.occlusionState.contains(.visible) == true
+            state.appActive = NSApp.isActive
+            state.activationPolicy = NSApp.activationPolicy().rawValue
+            state.source = String(describing: appState.pickerInvocationSource)
+            state.hasURL = appState.pendingURL != nil
+            state.itemCount = appState.pickerItemsSnapshot.count
+            state.focusedIndex = appState.focusedBrowserIndex
+            state.optionDown = NSEvent.modifierFlags.contains(.option)
+            state.mouseButtons = NSEvent.pressedMouseButtons
+            state.windowLevel = panel?.level.rawValue ?? 0
+            state.ignoresMouseEvents = panel?.ignoresMouseEvents == true
+            if let frame = panel?.frame {
+                state.frame = [frame.origin.x, frame.origin.y, frame.width, frame.height]
+            }
+            return state
+        }
+
+        private var diagnosticContext: String {
+            "session=\(activeSessionID?.uuidString ?? "none") source=\(String(describing: appState.pickerInvocationSource)) closing=\(isClosing) sessionActive=\(appState.isPickerSessionActive) stateVisible=\(appState.isPickerVisible) pending=\(appState.isPickerPresentationPending) hasURL=\(appState.pendingURL != nil)"
+        }
+
+        private func traceLifecycle(_ operation: String) {
+            diagnostics.record(operation)
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] \(operation, privacy: .public) window=\(self.panel?.windowNumber ?? -1) panelVisible=\(self.panel?.isVisible == true) appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) \(self.diagnosticContext, privacy: .public)"
+            )
+        }
+    #endif
+
+    init(appState: AppState, coordinator: PickerCoordinator, panel: NSPanel? = nil) {
         self.appState = appState
         self.coordinator = coordinator
+        self.panel = panel
     }
 
     /// Build the panel + SwiftUI hosting view without presenting — the first real show() then
@@ -190,8 +291,25 @@ final class PickerWindowController: NSObject {
     }
 
     func show() {
-        isClosing = false
+        #if DEV_BUILD
+            traceLifecycle("show.request")
+        #endif
         let wasWaitingForDeactivation = presentationDeactivationObserver != nil || presentationWorkItem != nil
+        let sessionID = prepareSession()
+        #if DEV_BUILD
+            diagnostics.snapshot = { [weak self] in self?.diagnosticSnapshot() ?? PickerDiagnosticSnapshot() }
+            diagnostics.begin(sessionID)
+        #endif
+        presentPreparedSession(sessionID, wasWaitingForDeactivation: wasWaitingForDeactivation)
+    }
+
+    /// Establish session identity and its item snapshot before any AppKit presentation work.
+    @discardableResult
+    func prepareSession() -> UUID {
+        mouseSelection.cancel()
+        isClosing = false
+        let sessionID = UUID()
+        activeSessionID = sessionID
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
         // Every show() starts a fresh session: a second link can arrive while the picker is
@@ -201,7 +319,17 @@ final class PickerWindowController: NSObject {
         seedPickerSnapshotIfPossible()
         // Reset focus here, not only in the view's onAppear — after a pre-warm the hidden view
         // has already "appeared" once and onAppear may not fire again for the real presentation.
-        appState.focusedBrowserIndex = 0
+        // `seedPickerSnapshotIfPossible` ran just above, so a manual session already has its items;
+        // if it could not seed, this lands on 0 and `prepareInitialFocus` corrects it on appear.
+        appState.focusedBrowserIndex = PickerInitialFocusPolicy.initialIndex(
+            items: appState.pickerItemsSnapshot,
+            frontmostRankKey: appState.manualPickerFrontmostKey,
+            invocationSource: appState.pickerInvocationSource
+        )
+        return sessionID
+    }
+
+    private func presentPreparedSession(_ sessionID: UUID, wasWaitingForDeactivation: Bool) {
         let screen = screenNearCursor()
         let targetSize = panelSize(for: screen)
 
@@ -233,15 +361,18 @@ final class PickerWindowController: NSObject {
         )
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.presentationActivationPolicy)
         if shouldWaitForDeactivation {
-            waitForApplicationDeactivationBeforePresenting()
+            waitForApplicationDeactivationBeforePresenting(sessionID: sessionID)
         } else {
-            presentPanelAfterDeactivation()
+            presentPanelAfterDeactivation(sessionID: sessionID)
         }
     }
 
     /// Re-assert fullscreen-safe policy, position under the cursor, and z-order (hold-⌥Tab steps).
     func reassertVisibility() {
         guard !isClosing, appState.isPickerSessionActive, let panel else { return }
+        #if DEV_BUILD
+            traceLifecycle("hold.reassert")
+        #endif
         PickerPanelInteractionPolicy.apply(to: panel)
         let screen = screenNearCursor()
         resizePanelIfNeeded(panel, to: panelSize(for: screen))
@@ -249,12 +380,16 @@ final class PickerWindowController: NSObject {
         panel.orderFrontRegardless()
     }
 
-    private func presentPanelAfterDeactivation() {
-        guard !isClosing, appState.isPickerSessionActive, let panel else { return }
+    private func presentPanelAfterDeactivation(sessionID: UUID) {
+        guard sessionID == activeSessionID,
+              !isClosing,
+              appState.isPickerSessionActive,
+              let panel
+        else { return }
         guard !NSApp.isActive else {
             // LaunchServices can briefly reactivate AppCat during the settling interval. Re-arm
             // the deactivation wait instead of abandoning a visible picker session with no panel.
-            waitForApplicationDeactivationBeforePresenting()
+            waitForApplicationDeactivationBeforePresenting(sessionID: sessionID)
             return
         }
         removePresentationDeactivationObserver()
@@ -274,16 +409,17 @@ final class PickerWindowController: NSObject {
         Log.picker.debug("Picker shown")
     }
 
-    private func waitForApplicationDeactivationBeforePresenting() {
-        guard !isClosing, appState.isPickerSessionActive else { return }
-        installPresentationDeactivationObserver()
+    private func waitForApplicationDeactivationBeforePresenting(sessionID: UUID) {
+        guard sessionID == activeSessionID, !isClosing, appState.isPickerSessionActive else { return }
+        installPresentationDeactivationObserver(sessionID: sessionID)
         NSApp.deactivate()
         if !NSApp.isActive {
-            schedulePresentationAfterDeactivation()
+            schedulePresentationAfterDeactivation(sessionID: sessionID)
         }
     }
 
-    private func installPresentationDeactivationObserver() {
+    private func installPresentationDeactivationObserver(sessionID: UUID) {
+        guard sessionID == activeSessionID else { return }
         guard presentationDeactivationObserver == nil else { return }
         presentationDeactivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
@@ -291,19 +427,20 @@ final class PickerWindowController: NSObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.schedulePresentationAfterDeactivation()
+                self?.schedulePresentationAfterDeactivation(sessionID: sessionID)
             }
         }
     }
 
-    private func schedulePresentationAfterDeactivation() {
+    private func schedulePresentationAfterDeactivation(sessionID: UUID) {
+        guard sessionID == activeSessionID, !isClosing, appState.isPickerSessionActive else { return }
         guard presentationWorkItem == nil else { return }
         removePresentationDeactivationObserver()
 
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, sessionID == self.activeSessionID else { return }
             self.presentationWorkItem = nil
-            self.presentPanelAfterDeactivation()
+            self.presentPanelAfterDeactivation(sessionID: sessionID)
         }
         presentationWorkItem = workItem
         DispatchQueue.main.asyncAfter(
@@ -325,7 +462,13 @@ final class PickerWindowController: NSObject {
     }
 
     func close() {
+        mouseSelection.cancel()
+        #if DEV_BUILD
+            traceLifecycle("close.begin")
+        #endif
         isClosing = true
+        activeSessionID = nil
+        keyedSessionID = nil
         cancelPendingPresentation()
         removePresentationDeactivationObserver()
         ignoreDismissUntil = .distantPast
@@ -335,18 +478,34 @@ final class PickerWindowController: NSObject {
         appState.clearPendingOpen()
         appState.pickerInvocationSource = .linkRouting
         appState.pickerItemsSnapshot = []
+        appState.manualPickerWindowRanks = [:]
+        appState.manualPickerFrontmostKey = nil
         removeMonitors()
         panel?.orderOut(nil)
+        #if DEV_BUILD
+            traceLifecycle("close.afterOrderOut")
+        #endif
+        // Keep an inactive app accessory while the nonactivating panel leaves the screen. The
+        // visible main window can restore regular policy from applicationDidBecomeActive later.
         NSApp.setActivationPolicy(PickerPanelInteractionPolicy.dismissalActivationPolicy(
+            isApplicationActive: NSApp.isActive,
             isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
         ))
         DispatchQueue.main.async { [weak self] in
             self?.isClosing = false
+            #if DEV_BUILD
+                self?.traceLifecycle("close.nextRunLoop")
+            #endif
         }
+        #if DEV_BUILD
+            traceLifecycle("close.afterActivationPolicy")
+            diagnostics.closed()
+        #endif
         Log.picker.debug("Picker dismissed")
     }
 
     private func focusPanel(_ panel: NSPanel) {
+        keyedSessionID = activeSessionID
         panel.makeKey()
         panel.makeFirstResponder(hostingView(in: panel))
     }
@@ -357,38 +516,52 @@ final class PickerWindowController: NSObject {
         removeMonitors()
 
         // Dismiss on click outside
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            Task { @MainActor [weak self] in
+        guard let observedSessionID = activeSessionID else { return }
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .leftMouseUp]) { [weak self] event in
+            let isMouseUp = event.type == .leftMouseUp
+            let eventNumber = event.eventNumber
+            Self.deferGlobalMouseDownObservation(event: event, sessionID: observedSessionID) { [weak self] observation in
                 guard let self else { return }
-                guard !self.isInDismissGracePeriod else { return }
-                if event.type == .leftMouseDown,
-                   self.openItemForMouseDown(at: NSEvent.mouseLocation, eventType: event.type)
-                {
-                    // Fallback for rare click-through: if the global monitor sees a click inside
-                    // the picker hit area, route it as a picker click so selection still works.
+                if isMouseUp {
+                    guard observation.sessionID == self.activeSessionID else { return }
+                    // A release delivered to another app cannot select a picker tile.
+                    if self.mouseSelection.mouseUp(session: observation.sessionID, item: nil, eventNumber: eventNumber) == .cancel {
+                        self.close()
+                    }
                     return
                 }
-                guard Self.shouldDismissForGlobalMouseDown(
-                    at: NSEvent.mouseLocation,
-                    panelFrame: self.panel?.frame
-                ) else { return }
-                self.close()
+                switch Self.globalMouseDownAction(
+                    at: observation.screenLocation,
+                    panelFrame: self.panel?.frame,
+                    observedSessionID: observation.sessionID,
+                    activeSessionID: self.activeSessionID,
+                    isClosing: self.isClosing,
+                    isPickerSessionActive: self.appState.isPickerSessionActive,
+                    isPickerVisible: self.appState.isPickerVisible,
+                    isPanelVisible: self.panel?.isVisible == true,
+                    requiresKeyboardFocus: self.appState.pickerInvocationSource.requiresKeyboardFocus
+                ) {
+                case .ignore:
+                    break
+                case .refocus:
+                    guard !self.isInDismissGracePeriod, let panel = self.panel else { return }
+                    #if DEV_BUILD
+                        self.traceLifecycle("globalMouse.refocus")
+                    #endif
+                    panel.orderFrontRegardless()
+                    self.focusPanel(panel)
+                case .dismiss:
+                    guard !self.isInDismissGracePeriod else { return }
+                    self.close()
+                }
             }
         }
 
-        // Intercept the panel's mouse-down before SwiftUI dispatch and use the same selection path
-        // as keyboard handling. Returning nil prevents a second Button action.
-        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self, let panel = self.panel, event.window === panel else {
-                return event
-            }
-            let screenLocation = panel.convertPoint(toScreen: event.locationInWindow)
-            guard self.openItemForMouseDown(at: screenLocation, eventType: event.type)
-            else {
-                return event
-            }
-            return nil
-        }
+        // Own both halves of the click. Keep the panel alive until mouse-up and prevent SwiftUI
+        // from running a second Button action. Keyboard/accessibility keep their existing paths.
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseUp], handler: localMouseHandler(for: observedSessionID)
+        )
 
         // Handle keyboard events via local monitor since SwiftUI's
         // .onKeyPress does not work reliably inside an NSPanel.
@@ -396,6 +569,52 @@ final class PickerWindowController: NSObject {
             guard let self else { return event }
             return self.handleKeyEvent(event) ? nil : event
         }
+    }
+
+    func localMouseHandler(for observedSessionID: UUID) -> (NSEvent) -> NSEvent? {
+        { [weak self] event in
+            guard let self, let panel = self.panel else { return event }
+            guard observedSessionID == self.activeSessionID,
+                  !self.isClosing, self.appState.isPickerSessionActive,
+                  event.type == .leftMouseDown || event.type == .leftMouseUp
+            else { return event }
+            let eventWindowIsPanel = event.window === panel
+            let isDown = event.type == .leftMouseDown
+            guard eventWindowIsPanel || (!isDown && self.mouseSelection.isTracking) else { return event }
+            #if DEV_BUILD
+                self.diagnostics.input(event, origin: "local.selection")
+            #endif
+            let item = eventWindowIsPanel
+                ? self.itemForMouseEvent(at: panel.convertPoint(toScreen: event.locationInWindow)) : nil
+            let action = isDown
+                ? self.mouseSelection.mouseDown(session: self.activeSessionID, item: item?.id, eventNumber: event.eventNumber)
+                : self.mouseSelection.mouseUp(session: self.activeSessionID, item: item?.id, eventNumber: event.eventNumber)
+            #if DEV_BUILD
+                // Do not stringify .select: its associated item ID can contain private content.
+                self.diagnostics.record(isDown ? "mouse.press" : "mouse.release", detail: "tracking=\(self.mouseSelection.isTracking)")
+            #endif
+            switch action {
+            case .passThrough:
+                return event
+            case .consume:
+                if isDown { self.coordinator.onPickerMousePress?() }
+                return nil
+            case .cancel:
+                self.close()
+                return nil
+            case let .select(id):
+                if let item, item.id == id {
+                    // Do not move focus on mouse-down: SwiftUI centers the focused tile and
+                    // would scroll it away from the pointer before the matching mouse-up.
+                    if let index = self.pickerItemsForCurrentSession().firstIndex(where: { $0.id == id }) {
+                        self.appState.focusedBrowserIndex = index
+                    }
+                    self.coordinator.select(item, state: self.appState, source: .pickerClick)
+                }
+                return nil
+            }
+        }
+
     }
 
     private func removeMonitors() {
@@ -434,6 +653,10 @@ final class PickerWindowController: NSObject {
             removeLastTypeAheadCharacter()
             return true
         case 48: // Tab
+            // The activation chord itself is claimed by the global hot key, which already steps
+            // focus. Handling it here too would advance twice per press if the system ever lets the
+            // chord through to the key panel as well.
+            if Self.isActivationChordRepeat(event) { return true }
             clearTypeAheadBuffer()
             let itemCount = itemCountForFocusNavigation()
             if event.modifierFlags.contains(.shift) {
@@ -582,6 +805,7 @@ final class PickerWindowController: NSObject {
             runningBundleIDs: appState.cachedRunningBundleIDs,
             windowsByAppID: appState.cachedWindowsByAppID,
             manualPickerTargetCounts: appState.manualPickerTargetCounts,
+            windowActivationRanks: appState.manualPickerWindowRanks,
             regularBundleIDs: appState.regularAppBundleIDs,
             runningAppsByBundleID: appState.runningAppsByBundleID,
             showWindowlessApps: appState.showWindowlessApps,
@@ -682,12 +906,12 @@ final class PickerWindowController: NSObject {
         coordinator.select(items[appState.focusedBrowserIndex], state: appState, source: .pickerHotkey)
     }
 
-    private func openItemForMouseDown(at screenLocation: NSPoint, eventType: NSEvent.EventType) -> Bool {
-        guard eventType == .leftMouseDown,
-              appState.isPickerVisible,
+    private func itemForMouseEvent(at screenLocation: NSPoint) -> PickerItem? {
+        guard appState.isPickerVisible,
+              !isClosing,
               let panel
         else {
-            return false
+            return nil
         }
 
         let items = pickerItemsForCurrentSession()
@@ -699,11 +923,22 @@ final class PickerWindowController: NSObject {
             scale: pickerScale,
             showsIncognitoHint: appState.showsPickerIncognitoHint
         ) else {
-            return false
+            return nil
         }
 
-        appState.focusedBrowserIndex = index
-        return coordinator.select(items[index], state: appState, source: .pickerClick)
+        return items[index]
+    }
+
+    /// Whether this Tab event *is* the configured activation chord, which the global hot key has
+    /// already acted on. Compared on the exact modifier set, so ⇧⌥Tab (a different set) still
+    /// reaches the panel and steps backward.
+    static func isActivationChordRepeat(
+        _ event: NSEvent,
+        shortcut: KeyboardShortcuts.Shortcut? = KeyboardShortcuts.getShortcut(for: .openPickerManually)
+    ) -> Bool {
+        guard let shortcut, shortcut.key == .tab else { return false }
+        let relevant: NSEvent.ModifierFlags = [.option, .command, .control, .shift]
+        return event.modifierFlags.intersection(relevant) == shortcut.modifiers.intersection(relevant)
     }
 
     /// Where focus should land after the item list is replaced: follow the focused item's id,
@@ -718,6 +953,49 @@ final class PickerWindowController: NSObject {
     static func shouldDismissForGlobalMouseDown(at screenLocation: NSPoint, panelFrame: NSRect?) -> Bool {
         guard let panelFrame else { return true }
         return !panelFrame.contains(screenLocation)
+    }
+
+    static func deferGlobalMouseDownObservation(
+        event: NSEvent,
+        sessionID: UUID,
+        action: @escaping @MainActor (PickerGlobalMouseDownObservation) -> Void
+    ) {
+        // A windowless NSEvent already carries screen coordinates. Convert an associated
+        // window's point now, before the window or pointer can move during deferred delivery.
+        let screenLocation = event.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+        let observation = PickerGlobalMouseDownObservation(
+            screenLocation: screenLocation,
+            sessionID: sessionID
+        )
+        Task { @MainActor in
+            action(observation)
+        }
+    }
+
+    static func globalMouseDownAction(
+        at screenLocation: NSPoint,
+        panelFrame: NSRect?,
+        observedSessionID: UUID,
+        activeSessionID: UUID?,
+        isClosing: Bool,
+        isPickerSessionActive: Bool,
+        isPickerVisible: Bool,
+        isPanelVisible: Bool,
+        requiresKeyboardFocus: Bool
+    ) -> PickerGlobalMouseDownAction {
+        guard observedSessionID == activeSessionID,
+              !isClosing,
+              isPickerSessionActive,
+              isPickerVisible,
+              isPanelVisible,
+              let panelFrame
+        else {
+            return .ignore
+        }
+        if panelFrame.contains(screenLocation) {
+            return requiresKeyboardFocus ? .refocus : .ignore
+        }
+        return .dismiss
     }
 
     static func itemIndexForManualPickerClick(
@@ -831,6 +1109,22 @@ final class PickerWindowController: NSObject {
             backing: .buffered,
             defer: false
         )
+        #if DEV_BUILD
+            panel.diagnosticContext = { [weak self] in
+                self?.diagnosticContext ?? "controller=gone"
+            }
+            panel.diagnosticOrdering = { [weak self] operation, ordersWindowIn in
+                guard let self else { return }
+                self.diagnostics.record(operation)
+                if ordersWindowIn && self.activeSessionID == nil {
+                    // Symbolicate only anomalous front ordering, not the normal click path.
+                    for (index, frame) in Thread.callStackSymbols.prefix(18).enumerated() {
+                        self.diagnostics.record("unexpectedOrder.stack", detail: "frame=\(index) \(frame)")
+                    }
+                    self.diagnostics.flush()
+                }
+            }
+        #endif
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -1081,6 +1375,7 @@ extension PickerWindowController: NSWindowDelegate {
     }
 
     nonisolated func windowDidResignKey(_: Notification) {
+        let observedSessionID = MainActor.assumeIsolated { keyedSessionID }
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.refreshPanelAppearance()
@@ -1093,12 +1388,18 @@ extension PickerWindowController: NSWindowDelegate {
             switch PickerPanelInteractionPolicy.keyResignAction(
                 requiresKeyboardFocus: self.appState.pickerInvocationSource.requiresKeyboardFocus,
                 isInDismissGracePeriod: self.isInDismissGracePeriod,
-                isPointerInsidePanel: pointerInside
+                isPointerInsidePanel: pointerInside,
+                isPanelKey: self.panel?.isKeyWindow == true,
+                observedSessionID: observedSessionID,
+                activeSessionID: self.activeSessionID
             ) {
             case .ignore:
                 break
             case .refocus:
                 if let panel = self.panel {
+                    #if DEV_BUILD
+                        self.traceLifecycle("keyResign.refocus")
+                    #endif
                     panel.orderFrontRegardless()
                     self.focusPanel(panel)
                 }

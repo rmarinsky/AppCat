@@ -15,7 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let suggestionsManager = SuggestionsManager()
     let statsManager = StatsManager()
     lazy var updaterManager = UpdaterManager()
-    lazy var appActivityMonitor = AppActivityMonitor(appState: appState)
+    let windowActivationTracker = WindowActivationTracker()
+    lazy var appActivityMonitor = AppActivityMonitor(
+        appState: appState,
+        activationTracker: windowActivationTracker
+    )
     let pickerActivationListener = PickerActivationListener()
     private var mainWindowController: MainWindowController?
     private var openMainWindowObserver: NSObjectProtocol?
@@ -26,11 +30,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Toggle/service pickers wait for a fresh off-main AX window pass. The token prevents a late
     /// completion from presenting after a second trigger cancelled the session or a URL arrived.
     private var pendingManualPickerPresentationID: UUID?
+    let commitModifierWatcher = PickerCommitModifierWatcher()
+    /// Shortcut presses that arrived while a toggle session was still waiting on its window
+    /// enumeration, applied once the session exists.
+    private var pendingManualPickerAdvances = 0
+    /// The activation modifiers came back up before the session was presentable; commit on arrival.
+    private var pendingManualPickerCommit = false
+    /// A mouse click inside hold-to-switch commits the target immediately. Any queued Tab step from
+    /// that same hold gesture must not create a new picker while Option is still down.
+    private var suppressHoldPickerUntilOptionRelease = false
     /// URLs can arrive before `applicationDidFinishLaunching` loads browsers/rules/apps (the
     /// launch kAEGetURL event is delivered right after `applicationWillFinishLaunching`). Buffer
     /// them until launch configuration is ready, then flush.
     private var isLaunchConfigured = false
     private var bufferedLaunchRequests: [(urls: [URL], sourceBundleIDs: Set<String>)] = []
+
+    override init() {
+        super.init()
+        pickerCoordinator.onHoldPickerMouseSelection = { [weak self] in
+            self?.suppressHoldPickerUntilOptionRelease = NSEvent.modifierFlags.contains(.option)
+        }
+        pickerCoordinator.onPickerMousePress = { [weak self] in
+            guard let self else { return }
+            // Once the mouse owns a gesture, modifier release must not commit another item.
+            self.commitModifierWatcher.disarm()
+            self.pendingManualPickerCommit = false
+            if self.appState.pickerInvocationSource == .holdOptionTab {
+                self.suppressHoldPickerUntilOptionRelease = true
+            }
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -46,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        #if DEBUG
+        #if DEV_BUILD
             if configureUITestSessionIfRequested() {
                 return
             }
@@ -92,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pickerCoordinator.historyManager = historyManager
         pickerCoordinator.suggestionsManager = suggestionsManager
         pickerCoordinator.statsManager = statsManager
+        pickerCoordinator.windowActivationTracker = windowActivationTracker
         suggestionsManager.loadCached(into: appState)
         suggestionsManager.analyseIfNeeded(state: appState)
         _ = updaterManager
@@ -99,7 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         GlobalShortcuts.migrateLegacyDefaultsIfNeeded()
         configurePickerActivationListener()
 
-        KeyboardShortcuts.onKeyUp(for: .openPickerManually) { [weak self] in
+        // Key *down*, so the window enumeration and the modifier watcher both start one key event
+        // earlier and a repeated press steps immediately. `.reopenLastPicker` stays on key up.
+        KeyboardShortcuts.onKeyDown(for: .openPickerManually) { [weak self] in
             guard let self, self.appState.pickerActivationMode == .toggleShortcut else { return }
             self.openPickerManually(source: .toggleShortcut)
         }
@@ -141,14 +173,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_: Notification) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("app.didBecomeActive")
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.begin appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) sessionActive=\(self.appState.isPickerSessionActive) stateVisible=\(self.appState.isPickerVisible)"
+            )
+        #endif
         appState.refreshPickerPermissions()
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
-        if PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
+        let shouldRestoreRegularPolicy = PickerPanelInteractionPolicy.shouldRestoreRegularPolicy(
             isPickerVisible: appState.isPickerVisible,
             isMainWindowVisibleOnActiveSpace: MainWindowActivation.isMainWindowVisibleOnActiveSpace
-        ) {
+        )
+        #if DEV_BUILD
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.restoreDecision restoreRegular=\(shouldRestoreRegularPolicy) policy=\(NSApp.activationPolicy().rawValue)"
+            )
+        #endif
+        if shouldRestoreRegularPolicy {
             NSApp.setActivationPolicy(.regular)
         }
+        #if DEV_BUILD
+            Log.picker.notice(
+                "[DEBUG-picker-ordering] app.didBecomeActive.end appActive=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) sessionActive=\(self.appState.isPickerSessionActive) stateVisible=\(self.appState.isPickerVisible)"
+            )
+        #endif
     }
 
     func applicationWillTerminate(_: Notification) {
@@ -159,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(pickerActivationSettingsObserver)
         }
         pickerActivationListener.stop()
+        commitModifierWatcher.disarm()
         appActivityMonitor.stop()
         HistoryStorage.shared.flush()
         StatsStorage.shared.flush()
@@ -194,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Second line of defense — the primary one is explicit cancellation on incoming URLs.
             guard self.appState.pendingURL == nil, !self.appState.isPickerVisible else {
                 Log.app.info(
-                    "Skipping scheduled main window open: pendingURL=\(self.appState.pendingURL?.absoluteString ?? "nil", privacy: .public), pickerVisible=\(self.appState.isPickerVisible, privacy: .public)"
+                    "Skipping scheduled main window open: hasPendingURL=\(self.appState.pendingURL != nil, privacy: .public), pickerVisible=\(self.appState.isPickerVisible, privacy: .public)"
                 )
                 return
             }
@@ -237,8 +287,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func openPickerManually(source: PickerInvocationSource) {
         switch PickerManualActivationPolicy.action(
             isPickerVisible: appState.isPickerSessionActive,
-            isPresentationPending: pendingManualPickerPresentationID != nil
+            isPresentationPending: pendingManualPickerPresentationID != nil,
+            advancesOnRepeat: source.advancesFocusOnRepeatedInvocation,
+            isLinkRoutingSessionActive: appState.pendingURL != nil
+                || (appState.isPickerSessionActive && appState.pickerInvocationSource == .linkRouting)
         ) {
+        case .ignore:
+            return
+        case let .advanceFocus(delta):
+            advanceManualPickerFocus(delta: delta)
+            return
         case .confirmFocusedItem:
             pickerCoordinator.openFocusedItem(state: appState)
             return
@@ -250,11 +308,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             break
         }
 
+        armCommitModifierWatcher(for: source)
         presentManualPicker(source: source)
     }
 
+    /// A press that lands before the session exists (during the window-enumeration wait) is banked
+    /// and applied the moment it does, so a fast double-tap still lands two windows back.
+    private func advanceManualPickerFocus(delta: Int) {
+        guard appState.isPickerSessionActive else {
+            pendingManualPickerAdvances += delta
+            return
+        }
+        pickerCoordinator.moveFocus(delta: delta, state: appState)
+    }
+
+    private func armCommitModifierWatcher(for source: PickerInvocationSource) {
+        pendingManualPickerCommit = false
+        commitModifierWatcher.disarm()
+        guard source == .toggleShortcut,
+              let modifiers = PickerCommitModifierPolicy.watchedModifiers(
+                  for: KeyboardShortcuts.getShortcut(for: .openPickerManually)
+              )
+        else { return }
+
+        commitModifierWatcher.isSessionAlive = { [weak self] in
+            guard let self else { return false }
+            return PickerCommitModifierPolicy.isToggleSessionAlive(
+                invocationSource: self.appState.pickerInvocationSource,
+                isPickerSessionActive: self.appState.isPickerSessionActive,
+                isManualPresentationPending: self.pendingManualPickerPresentationID != nil
+            )
+        }
+        commitModifierWatcher.onCommit = { [weak self] in
+            guard let self else { return }
+            guard self.appState.isPickerSessionActive else {
+                // Released before the panel could be presented. Commit as soon as the pending
+                // presentation lands, which closes the session without ever ordering the panel
+                // front — a quick ⌥Tab tap switches with no flash, exactly like ⌘Tab.
+                self.pendingManualPickerCommit = true
+                return
+            }
+            self.pickerCoordinator.openFocusedItem(state: self.appState)
+        }
+        commitModifierWatcher.arm(watching: modifiers)
+    }
+
     private func cycleManualPicker(delta: Int) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("shortcut.holdStep", detail: "delta=\(delta) suppressed=\(suppressHoldPickerUntilOptionRelease)")
+        #endif
         guard appState.pendingURL == nil else { return }
+        let stepAction = PickerHoldGestureSuppressionPolicy.stepAction(
+            isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease
+        )
+        guard stepAction == .handle else {
+            Log.picker.debug("Ignored hold picker step after mouse selection until Option release")
+            return
+        }
         if !appState.isPickerSessionActive {
             presentManualPicker(source: .holdOptionTab)
         } else if appState.pickerInvocationSource == .holdOptionTab {
@@ -265,15 +375,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openFocusedManualPickerItem() {
-        guard appState.pickerInvocationSource.opensFocusedItemOnOptionRelease(
-            isPickerVisible: appState.isPickerSessionActive
-        ) else { return }
-        pickerCoordinator.openFocusedItem(state: appState)
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("shortcut.optionRelease", detail: "suppressed=\(suppressHoldPickerUntilOptionRelease)")
+        #endif
+        switch PickerHoldGestureSuppressionPolicy.releaseAction(
+            isSuppressedUntilOptionRelease: suppressHoldPickerUntilOptionRelease,
+            invocationSource: appState.pickerInvocationSource,
+            isPickerSessionActive: appState.isPickerSessionActive
+        ) {
+        case .clearSuppression:
+            suppressHoldPickerUntilOptionRelease = false
+            Log.picker.debug("Cleared hold picker mouse-selection suppression on Option release")
+        case .openFocusedItem:
+            pickerCoordinator.openFocusedItem(state: appState)
+        case .ignore:
+            break
+        }
     }
 
     private func presentManualPicker(source: PickerInvocationSource) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("manual.request", detail: "source=\(String(describing: source))")
+        #endif
         cancelScheduledMainWindowOpen()
         pendingManualPickerPresentationID = nil
+        pendingManualPickerAdvances = 0
         appActivityMonitor.refreshRunningApplications()
         appState.clearPendingOpen()
         appState.pickerInvocationSource = source
@@ -288,6 +414,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 else { return }
                 self.pendingManualPickerPresentationID = nil
                 self.pickerCoordinator.showPicker(state: self.appState)
+                self.drainPendingManualPickerInput()
             }
             return
         }
@@ -298,6 +425,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             appActivityMonitor.refreshWindowSnapshotForPicker()
         }
         pickerCoordinator.showPicker(state: appState)
+    }
+
+    /// Applies steps and a release that arrived while the session was still being built.
+    private func drainPendingManualPickerInput() {
+        if pendingManualPickerAdvances != 0 {
+            pickerCoordinator.moveFocus(delta: pendingManualPickerAdvances, state: appState)
+            pendingManualPickerAdvances = 0
+        }
+        guard pendingManualPickerCommit else { return }
+        pendingManualPickerCommit = false
+        pickerCoordinator.openFocusedItem(state: appState)
     }
 
     // MARK: - URL Handling
@@ -325,10 +463,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleIncomingURLs(_ rawURLs: [URL], sourceBundleIDs: Set<String> = []) {
+        #if DEV_BUILD
+            pickerCoordinator.diagnostics?.record("routing.received", detail: "count=\(rawURLs.count)")
+        #endif
+        guard !rawURLs.isEmpty else { return }
+
         // A routing request supersedes any scheduled main-window open — cancel it outright so a
         // late-firing timer can never pop the main window over the picker.
-        cancelScheduledMainWindowOpen()
-        pendingManualPickerPresentationID = nil
+        prepareForIncomingRouting()
 
         guard isLaunchConfigured else {
             // Launch config (browsers/rules/apps) isn't loaded yet — routing now would misfire.
@@ -379,6 +521,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         -> (urls: [URL], sourceBundleIDs: Set<String>) {
         (requests.flatMap(\.urls), Set(requests.flatMap(\.sourceBundleIDs)))
     }
+
+    /// End every manual-picker input path before a URL starts a new routing session. In
+    /// particular, a modifier release from the old Option-Tab gesture must not commit the new
+    /// link picker, and queued focus steps must not carry into its destination list.
+    func prepareForIncomingRouting() {
+        cancelScheduledMainWindowOpen()
+        pendingManualPickerPresentationID = nil
+        pendingManualPickerAdvances = 0
+        pendingManualPickerCommit = false
+        suppressHoldPickerUntilOptionRelease = false
+        commitModifierWatcher.disarm()
+        if appState.isPickerSessionActive {
+            pickerCoordinator.dismissPicker(state: appState)
+        }
+    }
+
+    #if DEV_BUILD
+        func startPendingTogglePickerForUITest() {
+            openPickerManually(source: .toggleShortcut)
+        }
+
+        func completeLaunchConfigurationForUITest(routing urls: [URL] = []) {
+            isLaunchConfigured = true
+            if !urls.isEmpty {
+                handleIncomingURLs(urls)
+            }
+        }
+    #endif
 
     private func flushBufferedLaunchURLs() {
         guard !bufferedLaunchRequests.isEmpty else { return }

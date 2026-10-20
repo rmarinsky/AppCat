@@ -38,15 +38,21 @@ final class AppActivityMonitor {
     /// Fired when a live window snapshot lands while a toggle/service picker session can consume it.
     var onManualPickerNeedsRefresh: (@MainActor () -> Void)?
 
+    /// Records the most-recently-used window order the app switcher ranks by. Optional so the
+    /// existing test constructions of this monitor keep working without one.
+    private weak var activationTracker: WindowActivationTracker?
+
     init(
         appState: AppState,
         windowPollInterval: UInt64 = 5_000_000_000,
+        activationTracker: WindowActivationTracker? = nil,
         enumerateWindows: @escaping @Sendable () -> [String: [AppWindowTarget]] = {
             WindowEnumerator.isTrusted ? WindowEnumerator.runningWindows() : [:]
         }
     ) {
         self.appState = appState
         self.windowPollInterval = windowPollInterval
+        self.activationTracker = activationTracker
         self.enumerateWindows = enumerateWindows
     }
 
@@ -55,6 +61,7 @@ final class AppActivityMonitor {
         isStopped = false
 
         refreshRunningApplications()
+        activationTracker?.seedFromCurrentWindowOrder()
         scheduleWindowRefresh(after: 0.15)
         observeWorkspaceChanges()
         startWindowPolling()
@@ -121,8 +128,17 @@ final class AppActivityMonitor {
                 .filter { $0.activationPolicy == .regular }
                 .compactMap(\.bundleIdentifier)
         )
-        appState.frontmostAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        appState.frontmostAppBundleID = frontmostApplication?.bundleIdentifier
         appState.appActivityUpdatedAt = Date()
+        // Backstop for window switches *inside* one app (⌘`, clicking a sibling window), which emit
+        // no workspace notification. This also runs on the just-in-time refresh every toggle
+        // session performs, so the switcher's idea of "the window you are in now" is fresh when the
+        // picker opens. The tracker drops AppCat itself, which is frontmost while the picker is key.
+        activationTracker?.recordFrontmostRefresh(
+            bundleID: frontmostApplication?.bundleIdentifier,
+            processIdentifier: frontmostApplication?.processIdentifier
+        )
     }
 
     func refreshWindowSnapshotForPicker() {
@@ -154,19 +170,39 @@ final class AppActivityMonitor {
         ) { [weak self] notification in
             let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             let activatedBundleID = activatedApp?.bundleIdentifier
+            let activatedPID = activatedApp?.processIdentifier
             Task { @MainActor [weak self] in
-                self?.handleWorkspaceChange(notificationName, activatedBundleID: activatedBundleID)
+                self?.handleWorkspaceChange(
+                    notificationName,
+                    activatedBundleID: activatedBundleID,
+                    activatedPID: activatedPID
+                )
             }
         }
         observers.append(observer)
     }
 
-    private func handleWorkspaceChange(_ notificationName: Notification.Name, activatedBundleID: String?) {
+    private func handleWorkspaceChange(
+        _ notificationName: Notification.Name,
+        activatedBundleID: String?,
+        activatedPID: pid_t? = nil
+    ) {
         // Ignore AppCat's own activation (e.g. when it activates to show the picker). Otherwise
         // every picker presentation would kick off an AX enumeration on the present frame — and
         // AppCat shouldn't rank itself in its own switcher.
         if activatedBundleID == Bundle.main.bundleIdentifier {
             return
+        }
+        if let activatedBundleID {
+            if notificationName == NSWorkspace.didActivateApplicationNotification {
+                activationTracker?.recordActivation(
+                    bundleID: activatedBundleID,
+                    processIdentifier: activatedPID
+                )
+            }
+            if notificationName == NSWorkspace.didTerminateApplicationNotification {
+                activationTracker?.forget(bundleID: activatedBundleID)
+            }
         }
         if notificationName == NSWorkspace.didLaunchApplicationNotification
             || notificationName == NSWorkspace.didTerminateApplicationNotification

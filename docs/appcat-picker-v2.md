@@ -36,12 +36,18 @@ Content rules:
 - Background and menu-bar apps are optional and hidden by default.
 - Settings -> Picker exclusions apply to both routing and switching pickers.
 - Existing visibility, running, hidden, background, and windowless rules determine candidates first.
-- Candidate app groups are sorted by successful manual-picker selections from the trailing seven local
-  calendar days, then localized display name. Windows of one app remain adjacent.
-- Windowless apps remain dimmed but share the same frequency order, so a frequently selected
-  windowless app can appear before a windowed app.
-- Each manual-picker session snapshots the counts before presentation. A successful selection changes
-  the next session's order rather than moving the current keyboard focus.
+- Candidates are flattened into individual tiles and each tile is ranked on its own by when it was
+  last frontmost. Windows of one app are therefore **not** adjacent — that is what makes the tile
+  after the one you are in the exact window you were in before, rather than merely the right app.
+- A tile whose window title was resolved outranks siblings that only inherit their app's recency.
+- Tiles with no recency fall back to the previous contract: successful manual-picker selections from
+  the trailing seven local calendar days, then localized display name, then bundle id. With no
+  recency at all the ordering is identical to the pre-recency behaviour.
+- Windowless apps remain dimmed but share the same order, so a recently or frequently used windowless
+  app can appear before a windowed app.
+- Each manual-picker session snapshots recency *and* counts before presentation and never re-reads
+  them, so a background app stealing focus mid-session cannot reshuffle the row under the user's
+  focused tile. A successful selection changes the next session's order, not the current one.
 - Toggle-shortcut and service-key sessions publish a fresh Accessibility window snapshot before
   the panel appears, so newly opened windows do not arrive as a delayed in-place replacement.
 - A live `NSRunningApplication` snapshot makes newly launched apps available before the slower
@@ -62,6 +68,10 @@ AppCat switches to `.accessory` and presents with `orderFrontRegardless()` witho
 an accepting SwiftUI hosting responder. Hold-to-switch stays non-key because its event tap owns input.
 If LaunchServices activated AppCat first, presentation waits for deactivation to settle so a late
 `windowDidResignKey` cannot flash and dismiss the picker.
+
+On dismissal, an inactive AppCat stays `.accessory`, even if its main window is visible on the
+active Space. The existing activation callback can restore `.regular` when AppCat becomes active
+again and that main window is visible.
 
 On macOS 26 and newer, the panel surface uses `NSGlassEffectContainerView` with a child `NSGlassEffectView`:
 
@@ -115,8 +125,29 @@ Invocation-source policy:
 
 - Every source uses the same nonactivating fullscreen-safe panel.
 - Link routing, toggle-shortcut, and service-key sessions require keyboard focus.
+- Toggle-shortcut and service-key sessions open focused on index 1, the previous window, whenever
+  index 0 is the window the user is currently in. Link routing stays on index 0: its list is
+  destinations for a URL, not a history.
+- Repeating the toggle shortcut steps focus forward instead of confirming; `Shift` steps backward.
+  A press that lands while the session is still waiting on its window enumeration is banked and
+  applied on arrival, so a fast double-tap reaches two windows back.
+- A toggle session commits when the activation chord's modifiers are released, detected by polling
+  `NSEvent.modifierFlags` — no Accessibility or Input Monitoring required. Releasing before the panel
+  could be presented commits without ever ordering it front, so a quick tap switches with no flash.
+  A shortcut rebound to a modifier-free chord simply stays a modal picker.
 - Hold-`Option`+`Tab` stays non-key, cycles with `Tab` / `Shift+Tab`, opens on `Option` release, and omits all shortcut labels.
-- Every picker item is clickable. A global hit-test fallback handles the first mouse-down only when
-  AppKit did not deliver it locally to the SwiftUI button.
+  It reaches index 1 by presenting at 0 and stepping forward once, so it is excluded from the
+  initial-focus rule above to avoid double-advancing.
+- A local mouse-down reserves the tile and consumes the event without launching or closing.
+  Only the matching local mouse-up on the same tile in the same session commits, once. Releasing
+  outside that tile cancels and closes without launching; Escape, close, and session replacement
+  invalidate the reservation. An unrelated mouse-up cannot commit the reserved tile.
+  A release may share the press's event number, as observed in physical macOS 27 clicks;
+  equal numbers complete the gesture, while older releases are ignored.
+  Removed local-monitor callbacks cannot act on replacement sessions; an old-session release
+  cannot clear a current press. Event coordinates are captured in screen space before deferral.
+- Mouse ownership blocks modifier-release commits and disarms the toggle modifier watcher.
+  Global mouse observations never select a tile; a matching global release can only cancel.
+  SwiftUI button actions remain available for accessibility activation.
 - Routing configured shortcuts take precedence; remaining routing items receive positional keys in `1...0`, then `QWERTY...` order.
 - Manual toggle/service sessions expose only positional `1...0`; alphabetic input is type-ahead.

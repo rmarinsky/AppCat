@@ -49,7 +49,7 @@ struct ShortcutsSettingsView: View {
             if appState.pickerActivationMode == .toggleShortcut {
                 shortcutRow(
                     String(localized: "Open picker manually"),
-                    subtitle: String(localized: "Default is ⌥Tab. Record any macOS-accepted global shortcut here.")
+                    subtitle: String(localized: "Default is ⌥Tab. Opens on the window you were in before; press again to step back, release ⌥ to switch.")
                 ) {
                     KeyboardShortcuts.Recorder(for: .openPickerManually)
                 }
