@@ -17,7 +17,33 @@ final class HistoryManager {
             entries = Array(entries.prefix(maxHistoryEntries))
             storage.save(entries)
         }
+        if Self.unwrapWrappedLinks(&entries) > 0 {
+            storage.save(entries)
+        }
         state.history = entries
+    }
+
+    /// Rewrites link entries still recorded as a wrapper URL (e.g. recorded before
+    /// `URLUnwrapper` knew that wrapper) to their real destination, keeping the wrapper
+    /// in `originalURL`. Idempotent; returns how many entries changed.
+    @discardableResult
+    static func unwrapWrappedLinks(_ entries: inout [HistoryEntry]) -> Int {
+        var changed = 0
+        for index in entries.indices where entries[index].itemKind == .link {
+            guard let url = URL(string: entries[index].url) else { continue }
+            let unwrapped = URLUnwrapper.unwrap(url)
+            guard unwrapped != url else { continue }
+            if entries[index].originalURL == nil {
+                entries[index].originalURL = entries[index].url
+            }
+            entries[index].url = unwrapped.absoluteString
+            entries[index].domain = unwrapped.host ?? unwrapped.absoluteString
+            changed += 1
+        }
+        if changed > 0 {
+            Log.history.info("Unwrapped \(changed) wrapped history entries")
+        }
+        return changed
     }
 
     @discardableResult
@@ -74,6 +100,7 @@ final class HistoryManager {
         profileDirectoryName: String?,
         targetType: URLRule.TargetType?,
         sourceRuleID: UUID? = nil,
+        originalURLs: [URL] = [],
         state: AppState
     ) -> [UUID] {
         guard !urls.isEmpty else { return [] }
@@ -82,6 +109,7 @@ final class HistoryManager {
         newEntries.reserveCapacity(urls.count)
         for (index, url) in urls.enumerated() {
             let metadata = metadata(for: url)
+            let original = originalURLs.indices.contains(index) ? originalURLs[index] : nil
             let entry = HistoryEntry(
                 url: url.absoluteString,
                 domain: metadata.domain,
@@ -96,7 +124,8 @@ final class HistoryManager {
                 fileName: metadata.fileName,
                 fileExtension: metadata.fileExtension,
                 fileFormat: metadata.fileFormat,
-                contentTypeIdentifier: metadata.contentTypeIdentifier
+                contentTypeIdentifier: metadata.contentTypeIdentifier,
+                originalURL: original.flatMap { $0 == url ? nil : $0.absoluteString }
             )
             newEntries.append(entry)
             log(entry)
@@ -116,6 +145,9 @@ final class HistoryManager {
         guard let index = state.history.firstIndex(where: { $0.id == id }) else { return }
         let absolute = finalURL.absoluteString
         guard state.history[index].url != absolute else { return }
+        if state.history[index].originalURL == nil {
+            state.history[index].originalURL = state.history[index].url
+        }
         state.history[index].url = absolute
         state.history[index].domain = finalURL.host ?? absolute
         storage.save(state.history)

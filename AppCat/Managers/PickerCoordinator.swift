@@ -322,6 +322,7 @@ final class PickerCoordinator {
             profileDirectoryName: profile?.directoryName,
             targetType: .browser,
             sourceRuleID: source.ruleID,
+            originalURLs: pendingOpen.launchURLs,
             state: state
         ) ?? []
         statsManager?.record(source, profileTargeted: profile != nil)
@@ -355,6 +356,7 @@ final class PickerCoordinator {
             profileDirectoryName: nil,
             targetType: .app,
             sourceRuleID: source.ruleID,
+            originalURLs: pendingOpen.launchURLs,
             state: state
         ) ?? []
         statsManager?.record(source)

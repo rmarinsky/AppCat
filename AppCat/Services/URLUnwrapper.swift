@@ -35,6 +35,12 @@ enum URLUnwrapper {
             pathMatches: { _ in true },
             extract: queryParamExtractor(["url"])
         ),
+        // Microsoft Teams Safe Links (CDN-hosted page; `dest` is the Teams origin, not the target)
+        .init(
+            hostMatches: { $0 == "teams.public.onecdn.static.microsoft" },
+            pathMatches: { $0.contains("/safelinks/") },
+            extract: queryParamExtractor(["url"])
+        ),
         // Instagram
         .init(
             hostMatches: { $0 == "l.instagram.com" },
