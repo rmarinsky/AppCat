@@ -153,4 +153,24 @@ final class HistoryEntryCodableTests: XCTestCase {
         XCTAssertEqual(decoded.itemKind, .file)
         XCTAssertNil(decoded.fileFormat)
     }
+
+    @MainActor
+    func testUnwrapWrappedLinksMigratesTeamsSafeLinksAndKeepsOriginal() throws {
+        let wrapped = "https://teams.public.onecdn.static.microsoft/evergreen-assets/safelinks/2/atp-safelinks.html"
+            + "?url=https%3A%2F%2Fdev.azure.com%2Forg%2Fproj%2F_git%2Frepo%2Fpullrequest%2F1&locale=en-us"
+        var entries = [
+            HistoryEntry(url: wrapped, domain: "teams.public.onecdn.static.microsoft", title: nil, appName: "Edge", profileName: nil),
+            HistoryEntry(url: "https://github.com/", domain: "github.com", title: nil, appName: "Safari", profileName: nil),
+        ]
+
+        XCTAssertEqual(HistoryManager.unwrapWrappedLinks(&entries), 1)
+        XCTAssertEqual(entries[0].url, "https://dev.azure.com/org/proj/_git/repo/pullrequest/1")
+        XCTAssertEqual(entries[0].domain, "dev.azure.com")
+        XCTAssertEqual(entries[0].originalURL, wrapped)
+        XCTAssertNil(entries[1].originalURL)
+        XCTAssertEqual(HistoryManager.unwrapWrappedLinks(&entries), 0)
+
+        let roundTripped = try decoder().decode(HistoryEntry.self, from: encoder().encode(entries[0]))
+        XCTAssertEqual(roundTripped.originalURL, wrapped)
+    }
 }

@@ -9,6 +9,8 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
     let id: UUID
     var url: String
     var domain: String
+    /// The URL as received, when it differs from `url` (wrapper unwrapped or redirect resolved).
+    var originalURL: String?
     let title: String?
     let appName: String
     let profileName: String?
@@ -40,7 +42,8 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         fileName: String? = nil,
         fileExtension: String? = nil,
         fileFormat: String? = nil,
-        contentTypeIdentifier: String? = nil
+        contentTypeIdentifier: String? = nil,
+        originalURL: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -58,6 +61,7 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         self.fileExtension = fileExtension
         self.fileFormat = fileFormat
         self.contentTypeIdentifier = contentTypeIdentifier
+        self.originalURL = originalURL
     }
 
     init(from decoder: Decoder) throws {
@@ -79,5 +83,6 @@ struct HistoryEntry: Identifiable, Codable, Equatable {
         fileExtension = try container.decodeIfPresent(String.self, forKey: .fileExtension)
         fileFormat = try container.decodeIfPresent(String.self, forKey: .fileFormat)
         contentTypeIdentifier = try container.decodeIfPresent(String.self, forKey: .contentTypeIdentifier)
+        originalURL = try container.decodeIfPresent(String.self, forKey: .originalURL)
     }
 }

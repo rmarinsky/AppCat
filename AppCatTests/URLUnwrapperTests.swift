@@ -110,6 +110,18 @@ final class URLUnwrapperTests: XCTestCase {
         XCTAssertEqual(unwrap(wrapped), "https://github.com/team/issue/123")
     }
 
+    func testTeamsCDNSafeLinks() {
+        let wrapped = "https://teams.public.onecdn.static.microsoft/evergreen-assets/safelinks/2/atp-safelinks.html"
+            + "?url=https%3A%2F%2Fdev.azure.com%2Forg%2Fproj%2F_build%2Fresults%3FbuildId%3D512339%26view%3Dresults"
+            + "&locale=en-us&dest=https%3A%2F%2Fteams.microsoft.com%2Fv2%2F"
+        XCTAssertEqual(unwrap(wrapped), "https://dev.azure.com/org/proj/_build/results?buildId=512339&view=results")
+    }
+
+    func testTeamsCDNNonSafeLinksPathUnchanged() {
+        let plain = "https://teams.public.onecdn.static.microsoft/evergreen-assets/other.html?url=https%3A%2F%2Fgithub.com"
+        XCTAssertEqual(unwrap(plain), plain)
+    }
+
     // MARK: - Instagram
 
     func testInstagramRedirector() {
