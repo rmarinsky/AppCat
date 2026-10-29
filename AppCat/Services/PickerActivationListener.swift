@@ -10,11 +10,19 @@ final class PickerActivationListener {
     var onHoldStep: ((Int) -> Void)?
     var onHoldRelease: (() -> Void)?
     var onServiceKeyTrigger: (() -> Void)?
+    /// Whether Option is physically down right now. Injectable so tests don't read the real keyboard.
+    var isOptionKeyDown: () -> Bool = {
+        CGEventSource.flagsState(.combinedSessionState).contains(.maskAlternate)
+    }
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var serviceTapCounter = TapSequenceCounter()
     private var holdSessionActive = false
+    /// The Option release can be lost: when the main thread stalls (e.g. activating the app a
+    /// link was just opened in) macOS disables the tap and lets events pass unseen. A hold session
+    /// that missed its release would stay on screen until the next ⌥Tab, so poll the real state too.
+    private var holdReleaseWatchdog: Timer?
     private var settings: PickerActivationSettings = .defaultValue
     /// When true, hold/service callbacks run inline (unit tests). Production taps stay async.
     private var deliversCallbacksSynchronouslyForTesting = false
@@ -82,6 +90,8 @@ final class PickerActivationListener {
         eventTap = nil
         runLoopSource = nil
         holdSessionActive = false
+        holdReleaseWatchdog?.invalidate()
+        holdReleaseWatchdog = nil
         serviceTapCounter.reset()
     }
 
@@ -90,6 +100,7 @@ final class PickerActivationListener {
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
             }
+            reconcileHoldWithPhysicalModifiers()
             return Unmanaged.passUnretained(event)
         }
 
@@ -125,6 +136,7 @@ final class PickerActivationListener {
         guard flags.intersection([.maskCommand, .maskControl]).isEmpty else { return false }
 
         holdSessionActive = true
+        startHoldReleaseWatchdog()
         let delta = flags.contains(.maskShift) ? -1 : 1
         emitCallback { [onHoldStep] in
             onHoldStep?(delta)
@@ -134,7 +146,28 @@ final class PickerActivationListener {
 
     private func handleHoldFlagsChanged(_ flags: CGEventFlags) {
         guard holdSessionActive, !flags.contains(.maskAlternate) else { return }
+        endHoldSession()
+    }
+
+    /// Ends a hold session whose Option release was never delivered to the tap.
+    func reconcileHoldWithPhysicalModifiers() {
+        guard holdSessionActive, !isOptionKeyDown() else { return }
+        endHoldSession()
+    }
+
+    private func startHoldReleaseWatchdog() {
+        guard holdReleaseWatchdog == nil, !deliversCallbacksSynchronouslyForTesting else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.reconcileHoldWithPhysicalModifiers()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        holdReleaseWatchdog = timer
+    }
+
+    private func endHoldSession() {
         holdSessionActive = false
+        holdReleaseWatchdog?.invalidate()
+        holdReleaseWatchdog = nil
         emitCallback { [onHoldRelease] in
             onHoldRelease?()
         }

@@ -703,6 +703,36 @@ final class SmokeTests: XCTestCase {
         wait(for: [step, release], timeout: 1)
     }
 
+    func testHoldOptionTabReleasesWhenOptionReleaseWasMissed() throws {
+        let listener = PickerActivationListener()
+        let release = expectation(description: "Missed Option release still confirms focused item")
+        var optionDown = true
+        listener.isOptionKeyDown = { optionDown }
+        listener.onHoldRelease = { release.fulfill() }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .holdOptionTab,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate]
+        _ = listener.handle(type: .keyDown, event: tabDown)
+
+        // Option still held: the session must survive a reconcile.
+        listener.reconcileHoldWithPhysicalModifiers()
+
+        // The tap was disabled while Option came up, so no flagsChanged ever arrives.
+        optionDown = false
+        let disabled = try XCTUnwrap(CGEvent(source: nil))
+        _ = listener.handle(type: .tapDisabledByTimeout, event: disabled)
+
+        wait(for: [release], timeout: 1)
+    }
+
+
     func testServiceKeyColdFirstEscapePassesThroughForMultiTap() throws {
         let listener = PickerActivationListener()
         var triggered = false
