@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowController: MainWindowController?
     private var openMainWindowObserver: NSObjectProtocol?
     private var pickerActivationSettingsObserver: NSObjectProtocol?
+    private var shortcutDidChangeObserver: NSObjectProtocol?
+    private var shortcutRecorderActiveObserver: NSObjectProtocol?
     /// Scheduled "open the main window" work. Stored so an incoming URL or a manual picker can
     /// cancel it outright instead of racing the fire-time guard.
     private var pendingMainWindowOpen: DispatchWorkItem?
@@ -100,6 +102,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.pickerActivationListener.refresh(settings: self.appState.pickerActivationSettings)
             }
         }
+        // Recording a new toggle shortcut changes which key the tap has to claim.
+        shortcutDidChangeObserver = NotificationCenter.default.addObserver(
+            forName: .keyboardShortcutByNameDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.pickerActivationListener.refresh(settings: self.appState.pickerActivationSettings)
+            }
+        }
+        // Release the shortcut while a recorder is open, so the user can type over it.
+        shortcutRecorderActiveObserver = NotificationCenter.default.addObserver(
+            forName: .keyboardShortcutRecorderActiveStatusDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let isActive = notification.userInfo?["isActive"] as? Bool ?? false
+            Task { @MainActor [weak self] in
+                self?.pickerActivationListener.setRecordingShortcut(isActive)
+            }
+        }
 
         browserManager.refreshBrowsers(into: appState)
         appManager.refreshApps(into: appState)
@@ -129,6 +153,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         GlobalShortcuts.migrateLegacyDefaultsIfNeeded()
         configurePickerActivationListener()
 
+        // Fallback path only. When the event tap is running it swallows the shortcut before the
+        // Carbon hotkey is ever dispatched, so this fires solely when the tap is unavailable —
+        // most often because Input Monitoring has not been granted. Lower priority than the tap
+        // (any other app may hold the same combination), but better than doing nothing.
         // Key *down*, so the window enumeration and the modifier watcher both start one key event
         // earlier and a repeated press steps immediately. `.reopenLastPicker` stays on key up.
         KeyboardShortcuts.onKeyDown(for: .openPickerManually) { [weak self] in
@@ -207,6 +235,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let pickerActivationSettingsObserver {
             NotificationCenter.default.removeObserver(pickerActivationSettingsObserver)
         }
+        if let shortcutDidChangeObserver {
+            NotificationCenter.default.removeObserver(shortcutDidChangeObserver)
+        }
+        if let shortcutRecorderActiveObserver {
+            NotificationCenter.default.removeObserver(shortcutRecorderActiveObserver)
+        }
         pickerActivationListener.stop()
         commitModifierWatcher.disarm()
         appActivityMonitor.stop()
@@ -279,6 +313,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         pickerActivationListener.onServiceKeyTrigger = { [weak self] in
             self?.openPickerManually(source: .serviceKey)
+        }
+        pickerActivationListener.onToggleShortcut = { [weak self] in
+            self?.openPickerManually(source: .toggleShortcut)
         }
         pickerActivationListener.refresh(settings: appState.pickerActivationSettings)
     }

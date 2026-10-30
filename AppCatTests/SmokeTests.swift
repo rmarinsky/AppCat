@@ -703,6 +703,110 @@ final class SmokeTests: XCTestCase {
         wait(for: [step, release], timeout: 1)
     }
 
+    func testHoldOptionTabReleasesWhenOptionReleaseWasMissed() throws {
+        let listener = PickerActivationListener()
+        let release = expectation(description: "Missed Option release still confirms focused item")
+        var optionDown = true
+        listener.isOptionKeyDown = { optionDown }
+        listener.onHoldRelease = { release.fulfill() }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .holdOptionTab,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate]
+        _ = listener.handle(type: .keyDown, event: tabDown)
+
+        // Option still held: the session must survive a reconcile.
+        listener.reconcileHoldWithPhysicalModifiers()
+
+        // The tap was disabled while Option came up, so no flagsChanged ever arrives.
+        optionDown = false
+        let disabled = try XCTUnwrap(CGEvent(source: nil))
+        _ = listener.handle(type: .tapDisabledByTimeout, event: disabled)
+
+        wait(for: [release], timeout: 1)
+    }
+
+    func testToggleShortcutIsSwallowedAndFiresOnKeyDown() throws {
+        let listener = PickerActivationListener()
+        let fired = expectation(description: "Toggle shortcut opens the picker")
+        listener.onToggleShortcut = { fired.fulfill() }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        // Real events carry device-side bits alongside the modifier; matching must survive them.
+        tabDown.flags = [.maskAlternate, .maskNonCoalesced]
+        XCTAssertNil(listener.handle(type: .keyDown, event: tabDown), "key down must be swallowed")
+
+        let tabUp = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: false))
+        tabUp.flags = []
+        XCTAssertNil(listener.handle(type: .keyUp, event: tabUp), "key up must be swallowed")
+
+        wait(for: [fired], timeout: 1)
+    }
+
+    func testToggleShortcutIgnoresNonMatchingModifiers() throws {
+        let listener = PickerActivationListener()
+        listener.onToggleShortcut = { XCTFail("⌥⌘Tab must not trigger an ⌥Tab shortcut") }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate, .maskCommand]
+        XCTAssertNotNil(listener.handle(type: .keyDown, event: tabDown), "must pass through")
+    }
+
+    func testToggleShortcutIsReleasedWhileRecording() throws {
+        let listener = PickerActivationListener()
+        listener.onToggleShortcut = { XCTFail("shortcut must not fire while recording") }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+        listener.setRecordingShortcut(true)
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate]
+        XCTAssertNotNil(
+            listener.handle(type: .keyDown, event: tabDown),
+            "the recorder must be able to capture the combination it is replacing"
+        )
+    }
+
+    func testToggleModeNeedsEventTapOnlyWithAShortcut() {
+        let withShortcut = PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        )
+        XCTAssertTrue(withShortcut.needsEventTap)
+        XCTAssertFalse(PickerActivationSettings.defaultValue.needsEventTap)
+    }
+
     func testServiceKeyColdFirstEscapePassesThroughForMultiTap() throws {
         let listener = PickerActivationListener()
         var triggered = false
@@ -1537,6 +1641,31 @@ final class SmokeTests: XCTestCase {
         )
 
         XCTAssertEqual(items.map(\.id), ["app:\(bundleID)"])
+    }
+
+    @MainActor
+    func testManualPickerListsExtraProcessOfSameAppSeparately() {
+        let chrome = makeBrowser()
+        let agentPID: pid_t = 4242
+        let agentKey = WindowEnumerator.extraInstanceKey(bundleID: chrome.id, pid: agentPID)
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [chrome],
+            allBrowsers: [chrome],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [chrome.id],
+            windowsByAppID: [
+                chrome.id: [AppWindowTarget(bundleID: chrome.id, title: "Inbox", index: 0)],
+                agentKey: [AppWindowTarget(bundleID: chrome.id, title: "localhost:3000", index: 0, pid: agentPID)],
+            ]
+        )
+
+        let agentTile = items.first { $0.windowTarget?.pid == agentPID }
+        XCTAssertEqual(Set(items.map(\.displayName)), ["localhost:3000", "Chrome"])
+        XCTAssertEqual(agentTile?.windowTarget?.instanceTrackingID, "com.google.Chrome#instance")
+        XCTAssertNotEqual(agentTile?.secondaryDisplayName, "Chrome")
     }
 
     @MainActor

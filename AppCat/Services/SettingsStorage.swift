@@ -111,6 +111,23 @@ struct PickerActivationSettings: Equatable {
     let serviceKey: PickerServiceKey
     let serviceTapCount: PickerServiceTapCount
     let serviceTapInterval: TimeInterval
+    /// The recorded toggle shortcut, so the event tap can claim it ahead of every other app.
+    /// Only consulted in `.toggleShortcut` mode.
+    let toggleShortcut: PickerToggleShortcut?
+
+    init(
+        mode: PickerActivationMode,
+        serviceKey: PickerServiceKey,
+        serviceTapCount: PickerServiceTapCount,
+        serviceTapInterval: TimeInterval,
+        toggleShortcut: PickerToggleShortcut? = nil
+    ) {
+        self.mode = mode
+        self.serviceKey = serviceKey
+        self.serviceTapCount = serviceTapCount
+        self.serviceTapInterval = serviceTapInterval
+        self.toggleShortcut = toggleShortcut
+    }
 
     static let defaultValue = PickerActivationSettings(
         mode: .toggleShortcut,
@@ -120,7 +137,9 @@ struct PickerActivationSettings: Equatable {
     )
 
     var needsEventTap: Bool {
-        mode == .holdOptionTab || serviceKey != .off
+        mode == .holdOptionTab
+            || serviceKey != .off
+            || (mode == .toggleShortcut && toggleShortcut != nil)
     }
 }
 

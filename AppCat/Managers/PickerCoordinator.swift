@@ -188,7 +188,7 @@ final class PickerCoordinator {
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch(targetID: browser.id)
+                statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? browser.id)
             }
             return
         }
@@ -248,7 +248,7 @@ final class PickerCoordinator {
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
             if shouldRecordManualSwitch, didActivate {
-                statsManager?.recordManualPickerSwitch(targetID: app.id)
+                statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? app.id)
             }
             return
         }
