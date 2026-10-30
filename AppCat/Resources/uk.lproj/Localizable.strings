@@ -389,3 +389,4 @@
 "No app can open this file type" = "Немає програми для цього типу файлу";
 "Choose which editors can open any file type, then reopen the file." = "Вкажіть редактори, які можуть відкривати будь-які типи файлів, а потім відкрийте файл ще раз.";
 "Configure apps" = "Налаштувати програми";
+"automation" = "автоматизація";

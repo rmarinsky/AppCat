@@ -38,7 +38,11 @@ struct PickerItem: Identifiable {
     }
 
     var secondaryDisplayName: String? {
-        if windowTarget != nil { return app?.displayName ?? browser?.displayName }
+        if let windowTarget {
+            let name = app?.displayName ?? browser?.displayName
+            guard windowTarget.pid != nil, let name else { return name }
+            return "\(name) · \(String(localized: "automation"))"
+        }
         if profile != nil { return browser?.displayName }
         return nil
     }
@@ -395,6 +399,31 @@ struct PickerItem: Identifiable {
                 name: runtimeApp.displayName,
                 hasWindows: !windows.isEmpty,
                 items: appSwitcherItems(for: runtimeApp, windows: windows)
+            ))
+        }
+
+        // Extra processes of an app that is already listed — e.g. a Chrome that Playwright or an AI
+        // agent started with its own profile. ⌘Tab shows them as separate apps, so the switcher does
+        // too: one entry per process, its windows as tiles that activate that exact process.
+        let browsersByID = Dictionary(allBrowsers.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let appsByID = Dictionary(apps.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for windows in windowsByAppID.values {
+            guard let window = windows.first, let trackingID = window.instanceTrackingID,
+                  passesPolicy(window.bundleID)
+            else { continue }
+            let items: [PickerItem]
+            if let browser = browsersByID[window.bundleID] {
+                items = windows.map { PickerItem(browser: browser, windowTarget: $0) }
+            } else if let app = appsByID[window.bundleID] ?? runningAppsByBundleID[window.bundleID] {
+                items = windows.map { PickerItem(app: app, windowTarget: $0) }
+            } else {
+                continue
+            }
+            entries.append(Entry(
+                id: trackingID,
+                name: items.first?.secondaryDisplayName ?? window.bundleID,
+                hasWindows: true,
+                items: items.map { withRuntimeIcon($0, from: runningAppsByBundleID) }
             ))
         }
 

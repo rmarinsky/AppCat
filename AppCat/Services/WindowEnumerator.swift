@@ -6,9 +6,19 @@ struct AppWindowTarget: Hashable, Identifiable {
     let bundleID: String
     let title: String
     let index: Int
+    /// Set only for a window of an extra process of `bundleID` (e.g. a Chrome that Playwright or an
+    /// AI agent started with its own `--user-data-dir`). Activation must reach that exact process.
+    var pid: pid_t?
 
     var id: String {
-        "\(bundleID):\(index):\(title)"
+        if let pid { return "\(bundleID)#\(pid):\(index):\(title)" }
+        return "\(bundleID):\(index):\(title)"
+    }
+
+    /// Picker-frequency bucket for windows of extra processes. Their profiles are throwaway, so
+    /// every such instance of one app shares a single bucket.
+    var instanceTrackingID: String? {
+        pid == nil ? nil : WindowEnumerator.extraInstanceTrackingID(bundleID: bundleID)
     }
 }
 
@@ -167,22 +177,45 @@ enum WindowEnumerator {
         }
     }
 
-    /// Open windows for every running regular app, keyed by bundle id.
+    /// Key separator for extra processes of one bundle id in `runningWindows()`.
+    static let extraInstanceSeparator: Character = "#"
+
+    static func extraInstanceKey(bundleID: String, pid: pid_t) -> String {
+        "\(bundleID)\(extraInstanceSeparator)\(pid)"
+    }
+
+    static func extraInstanceTrackingID(bundleID: String) -> String {
+        "\(bundleID)\(extraInstanceSeparator)instance"
+    }
+
+    /// Open windows for every running regular app, keyed by bundle id. The first process of a
+    /// bundle id keeps the plain key; any further process (same app, separate instance) is keyed by
+    /// `extraInstanceKey` and its targets carry the pid, so it is not hidden behind the first one.
     static func runningWindows() -> [String: [AppWindowTarget]] {
         guard AXIsProcessTrusted() else { return [:] }
         var result: [String: [AppWindowTarget]] = [:]
+        var seenBundleIDs = Set<String>()
         var coreGraphicsSnapshot = CoreGraphicsSnapshot()
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
             guard !Task.isCancelled else { break }
             guard let id = app.bundleIdentifier, id != Bundle.main.bundleIdentifier else { continue }
-            let windows = windows(
+            let isExtraInstance = !seenBundleIDs.insert(id).inserted
+            var windows = windows(
                 forPID: app.processIdentifier,
                 bundleID: id,
                 coreGraphicsWindowInfo: {
                     coreGraphicsSnapshot.windowInfo(load: currentCoreGraphicsWindowInfo)
                 }
             )
-            if !windows.isEmpty { result[id] = windows }
+            guard !windows.isEmpty else { continue }
+            if isExtraInstance {
+                windows = windows.map {
+                    AppWindowTarget(bundleID: $0.bundleID, title: $0.title, index: $0.index, pid: app.processIdentifier)
+                }
+                result[extraInstanceKey(bundleID: id, pid: app.processIdentifier)] = windows
+            } else {
+                result[id] = windows
+            }
         }
         return result
     }
@@ -314,7 +347,8 @@ enum WindowEnumerator {
     @discardableResult
     static func activate(_ target: AppWindowTarget) -> Bool {
         guard AXIsProcessTrusted(),
-              let app = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
+              let app = target.pid.flatMap(NSRunningApplication.init(processIdentifier:))
+              ?? NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
         else { return false }
 
         let windows = applicationWindows(forPID: app.processIdentifier)

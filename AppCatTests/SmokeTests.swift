@@ -1644,6 +1644,31 @@ final class SmokeTests: XCTestCase {
     }
 
     @MainActor
+    func testManualPickerListsExtraProcessOfSameAppSeparately() {
+        let chrome = makeBrowser()
+        let agentPID: pid_t = 4242
+        let agentKey = WindowEnumerator.extraInstanceKey(bundleID: chrome.id, pid: agentPID)
+
+        let items = PickerItem.items(
+            for: nil,
+            pickerBrowsers: [chrome],
+            allBrowsers: [chrome],
+            apps: [],
+            appUsage: [:],
+            runningBundleIDs: [chrome.id],
+            windowsByAppID: [
+                chrome.id: [AppWindowTarget(bundleID: chrome.id, title: "Inbox", index: 0)],
+                agentKey: [AppWindowTarget(bundleID: chrome.id, title: "localhost:3000", index: 0, pid: agentPID)],
+            ]
+        )
+
+        let agentTile = items.first { $0.windowTarget?.pid == agentPID }
+        XCTAssertEqual(Set(items.map(\.displayName)), ["localhost:3000", "Chrome"])
+        XCTAssertEqual(agentTile?.windowTarget?.instanceTrackingID, "com.google.Chrome#instance")
+        XCTAssertNotEqual(agentTile?.secondaryDisplayName, "Chrome")
+    }
+
+    @MainActor
     func testManualPickerIncludesOnlyRunningBrowsersWithoutPendingURL() {
         let runningBrowser = makeBrowser()
         let stoppedBrowser = InstalledBrowser(
