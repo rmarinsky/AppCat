@@ -732,6 +732,80 @@ final class SmokeTests: XCTestCase {
         wait(for: [release], timeout: 1)
     }
 
+    func testToggleShortcutIsSwallowedAndFiresOnKeyDown() throws {
+        let listener = PickerActivationListener()
+        let fired = expectation(description: "Toggle shortcut opens the picker")
+        listener.onToggleShortcut = { fired.fulfill() }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        // Real events carry device-side bits alongside the modifier; matching must survive them.
+        tabDown.flags = [.maskAlternate, .maskNonCoalesced]
+        XCTAssertNil(listener.handle(type: .keyDown, event: tabDown), "key down must be swallowed")
+
+        let tabUp = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: false))
+        tabUp.flags = []
+        XCTAssertNil(listener.handle(type: .keyUp, event: tabUp), "key up must be swallowed")
+
+        wait(for: [fired], timeout: 1)
+    }
+
+    func testToggleShortcutIgnoresNonMatchingModifiers() throws {
+        let listener = PickerActivationListener()
+        listener.onToggleShortcut = { XCTFail("⌥⌘Tab must not trigger an ⌥Tab shortcut") }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate, .maskCommand]
+        XCTAssertNotNil(listener.handle(type: .keyDown, event: tabDown), "must pass through")
+    }
+
+    func testToggleShortcutIsReleasedWhileRecording() throws {
+        let listener = PickerActivationListener()
+        listener.onToggleShortcut = { XCTFail("shortcut must not fire while recording") }
+        listener.configureForDirectHandleTesting(settings: PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        ))
+        defer { listener.stop() }
+        listener.setRecordingShortcut(true)
+
+        let tabDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 48, keyDown: true))
+        tabDown.flags = [.maskAlternate]
+        XCTAssertNotNil(
+            listener.handle(type: .keyDown, event: tabDown),
+            "the recorder must be able to capture the combination it is replacing"
+        )
+    }
+
+    func testToggleModeNeedsEventTapOnlyWithAShortcut() {
+        let withShortcut = PickerActivationSettings(
+            mode: .toggleShortcut,
+            serviceKey: .off,
+            serviceTapCount: .two,
+            serviceTapInterval: 0.45,
+            toggleShortcut: PickerToggleShortcut(keyCode: 48, modifiers: [.maskAlternate])
+        )
+        XCTAssertTrue(withShortcut.needsEventTap)
+        XCTAssertFalse(PickerActivationSettings.defaultValue.needsEventTap)
+    }
 
     func testServiceKeyColdFirstEscapePassesThroughForMultiTap() throws {
         let listener = PickerActivationListener()

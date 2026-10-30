@@ -1,4 +1,5 @@
 import Foundation
+import KeyboardShortcuts
 import Observation
 import os
 
@@ -136,7 +137,10 @@ final class AppState {
             mode: pickerActivationMode,
             serviceKey: pickerServiceKey,
             serviceTapCount: pickerServiceTapCount,
-            serviceTapInterval: pickerServiceTapInterval
+            serviceTapInterval: pickerServiceTapInterval,
+            toggleShortcut: PickerToggleShortcut(
+                KeyboardShortcuts.getShortcut(for: .openPickerManually)
+            )
         )
     }
 
