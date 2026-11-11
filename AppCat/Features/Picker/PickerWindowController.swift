@@ -290,6 +290,8 @@ final class PickerWindowController: NSObject {
         installHostingView(hostingView, in: newPanel, fallbackContainer: container)
     }
 
+    private var dismissalGhostPanel: NSPanel?
+
     func show() {
         #if DEV_BUILD
             traceLifecycle("show.request")
@@ -367,6 +369,127 @@ final class PickerWindowController: NSObject {
         }
     }
 
+    /// The panel pops out of the cursor with a small bounce. Render-server only: one spring on the
+    /// content layer's transform plus a short fade, so it never delays input or the first frame.
+    private func playPresentationPop(on panel: NSPanel) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let contentView = panel.contentView
+        else { return }
+        contentView.wantsLayer = true
+        guard let layer = contentView.layer else { return }
+
+        let start = Self.cursorAnchoredScale(0.94, layer: layer, panelFrame: panel.frame)
+
+        let pop = CASpringAnimation(keyPath: "transform")
+        pop.fromValue = start
+        pop.toValue = CATransform3DIdentity
+        pop.mass = 1
+        pop.stiffness = 4000
+        pop.damping = 82
+        pop.duration = pop.settlingDuration
+
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.duration = 0.03
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+
+        layer.add(pop, forKey: "pickerPresentationPop")
+        layer.add(fade, forKey: "pickerPresentationFade")
+    }
+
+    /// A scale transform around the cursor when it is over the panel, else around the panel's centre.
+    private static func cursorAnchoredScale(_ scale: CGFloat, layer: CALayer, panelFrame: NSRect) -> CATransform3D {
+        let mouse = NSEvent.mouseLocation
+        let bounds = layer.bounds
+        var origin = CGPoint(x: mouse.x - panelFrame.minX, y: mouse.y - panelFrame.minY)
+        if !bounds.contains(origin) { origin = CGPoint(x: bounds.midX, y: bounds.midY) }
+        // Layer transforms are applied about the anchor point, so express the origin relative to it.
+        let pivot = CGPoint(
+            x: origin.x - bounds.width * layer.anchorPoint.x,
+            y: origin.y - bounds.height * layer.anchorPoint.y
+        )
+        return CATransform3DMakeAffineTransform(
+            CGAffineTransform(translationX: pivot.x, y: pivot.y)
+                .scaledBy(x: scale, y: scale)
+                .translatedBy(x: -pivot.x, y: -pivot.y)
+        )
+    }
+
+    /// Plays a 0.1 s shrink-and-fade of the picker's last frame in a separate click-through panel.
+    /// The real panel still leaves in the same instant, so the close and focus hand-off paths are
+    /// untouched; only a picture of the picker lingers.
+    private func playDismissalGhost(of panel: NSPanel) {
+        guard panel.isVisible, appState.isPickerVisible,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let hosting = hostingView(in: panel), hosting.bounds.width > 0, hosting.bounds.height > 0,
+              let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds)
+        else { return }
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        let image = NSImage(size: hosting.bounds.size)
+        image.addRepresentation(bitmap)
+
+        let ghost = dismissalGhostPanel ?? {
+            let ghost = NSPanel(
+                contentRect: panel.frame,
+                styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            ghost.isOpaque = false
+            ghost.backgroundColor = .clear
+            ghost.hasShadow = false
+            ghost.ignoresMouseEvents = true
+            ghost.hidesOnDeactivate = false
+            ghost.animationBehavior = .none
+            dismissalGhostPanel = ghost
+            return ghost
+        }()
+        ghost.level = panel.level
+        ghost.collectionBehavior = panel.collectionBehavior
+        ghost.setFrame(panel.frame, display: false)
+
+        let surface = makePanelSurfaceView(frame: NSRect(origin: .zero, size: panel.frame.size))
+        let imageView = NSImageView(frame: surface.bounds)
+        imageView.image = image
+        imageView.imageScaling = .scaleNone
+        imageView.autoresizingMask = [.width, .height]
+        if #available(macOS 26.0, *), let glassView = glassEffectView(in: surface) {
+            glassView.contentView = imageView
+        } else {
+            surface.addSubview(imageView)
+        }
+        ghost.contentView = surface
+        surface.wantsLayer = true
+        ghost.orderFrontRegardless()
+        guard let layer = surface.layer else {
+            ghost.orderOut(nil)
+            return
+        }
+
+        let shrink = CABasicAnimation(keyPath: "transform")
+        shrink.fromValue = CATransform3DIdentity
+        shrink.toValue = Self.cursorAnchoredScale(0.94, layer: layer, panelFrame: panel.frame)
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        let group = CAAnimationGroup()
+        group.animations = [shrink, fade]
+        group.duration = 0.1
+        group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+
+        layer.opacity = 0 // model value is the end state
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak ghost, weak surface] in
+            // A newer dismissal may already own the ghost panel.
+            guard let ghost, let surface, ghost.contentView === surface else { return }
+            ghost.orderOut(nil)
+            ghost.contentView = nil
+        }
+        layer.add(group, forKey: "pickerDismissal")
+        CATransaction.commit()
+    }
+
     /// Re-assert fullscreen-safe policy, position under the cursor, and z-order (hold-⌥Tab steps).
     func reassertVisibility() {
         guard !isClosing, appState.isPickerSessionActive, let panel else { return }
@@ -396,6 +519,7 @@ final class PickerWindowController: NSObject {
 
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
         panel.orderFrontRegardless()
+        playPresentationPop(on: panel)
         appState.isPickerVisible = true
         appState.isPickerPresentationPending = false
         if appState.pickerInvocationSource.requiresKeyboardFocus {
@@ -466,6 +590,7 @@ final class PickerWindowController: NSObject {
         #if DEV_BUILD
             traceLifecycle("close.begin")
         #endif
+        if let panel { playDismissalGhost(of: panel) }
         isClosing = true
         activeSessionID = nil
         keyedSessionID = nil

@@ -49,6 +49,7 @@ final class AppState {
     var showBackgroundApps: Bool = false
     var pickerLayout: PickerLayout = .horizontal
     var pickerScale: Double = PickerScale.defaultValue
+    var handoffAnimationStyle: HandoffAnimationStyle = .full
     var selectWithNumberKeys: Bool = true
     var pickerActivationMode: PickerActivationMode = .toggleShortcut
     var pickerServiceKey: PickerServiceKey = .off
@@ -177,6 +178,7 @@ final class AppState {
         recentLinksCount = SettingsStorage.shared.recentLinksCount
         pickerLayout = .horizontal
         pickerScale = SettingsStorage.shared.pickerScale
+        handoffAnimationStyle = SettingsStorage.shared.handoffAnimationStyle
         selectWithNumberKeys = SettingsStorage.shared.selectWithNumberKeys
         pickerActivationMode = SettingsStorage.shared.pickerActivationMode
         pickerServiceKey = SettingsStorage.shared.pickerServiceKey
@@ -239,6 +241,11 @@ final class AppState {
         let clampedValue = PickerScale.clamped(value)
         pickerScale = clampedValue
         SettingsStorage.shared.pickerScale = clampedValue
+    }
+
+    func setHandoffAnimationStyle(_ value: HandoffAnimationStyle) {
+        handoffAnimationStyle = value
+        SettingsStorage.shared.handoffAnimationStyle = value
     }
 
     func setSelectWithNumberKeys(_ value: Bool) {

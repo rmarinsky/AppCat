@@ -390,3 +390,7 @@
 "Choose which editors can open any file type, then reopen the file." = "Вкажіть редактори, які можуть відкривати будь-які типи файлів, а потім відкрийте файл ще раз.";
 "Configure apps" = "Налаштувати програми";
 "automation" = "автоматизація";
+"Link opening animation" = "Анімація відкриття посилань";
+"With the cat, or only the app icon flying to its window." = "З кицею або лише іконка програми, що летить до її вікна.";
+"With cat" = "З кицею";
+"Compact" = "Компактна";

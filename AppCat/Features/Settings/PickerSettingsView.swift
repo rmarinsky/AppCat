@@ -61,6 +61,8 @@ struct PickerSettingsView: View {
                 SettingsSectionCaption("APPEARANCE")
                 SettingsCard {
                     pickerScaleRow
+                    divider
+                    handoffAnimationRow
                 }
 
                 SettingsSectionCaption("APP SWITCHER")
@@ -108,6 +110,36 @@ struct PickerSettingsView: View {
     }
 
     // MARK: - Hidden apps
+
+    private var handoffAnimationRow: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "Link opening animation"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text(String(localized: "With the cat, or only the app icon flying to its window."))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            Picker("", selection: Binding(
+                get: { appState.handoffAnimationStyle },
+                set: { appState.setHandoffAnimationStyle($0) }
+            )) {
+                Text(String(localized: "With cat")).tag(HandoffAnimationStyle.full)
+                Text(String(localized: "Compact")).tag(HandoffAnimationStyle.compact)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+    }
 
     private var pickerScaleRow: some View {
         VStack(alignment: .leading, spacing: 10) {

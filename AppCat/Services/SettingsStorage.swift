@@ -191,6 +191,11 @@ final class SettingsStorage {
         set { defaults.set(newValue.sorted(), forKey: hiddenPickerAppIDsKey) }
     }
 
+    var handoffAnimationStyle: HandoffAnimationStyle {
+        get { defaults.string(forKey: "handoffAnimationStyle").flatMap(HandoffAnimationStyle.init(rawValue:)) ?? .full }
+        set { defaults.set(newValue.rawValue, forKey: "handoffAnimationStyle") }
+    }
+
     var pickerScale: Double {
         get {
             guard let value = defaults.object(forKey: pickerScaleKey) as? Double else {

@@ -135,8 +135,10 @@ struct AppsScreenView: View {
                 .init(
                     icon: sample?.icon,
                     destinationName: sample?.displayName ?? "Arc",
-                    reason: reason
+                    reason: reason,
+                    bundleIdentifier: sample?.id
                 ),
+                style: appState.handoffAnimationStyle,
                 locale: appState.appLanguage.locale
             )
         }

@@ -113,6 +113,7 @@ struct BrowserCell: View {
                 radius: 12 * scale,
                 y: 5 * scale
             )
+            .modifier(PickerFocusPop(isFocused: isFocused))
 
             HStack(spacing: 3 * scale) {
                 Text(displayTitle)

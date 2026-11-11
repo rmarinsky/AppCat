@@ -122,7 +122,9 @@
 		E373F1CAF07A76B871EE8082 /* AppActivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511A92B49AB5305AC1935290 /* AppActivityMonitor.swift */; };
 		E7736EC4F6630CD56A89BDCF /* UITestLaunchScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D06DB8D572F80D30F2D6CB /* UITestLaunchScenario.swift */; };
 		EE2E37093B6B0F8ED1FB4D07 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AC1465542425EADFC48695D0 /* Sparkle */; };
+		EE6828A23254C92F98C6BBA2 /* SleepingCatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43ADE7F03EAA8B0314A4AD8E /* SleepingCatView.swift */; };
 		EE84A4C8624BA16F19AF469F /* SuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB0E11E67A48CFD62DB526 /* SuggestionEngine.swift */; };
+		F3BE1860625185FAC6C6F0DD /* HandoffTargetLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F51CC11EEA677484249750D /* HandoffTargetLocator.swift */; };
 		F46AD7183B92E6D2489778AD /* PickerCommitModifierWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D7376105EC55D676DDDF8A /* PickerCommitModifierWatcher.swift */; };
 		F68AA3A0D6CB6D7E5FCC573E /* WindowActivationLedgerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E3A46B7C02346C676ABCDB /* WindowActivationLedgerTests.swift */; };
 		FB1E3CE417E2AAB213D484A4 /* SuggestionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51460B90429DE53D95E4FAC1 /* SuggestionEngineTests.swift */; };
@@ -193,6 +195,8 @@
 		3BDA00973682A5A61E325A93 /* AppDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDetector.swift; sourceTree = "<group>"; };
 		3F05CF4D4ED6D47156E440E4 /* FileShortcutResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShortcutResolver.swift; sourceTree = "<group>"; };
 		3F50EADF6466A8F29F984995 /* HotkeyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
+		3F51CC11EEA677484249750D /* HandoffTargetLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffTargetLocator.swift; sourceTree = "<group>"; };
+		43ADE7F03EAA8B0314A4AD8E /* SleepingCatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepingCatView.swift; sourceTree = "<group>"; };
 		444BD4FDBF899122BF29E9E4 /* GlobalShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcuts.swift; sourceTree = "<group>"; };
 		46630F0D0B753D3C7D3E22BB /* ReceiverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiverApp.swift; sourceTree = "<group>"; };
 		4A480C399D8F1E54C9CF5038 /* HistoryEntryCodableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntryCodableTests.swift; sourceTree = "<group>"; };
@@ -544,7 +548,9 @@
 			children = (
 				D924FE5AFD28DF051B951614 /* HandoffOverlayController.swift */,
 				2DBE5A9C2038EDECF79FE21F /* HandoffPresentation.swift */,
+				3F51CC11EEA677484249750D /* HandoffTargetLocator.swift */,
 				119B72B0DB2CED9CAD7755AE /* HandoffView.swift */,
+				43ADE7F03EAA8B0314A4AD8E /* SleepingCatView.swift */,
 			);
 			path = Handoff;
 			sourceTree = "<group>";
@@ -808,6 +814,7 @@
 				80988FAA95D600422B288066 /* GlobalShortcuts.swift in Sources */,
 				FEB62DE9E94F81F4E5880AC2 /* HandoffOverlayController.swift in Sources */,
 				A98D9BDD69FBC7357F8F0020 /* HandoffPresentation.swift in Sources */,
+				F3BE1860625185FAC6C6F0DD /* HandoffTargetLocator.swift in Sources */,
 				A7137090F58D2F7D17C97145 /* HandoffView.swift in Sources */,
 				985F1F85E41F7F9D9029037D /* HistoryEntry.swift in Sources */,
 				D69200FCBD87A21F6D5B467B /* HistoryManager.swift in Sources */,
@@ -850,6 +857,7 @@
 				58C46CD1E6DA191C7C15ADBF /* SettingsViewHelpers.swift in Sources */,
 				8FAF5E77A088A307062F7BDA /* ShortcutsSettingsView.swift in Sources */,
 				3102CA18CCEED2AC658F1E9D /* SidebarView.swift in Sources */,
+				EE6828A23254C92F98C6BBA2 /* SleepingCatView.swift in Sources */,
 				ACC8A81EF0A87754F6DCC17E /* StatsManager.swift in Sources */,
 				A35544AAB9907529B0C2F682 /* StatsStorage.swift in Sources */,
 				BE3A78E0721183605A6C2F6E /* SuggestionDismissalStorage.swift in Sources */,

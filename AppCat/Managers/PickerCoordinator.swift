@@ -220,7 +220,8 @@ final class PickerCoordinator {
                 .init(
                     icon: browser.icon,
                     destinationName: profile.map { "\(browser.displayName) · \($0.displayName)" } ?? browser.displayName,
-                    reason: HandoffReason(source: source)
+                    reason: HandoffReason(source: source),
+                    bundleIdentifier: browser.id
                 ),
                 state: state
             )
@@ -277,7 +278,7 @@ final class PickerCoordinator {
             )
             self.recordAppOpen(successfulOpen, app: app, source: source, state: state)
             self.deferHandoffOverlay(
-                .init(icon: app.icon, destinationName: app.displayName, reason: HandoffReason(source: source)),
+                .init(icon: app.icon, destinationName: app.displayName, reason: HandoffReason(source: source), bundleIdentifier: app.id),
                 state: state
             )
         }
@@ -383,9 +384,10 @@ final class PickerCoordinator {
 
     private func deferHandoffOverlay(_ presentation: HandoffPresentation, state: AppState) {
         let locale = state.appLanguage.locale
+        let style = state.handoffAnimationStyle
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 40_000_000)
-            HandoffOverlayController.shared.present(presentation, locale: locale)
+            HandoffOverlayController.shared.present(presentation, style: style, locale: locale)
         }
     }
 
