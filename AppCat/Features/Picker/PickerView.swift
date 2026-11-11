@@ -1282,6 +1282,7 @@ struct AppCell: View {
                 radius: 12 * scale,
                 y: 5 * scale
             )
+            .modifier(PickerFocusPop(isFocused: isFocused))
 
             Text(title)
                 .font(.system(size: PickerMetrics.titleFontSize(scale: scale), weight: .medium))
@@ -1363,5 +1364,17 @@ private extension View {
                 NSCursor.pop()
             }
         }
+    }
+}
+
+/// The focused tile pops up with a small bounce and the one that lost focus settles back.
+struct PickerFocusPop: ViewModifier {
+    let isFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isFocused && !reduceMotion ? 1.08 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.5), value: isFocused)
     }
 }
