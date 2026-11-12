@@ -201,6 +201,9 @@ final class PickerWindowController: NSObject {
     private var keyMonitor: Any?
     private var ignoreDismissUntil: Date = .distantPast
     private var isClosing = false
+    private var holdRevealWorkItem: DispatchWorkItem?
+    /// Hold-⌥Tab taps shorter than this switch without showing the picker.
+    static let holdRevealDelay: TimeInterval = 0.12
     private var activeSessionID: UUID?
     private var keyedSessionID: UUID?
     private var presentationDeactivationObserver: NSObjectProtocol?
@@ -496,6 +499,12 @@ final class PickerWindowController: NSObject {
         #if DEV_BUILD
             traceLifecycle("hold.reassert")
         #endif
+        // A second Tab during the reveal delay means the user is browsing: show the panel now.
+        if let holdRevealWorkItem {
+            holdRevealWorkItem.perform()
+            holdRevealWorkItem.cancel()
+            return
+        }
         PickerPanelInteractionPolicy.apply(to: panel)
         let screen = screenNearCursor()
         resizePanelIfNeeded(panel, to: panelSize(for: screen))
@@ -516,6 +525,19 @@ final class PickerWindowController: NSObject {
             return
         }
         removePresentationDeactivationObserver()
+
+        // A quick ⌥Tab tap (released within the reveal delay) switches without ever showing the
+        // panel, like ⌘Tab. Option release commits through the pending session; close() cancels this.
+        if appState.pickerInvocationSource == .holdOptionTab, !panel.isVisible, holdRevealWorkItem == nil {
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self, sessionID == self.activeSessionID else { return }
+                self.presentPanelAfterDeactivation(sessionID: sessionID)
+            }
+            holdRevealWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.holdRevealDelay, execute: workItem)
+            return
+        }
+        holdRevealWorkItem = nil
 
         ignoreDismissUntil = Date().addingTimeInterval(dismissGraceInterval)
         panel.orderFrontRegardless()
@@ -576,6 +598,8 @@ final class PickerWindowController: NSObject {
     private func cancelPendingPresentation() {
         presentationWorkItem?.cancel()
         presentationWorkItem = nil
+        holdRevealWorkItem?.cancel()
+        holdRevealWorkItem = nil
     }
 
     private func removePresentationDeactivationObserver() {
@@ -585,12 +609,12 @@ final class PickerWindowController: NSObject {
         }
     }
 
-    func close() {
+    func close(animated: Bool = true) {
         mouseSelection.cancel()
         #if DEV_BUILD
             traceLifecycle("close.begin")
         #endif
-        if let panel { playDismissalGhost(of: panel) }
+        if animated, let panel { playDismissalGhost(of: panel) }
         isClosing = true
         activeSessionID = nil
         keyedSessionID = nil
