@@ -1033,11 +1033,17 @@ struct PickerView: View {
         // re-deriving here would drag it back to the window the user is already in. (Today that is
         // avoided only by pre-warm suppressing a second onAppear — this makes it explicit.)
         guard appState.pickerInvocationSource.requiresKeyboardFocus else { return }
-        appState.focusedBrowserIndex = PickerInitialFocusPolicy.initialIndex(
-            items: appState.pickerItemsSnapshot.isEmpty ? items : appState.pickerItemsSnapshot,
-            frontmostRankKey: appState.manualPickerFrontmostKey,
-            invocationSource: appState.pickerInvocationSource
-        )
+        // A correction right after the panel appears must not bounce: animating it made the
+        // seeded tile and the corrected one both look selected for a moment.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            appState.focusedBrowserIndex = PickerInitialFocusPolicy.initialIndex(
+                items: appState.pickerItemsSnapshot.isEmpty ? items : appState.pickerItemsSnapshot,
+                frontmostRankKey: appState.manualPickerFrontmostKey,
+                invocationSource: appState.pickerInvocationSource
+            )
+        }
     }
 }
 
@@ -1373,8 +1379,11 @@ struct PickerFocusPop: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        // Only the scale springs; the focus highlight itself switches instantly so exactly one
+        // tile ever reads as selected.
         content
-            .scaleEffect(isFocused && !reduceMotion ? 1.08 : 1)
-            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.5), value: isFocused)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.5)) {
+                $0.scaleEffect(isFocused && !reduceMotion ? 1.08 : 1)
+            }
     }
 }

@@ -179,11 +179,16 @@ final class PickerCoordinator {
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
-            dismissPicker(state: state)
             #if DEV_BUILD
-                if UITestRuntime.skipsExternalLaunch { return }
+                if UITestRuntime.skipsExternalLaunch {
+                    dismissPicker(state: state)
+                    return
+                }
             #endif
+            // Activate first: dismissing snapshots the picker for its exit animation, which costs
+            // ~200 ms of main-thread time, and the switch must not wait behind it.
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            dismissPicker(state: state)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
@@ -240,11 +245,16 @@ final class PickerCoordinator {
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
-            dismissPicker(state: state)
             #if DEV_BUILD
-                if UITestRuntime.skipsExternalLaunch { return }
+                if UITestRuntime.skipsExternalLaunch {
+                    dismissPicker(state: state)
+                    return
+                }
             #endif
+            // Activate first: dismissing snapshots the picker for its exit animation, which costs
+            // ~200 ms of main-thread time, and the switch must not wait behind it.
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            dismissPicker(state: state)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
