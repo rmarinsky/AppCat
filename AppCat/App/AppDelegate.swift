@@ -14,7 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let historyManager = HistoryManager()
     let suggestionsManager = SuggestionsManager()
     let statsManager = StatsManager()
-    lazy var updaterManager = UpdaterManager()
+    lazy var updaterManager = UpdaterManager { [weak self] in
+        guard let state = self?.appState else { return false }
+        return state.isPickerSessionActive || state.pendingURL != nil
+            || state.isSettingDefaultBrowser || state.isSettingDefaultWebFileHandler
+    }
     let windowActivationTracker = WindowActivationTracker()
     lazy var appActivityMonitor = AppActivityMonitor(
         appState: appState,

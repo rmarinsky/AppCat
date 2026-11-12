@@ -99,8 +99,10 @@ final class PickerCoordinator {
         pickerController.openFocusedItemForVisibleSession()
     }
 
-    func dismissPicker(state: AppState) {
-        pickerController?.close()
+    /// `animated: false` after a selection: the exit animation snapshots the picker (~250 ms on
+    /// the main thread), and a chosen target should not wait behind it.
+    func dismissPicker(state: AppState, animated: Bool = true) {
+        pickerController?.close(animated: animated)
         // Clear routing state here too: on the auto-route path the picker controller may not
         // exist yet, and its close() (which also clears) never runs — a stale pendingURL would
         // otherwise block main-window opens and Dock-icon reopen forever. Double-clear is
@@ -179,11 +181,16 @@ final class PickerCoordinator {
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
-            dismissPicker(state: state)
             #if DEV_BUILD
-                if UITestRuntime.skipsExternalLaunch { return }
+                if UITestRuntime.skipsExternalLaunch {
+                    dismissPicker(state: state)
+                    return
+                }
             #endif
+            // Activate first: dismissing snapshots the picker for its exit animation, which costs
+            // ~200 ms of main-thread time, and the switch must not wait behind it.
             let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            dismissPicker(state: state, animated: false)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
@@ -240,11 +247,16 @@ final class PickerCoordinator {
         #endif
         guard let pendingOpen = snapshotPendingOpen(state: state) else {
             let shouldRecordManualSwitch = state.isManualPickerPresentation
-            dismissPicker(state: state)
             #if DEV_BUILD
-                if UITestRuntime.skipsExternalLaunch { return }
+                if UITestRuntime.skipsExternalLaunch {
+                    dismissPicker(state: state)
+                    return
+                }
             #endif
+            // Activate first: dismissing snapshots the picker for its exit animation, which costs
+            // ~200 ms of main-thread time, and the switch must not wait behind it.
             let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            dismissPicker(state: state, animated: false)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
@@ -304,7 +316,7 @@ final class PickerCoordinator {
     private func dismissPickerForSelection(_ pendingOpen: PendingOpenSnapshot, state: AppState) {
         state.lastOpenedURL = pendingOpen.url.absoluteString
         SettingsStorage.shared.lastURL = pendingOpen.url.absoluteString
-        dismissPicker(state: state)
+        dismissPicker(state: state, animated: false)
     }
 
     private func recordBrowserOpen(
