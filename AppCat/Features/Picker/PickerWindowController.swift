@@ -997,7 +997,10 @@ final class PickerWindowController: NSObject {
         let oldIndex = appState.focusedBrowserIndex
         appState.pickerItemsSnapshot = []
         refreshPickerItemsSnapshot()
-        let newItems = appState.pickerItemsSnapshot
+        // Tiles already on screen keep their slots; a fresh re-sort mid-open made them slide
+        // past each other. The new order shows on the next presentation.
+        let newItems = Self.stableOrderedItems(oldItems: oldItems, newItems: appState.pickerItemsSnapshot)
+        appState.pickerItemsSnapshot = newItems
 
         guard newItems.map(\.id) != oldItems.map(\.id) else { return }
 
@@ -1064,6 +1067,14 @@ final class PickerWindowController: NSObject {
         guard let shortcut, shortcut.key == .tab else { return false }
         let relevant: NSEvent.ModifierFlags = [.option, .command, .control, .shift]
         return event.modifierFlags.intersection(relevant) == shortcut.modifiers.intersection(relevant)
+    }
+
+    /// Live refresh merge: items still present keep their on-screen order (with fresh data),
+    /// removed items drop out, and new items are appended in their new relative order.
+    static func stableOrderedItems(oldItems: [PickerItem], newItems: [PickerItem]) -> [PickerItem] {
+        let newByID = Dictionary(newItems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let oldIDs = Set(oldItems.map(\.id))
+        return oldItems.compactMap { newByID[$0.id] } + newItems.filter { !oldIDs.contains($0.id) }
     }
 
     /// Where focus should land after the item list is replaced: follow the focused item's id,

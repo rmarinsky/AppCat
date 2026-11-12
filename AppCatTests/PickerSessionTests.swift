@@ -121,6 +121,14 @@ final class PickerSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testLiveRefreshKeepsVisibleOrderDropsGoneAndAppendsNew() {
+        let old = [item("a"), item("b"), item("c")]
+        let new = [item("d"), item("c"), item("a")]
+        let merged = PickerWindowController.stableOrderedItems(oldItems: old, newItems: new)
+        XCTAssertEqual(merged.map(\.id), ["app:a", "app:c", "app:d"])
+    }
+
+    @MainActor
     func testRemappedFocusFallsBackToClampedPositionWhenItemRemoved() {
         let old = [item("a"), item("b"), item("c")]
         let new = [item("a"), item("b")]
