@@ -15,6 +15,8 @@ struct InstalledBrowser: Identifiable, Equatable {
     var profileDataPath: String?
     var profileType: ProfileType?
     var profiles: [BrowserProfile] = []
+    /// macOS blocked reading this browser's profiles; `profiles` then holds the last saved list.
+    var profilesAccessDenied = false
 
     // Non-codable, loaded at runtime
     var icon: NSImage?
@@ -35,6 +37,7 @@ struct InstalledBrowser: Identifiable, Equatable {
             && lhs.sortOrder == rhs.sortOrder
             && lhs.supportsPrivateMode == rhs.supportsPrivateMode
             && lhs.profiles == rhs.profiles
+            && lhs.profilesAccessDenied == rhs.profilesAccessDenied
     }
 }
 
@@ -51,6 +54,7 @@ struct BrowserConfig: Codable {
     var profileHotkeys: [String: String]? // directoryName -> hotkey character
     var profileHotkeyKeyCodes: [String: UInt16]? // directoryName -> keyCode
     var profileVisibility: [String: Bool]? // directoryName -> isVisible
+    var profiles: [BrowserProfile]? // last detected list, shown while macOS blocks detection
 
     init(from browser: InstalledBrowser) {
         id = browser.id
@@ -75,6 +79,7 @@ struct BrowserConfig: Codable {
 
         let visibility = browser.profiles.map { ($0.directoryName, $0.isVisible) }
         profileVisibility = visibility.isEmpty ? nil : Dictionary(visibility, uniquingKeysWith: { first, _ in first })
+        profiles = browser.profiles.isEmpty ? nil : browser.profiles
     }
 
     init(from decoder: Decoder) throws {
@@ -89,5 +94,6 @@ struct BrowserConfig: Codable {
         profileHotkeys = try container.decodeIfPresent([String: String].self, forKey: .profileHotkeys)
         profileHotkeyKeyCodes = try container.decodeIfPresent([String: UInt16].self, forKey: .profileHotkeyKeyCodes)
         profileVisibility = try container.decodeIfPresent([String: Bool].self, forKey: .profileVisibility)
+        profiles = try container.decodeIfPresent([BrowserProfile].self, forKey: .profiles)
     }
 }

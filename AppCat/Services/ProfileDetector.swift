@@ -1,6 +1,13 @@
 import Foundation
 import os
 
+struct ProfileDetection: Equatable {
+    var profiles: [BrowserProfile] = []
+    /// macOS refused to read the browser's profile list. Since macOS 27 another app's data is
+    /// protected until the user allows it in Privacy & Security; the system never prompts.
+    var accessDenied = false
+}
+
 @MainActor
 final class ProfileDetector {
     private let fileManager: FileManager
@@ -12,25 +19,35 @@ final class ProfileDetector {
             ?? Self.defaultApplicationSupportDirectory(fileManager: fileManager)
     }
 
-    func detectProfiles(for browser: InstalledBrowser) -> [BrowserProfile] {
+    func detectProfiles(for browser: InstalledBrowser) -> ProfileDetection {
         guard let profileType = browser.profileType,
               let profileDataPath = browser.profileDataPath
         else {
-            return []
+            return ProfileDetection()
         }
 
-        let profiles: [BrowserProfile]
+        let detection: ProfileDetection
         switch profileType {
         case .chromium:
-            profiles = detectChromiumProfiles(dataPath: profileDataPath)
+            detection = detectChromiumProfiles(dataPath: profileDataPath)
         case .firefox:
-            profiles = detectFirefoxProfiles(dataPath: profileDataPath)
+            detection = detectFirefoxProfiles(dataPath: profileDataPath)
         }
 
-        if !profiles.isEmpty {
-            Log.profiles.info("Detected \(profiles.count) profiles for \(browser.displayName)")
+        if detection.accessDenied {
+            Log.profiles.error("macOS denied access to the profiles of \(browser.displayName)")
+        } else if !detection.profiles.isEmpty {
+            Log.profiles.info("Detected \(detection.profiles.count) profiles for \(browser.displayName)")
         }
-        return profiles
+        return detection
+    }
+
+    private static func isPermissionError(_ error: Error) -> Bool {
+        let error = error as NSError
+        if error.domain == NSCocoaErrorDomain, error.code == NSFileReadNoPermissionError {
+            return true
+        }
+        return error.domain == NSPOSIXErrorDomain && [Int(EPERM), Int(EACCES)].contains(error.code)
     }
 
     private static func defaultApplicationSupportDirectory(fileManager: FileManager) -> URL {
@@ -47,19 +64,26 @@ final class ProfileDetector {
 
     // MARK: - Chromium
 
-    private func detectChromiumProfiles(dataPath: String) -> [BrowserProfile] {
+    private func detectChromiumProfiles(dataPath: String) -> ProfileDetection {
         let browserDataDirectory = applicationSupportDirectory
             .appendingPathComponent(dataPath, isDirectory: true)
         let localStatePath = browserDataDirectory
             .appendingPathComponent("Local State")
 
-        guard let data = try? Data(contentsOf: localStatePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let data: Data
+        do {
+            data = try Data(contentsOf: localStatePath)
+        } catch {
+            Log.profiles.debug("No Chromium Local State found at \(localStatePath.path)")
+            return ProfileDetection(accessDenied: Self.isPermissionError(error))
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let profile = json["profile"] as? [String: Any],
               let infoCache = profile["info_cache"] as? [String: Any]
         else {
-            Log.profiles.debug("No Chromium Local State found at \(localStatePath.path)")
-            return []
+            Log.profiles.debug("Unreadable Chromium Local State at \(localStatePath.path)")
+            return ProfileDetection()
         }
 
         var profiles: [BrowserProfile] = []
@@ -82,7 +106,7 @@ final class ProfileDetector {
             ))
         }
 
-        return profiles.sorted(by: sortProfiles)
+        return ProfileDetection(profiles: profiles.sorted(by: sortProfiles))
     }
 
     private func chromiumAvatarPath(
@@ -122,14 +146,17 @@ final class ProfileDetector {
 
     // MARK: - Firefox
 
-    private func detectFirefoxProfiles(dataPath: String) -> [BrowserProfile] {
+    private func detectFirefoxProfiles(dataPath: String) -> ProfileDetection {
         let profilesIniPath = applicationSupportDirectory
             .appendingPathComponent(dataPath)
             .appendingPathComponent("profiles.ini")
 
-        guard let content = try? String(contentsOf: profilesIniPath, encoding: .utf8) else {
+        let content: String
+        do {
+            content = try String(contentsOf: profilesIniPath, encoding: .utf8)
+        } catch {
             Log.profiles.debug("No Firefox profiles.ini found at \(profilesIniPath.path)")
-            return []
+            return ProfileDetection(accessDenied: Self.isPermissionError(error))
         }
 
         var profiles: [BrowserProfile] = []
@@ -170,7 +197,7 @@ final class ProfileDetector {
 
         flushCurrentProfile()
 
-        return profiles.sorted(by: sortProfiles)
+        return ProfileDetection(profiles: profiles.sorted(by: sortProfiles))
     }
 
     private func cleanString(_ value: String?) -> String? {

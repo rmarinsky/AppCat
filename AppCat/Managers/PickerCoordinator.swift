@@ -194,6 +194,9 @@ final class PickerCoordinator {
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
+            if didActivate, let windowTarget {
+                windowActivationTracker?.recordWindowActivation(bundleID: windowTarget.bundleID, title: windowTarget.title)
+            }
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? browser.id)
             }
@@ -260,6 +263,9 @@ final class PickerCoordinator {
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
+            if didActivate, let windowTarget {
+                windowActivationTracker?.recordWindowActivation(bundleID: windowTarget.bundleID, title: windowTarget.title)
+            }
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? app.id)
             }

@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appActivityMonitor.onAppListChanged = { [weak self] in
             guard let self else { return }
             self.appManager.refreshAppsInBackground(into: self.appState)
+            self.browserManager.refreshBrowsers(into: self.appState)
         }
         appActivityMonitor.onManualPickerNeedsRefresh = { [weak self] in
             self?.pickerCoordinator.refreshManualPickerSession()

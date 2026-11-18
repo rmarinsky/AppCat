@@ -27,8 +27,9 @@ final class BrowserManager {
             canPersist = false
         }
 
+        var browsers: [InstalledBrowser]
         if let savedConfigs {
-            state.browsers = mergeDetectedWithSaved(
+            browsers = mergeDetectedWithSaved(
                 detected: detected,
                 saved: savedConfigs,
                 configID: \.id,
@@ -42,37 +43,50 @@ final class BrowserManager {
                 browser.displayName = config.displayName
             }
         } else {
-            state.browsers = detected
+            browsers = detected
         }
 
         // Detect profiles for each browser and restore saved hotkeys
         let savedConfigMap = savedConfigs.map {
             Dictionary($0.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         }
-        for i in state.browsers.indices {
-            state.browsers[i].profiles = profileDetector.detectProfiles(for: state.browsers[i])
-
-            let savedConfig = savedConfigMap?[state.browsers[i].id]
-            if let savedConfig {
-                let profileKeys = savedConfig.profileHotkeys
-                let profileKeyCodes = savedConfig.profileHotkeyKeyCodes
-                let profileVisibility = savedConfig.profileVisibility
-                for j in state.browsers[i].profiles.indices {
-                    let dirName = state.browsers[i].profiles[j].directoryName
-                    if let key = profileKeys?[dirName] {
-                        state.browsers[i].profiles[j].hotkey = key.first
-                        state.browsers[i].profiles[j].hotkeyKeyCode =
-                            profileKeyCodes?[dirName] ?? key.first.flatMap { KeyCodeMap.keyCode(for: $0) }
-                    }
-                    if let visible = profileVisibility?[dirName] {
-                        state.browsers[i].profiles[j].isVisible = visible
-                    }
-                }
-            }
+        for i in browsers.indices {
+            Self.applyProfiles(
+                profileDetector.detectProfiles(for: browsers[i]),
+                savedConfig: savedConfigMap?[browsers[i].id],
+                to: &browsers[i]
+            )
         }
 
+        // Refreshes also run in the background; leave state and disk alone when nothing changed.
+        guard browsers != state.browsers else { return }
+        state.browsers = browsers
         if canPersist {
-            save(state.browsers)
+            save(browsers)
+        }
+    }
+
+    /// Sets the browser's profiles from a detection result and restores their saved hotkeys and
+    /// visibility. When macOS denied access, the last saved profile list stands in.
+    static func applyProfiles(
+        _ detection: ProfileDetection,
+        savedConfig: BrowserConfig?,
+        to browser: inout InstalledBrowser
+    ) {
+        browser.profilesAccessDenied = detection.accessDenied
+        browser.profiles = detection.accessDenied ? (savedConfig?.profiles ?? []) : detection.profiles
+
+        guard let savedConfig else { return }
+        for j in browser.profiles.indices {
+            let dirName = browser.profiles[j].directoryName
+            if let key = savedConfig.profileHotkeys?[dirName] {
+                browser.profiles[j].hotkey = key.first
+                browser.profiles[j].hotkeyKeyCode =
+                    savedConfig.profileHotkeyKeyCodes?[dirName] ?? key.first.flatMap { KeyCodeMap.keyCode(for: $0) }
+            }
+            if let visible = savedConfig.profileVisibility?[dirName] {
+                browser.profiles[j].isVisible = visible
+            }
         }
     }
 

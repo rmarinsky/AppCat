@@ -1328,6 +1328,54 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(seed.map(\.title), ["Second", "First", "Only In Accessibility"])
     }
 
+    func testWindowFilterRejectsChromiumFindBar() {
+        let candidates = ["Find on page for\n    Diduny Calendar · 1", "Diduny Calendar · 1"].enumerated().map { index, title in
+            WindowEnumerator.WindowCandidate(
+                bundleID: "com.microsoft.edgemac",
+                title: title,
+                index: index,
+                source: .ax,
+                role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                isMinimized: false,
+                isModal: false
+            )
+        }
+
+        XCTAssertEqual(WindowEnumerator.filteredWindowCandidates(candidates).map(\.title), ["Diduny Calendar · 1"])
+    }
+
+    func testChromeForTestingRegistryMatchesItsRealBundleID() {
+        // Info.plist of every Chrome for Testing build: CFBundleIdentifier = com.google.chrome.for.testing
+        let definition = BrowserDefinition.registry["com.google.chrome.for.testing"]
+        XCTAssertEqual(definition?.profileDataPath, "Google/Chrome for Testing")
+        XCTAssertEqual(definition?.privateModeArgs, ["--incognito"])
+    }
+
+    func testBrowserWindowTileShowsProfileFromTitle() {
+        var chrome = makeBrowser()
+        chrome.displayName = "Chrome"
+        chrome.appURL = URL(fileURLWithPath: "/Applications/Google Chrome.app")
+        chrome.profiles = [
+            BrowserProfile(directoryName: "Default", displayName: "Roma", email: nil),
+            BrowserProfile(directoryName: "Profile 1", displayName: "Roman (lembergsolutions.com)", email: nil),
+        ]
+        func item(_ title: String) -> PickerItem {
+            PickerItem(browser: chrome, windowTarget: AppWindowTarget(bundleID: chrome.id, title: title, index: 0))
+        }
+
+        let work = item("Dropbox - Files - Google Chrome – Roman (lembergsolutions.com)")
+        XCTAssertEqual(work.windowProfile?.directoryName, "Profile 1")
+        XCTAssertEqual(work.displayName, "Dropbox - Files")
+        XCTAssertNil(work.profile)
+
+        XCTAssertEqual(item("New tab - Google Chrome – Roma").windowProfile?.directoryName, "Default")
+
+        let plain = item("Notes from Roma")
+        XCTAssertNil(plain.windowProfile)
+        XCTAssertEqual(plain.displayName, "Notes from Roma")
+    }
+
     func testWindowFilterRejectsInvalidCoreGraphicsCandidates() {
         let invalidCandidates = [
             WindowEnumerator.WindowCandidate(
@@ -2300,7 +2348,7 @@ final class SmokeTests: XCTestCase {
         let profiles = detector.detectProfiles(for: makeBrowser(
             profileDataPath: "Google/Chrome",
             profileType: .chromium
-        ))
+        )).profiles
 
         XCTAssertEqual(profiles.map(\.directoryName), ["Default", "Profile 1"])
         XCTAssertEqual(profiles.map(\.displayName), ["Personal", "Work"])
@@ -2308,6 +2356,51 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(profiles[1].email, "work@example.com")
         XCTAssertNil(profiles[0].avatarPath)
         XCTAssertEqual(profiles[1].avatarPath, avatarPath.path)
+    }
+
+    @MainActor
+    func testProfileDetectorReportsDeniedAccessInsteadOfNoProfiles() throws {
+        let appSupport = try makeTempDirectory()
+        let chromeDir = appSupport.appendingPathComponent("Google/Chrome", isDirectory: true)
+        try FileManager.default.createDirectory(at: chromeDir, withIntermediateDirectories: true)
+        let localState = chromeDir.appendingPathComponent("Local State")
+        try Data("{}".utf8).write(to: localState)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: localState.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: localState.path) }
+
+        let detector = ProfileDetector(applicationSupportDirectory: appSupport)
+        let chrome = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        let missing = makeBrowser(profileDataPath: "Google/Chrome Canary", profileType: .chromium)
+
+        XCTAssertEqual(detector.detectProfiles(for: chrome), ProfileDetection(accessDenied: true))
+        XCTAssertEqual(detector.detectProfiles(for: missing), ProfileDetection())
+    }
+
+    @MainActor
+    func testDeniedProfileAccessKeepsSavedProfilesAndTheirSettings() throws {
+        var browser = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        browser.profiles = [
+            BrowserProfile(directoryName: "Default", displayName: "Personal", email: nil),
+            BrowserProfile(
+                directoryName: "Profile 1", displayName: "Work", email: nil,
+                hotkey: "w", hotkeyKeyCode: 13, isVisible: false
+            ),
+        ]
+        let saved = try JSONDecoder().decode(
+            BrowserConfig.self,
+            from: JSONEncoder().encode(BrowserConfig(from: browser))
+        )
+
+        var denied = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        BrowserManager.applyProfiles(ProfileDetection(accessDenied: true), savedConfig: saved, to: &denied)
+
+        XCTAssertTrue(denied.profilesAccessDenied)
+        XCTAssertEqual(denied.profiles.map(\.directoryName), ["Default", "Profile 1"])
+        XCTAssertEqual(denied.profiles[1].hotkey, "w")
+        XCTAssertFalse(denied.profiles[1].isVisible)
+        // Saving in the denied state must not wipe the profile settings.
+        XCTAssertEqual(BrowserConfig(from: denied).profileVisibility, ["Default": true, "Profile 1": false])
+        XCTAssertEqual(BrowserConfig(from: denied).profileHotkeys, ["Profile 1": "w"])
     }
 
     @MainActor
@@ -2339,7 +2432,7 @@ final class SmokeTests: XCTestCase {
         let profiles = detector.detectProfiles(for: makeBrowser(
             profileDataPath: "zen",
             profileType: .firefox
-        ))
+        )).profiles
 
         XCTAssertEqual(profiles.map(\.directoryName), ["zmom57wf.Default (release)", "gwcmmal6.Default Profile"])
         XCTAssertEqual(profiles.map(\.displayName), ["Personal", "Work"])

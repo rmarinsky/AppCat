@@ -8,6 +8,11 @@ struct PickerItem: Identifiable {
     let profile: BrowserProfile? // nil = plain browser entry
     let app: InstalledApp?
     let windowTarget: AppWindowTarget?
+    /// Profile a browser window belongs to, read from its title. Only drives the avatar badge and
+    /// the label; `profile` stays nil so hotkeys, the profile popover and launch are unchanged.
+    var windowProfile: BrowserProfile?
+    /// Window title without the " - <browser> – <profile>" tail, when `windowProfile` was found.
+    var windowPageTitle: String?
 
     /// App-switcher marking (set by `switcherItems`). `hasOpenWindows` draws the running dot and
     /// places the item in the leading group; `isBackgroundRunning` dims it in the trailing group.
@@ -30,7 +35,7 @@ struct PickerItem: Identifiable {
     }
 
     var displayName: String {
-        if let windowTarget { return windowTarget.title }
+        if let windowTarget { return windowPageTitle ?? windowTarget.title }
         if let profile, let browser { return "\(browser.displayName) - \(profile.displayName)" }
         if let browser { return browser.displayName }
         if let app { return app.displayName }
@@ -140,6 +145,36 @@ struct PickerItem: Identifiable {
         profile = nil
         app = nil
         self.windowTarget = windowTarget
+        if let match = Self.windowProfile(title: windowTarget.title, browser: browser) {
+            windowProfile = match.profile
+            windowPageTitle = match.pageTitle
+        }
+    }
+
+    /// Chromium browsers end a window title with " - <browser> – <profile>" once several profiles
+    /// exist, e.g. "New tab - Google Chrome – Roma". The browser's bundle name ("Google Chrome",
+    /// not the shorter display name) must precede the profile name, so a page title that merely
+    /// ends in a profile name does not match.
+    static func windowProfile(
+        title: String,
+        browser: InstalledBrowser
+    ) -> (profile: BrowserProfile, pageTitle: String)? {
+        let separators = [" – ", " - "]
+        let bundleName = browser.appURL.deletingPathExtension().lastPathComponent
+        for profile in browser.profiles.sorted(by: { $0.displayName.count > $1.displayName.count }) {
+            for profileSeparator in separators {
+                let profileTail = profileSeparator + profile.displayName
+                guard title.hasSuffix(profileTail) else { continue }
+                let rest = title.dropLast(profileTail.count)
+                for browserSeparator in separators {
+                    let browserTail = browserSeparator + bundleName
+                    guard rest.hasSuffix(browserTail) else { continue }
+                    let page = rest.dropLast(browserTail.count).trimmingCharacters(in: .whitespaces)
+                    return (profile, page.isEmpty ? String(rest) : page)
+                }
+            }
+        }
+        return nil
     }
 
     init(app: InstalledApp, windowTarget: AppWindowTarget? = nil) {
@@ -445,18 +480,10 @@ struct PickerItem: Identifiable {
             let keys = tile.item.activationRankKeys
             let windowTick = keys.window.flatMap { windowActivationRanks[$0] }
             let appTick = keys.app.flatMap { windowActivationRanks[$0] }
-            switch (windowTick, appTick) {
-            case let (window?, app?):
-                return window >= app
-                    ? WindowActivationRank(tick: window, isExactWindow: true)
-                    : WindowActivationRank(tick: app, isExactWindow: false)
-            case let (window?, nil):
-                return WindowActivationRank(tick: window, isExactWindow: true)
-            case let (nil, app?):
-                return WindowActivationRank(tick: app, isExactWindow: false)
-            case (nil, nil):
-                return nil
-            }
+            // A window keeps its own place: activating a sibling moves only that sibling to the
+            // front. The app tick stands in solely for a window that was never seen focused.
+            if let windowTick { return WindowActivationRank(tick: windowTick, isExactWindow: true) }
+            return appTick.map { WindowActivationRank(tick: $0, isExactWindow: false) }
         }
 
         /// Most recently frontmost window first — tiles are ranked individually, so two windows of
@@ -1181,7 +1208,7 @@ struct PickerCell: View {
                 title: item.displayName,
                 subtitle: style == .appSwitcher || item.windowTarget == nil ? nil : item.secondaryDisplayName,
                 isFocused: isFocused,
-                profile: item.profile,
+                profile: item.profile ?? item.windowProfile,
                 shortcut: shortcut,
                 showsHotkey: false,
                 showsProfileMenuIndicator: false,

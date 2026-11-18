@@ -394,3 +394,6 @@
 "With the cat, or only the app icon flying to its window." = "З кицею або лише іконка програми, що летить до її вікна.";
 "With cat" = "З кицею";
 "Compact" = "Компактна";
+"macOS is blocking access to this browser's profiles." = "macOS блокує доступ до профілів цього браузера.";
+"Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat." = "Увімкніть AppCat у розділі «Файли та теки». Якщо профілі не з'являться, перезапустіть AppCat.";
+"Open Privacy Settings" = "Відкрити налаштування приватності";
