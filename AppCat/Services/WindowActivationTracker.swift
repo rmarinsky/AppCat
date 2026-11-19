@@ -121,10 +121,33 @@ struct WindowActivationLedger: Equatable {
     /// sibling window moves only that sibling to the front of the row; the app tick stands in
     /// solely for a window that was never seen focused.
     func rank(windowKey: String?, appKey: String?) -> WindowActivationRank? {
-        if let windowTick = windowKey.flatMap({ ticksByKey[$0] }) {
+        Self.rank(windowKey: windowKey, appKey: appKey, in: ticksByKey)
+    }
+
+    /// The one rank policy, shared with the picker's frozen session snapshot.
+    static func rank(windowKey: String?, appKey: String?, in ticks: [String: Int]) -> WindowActivationRank? {
+        if let windowTick = windowKey.flatMap({ ticks[$0] }) {
             return WindowActivationRank(tick: windowTick, isExactWindow: true)
         }
-        return appKey.flatMap { ticksByKey[$0] }.map { WindowActivationRank(tick: $0, isExactWindow: false) }
+        return appKey.flatMap { ticks[$0] }.map { WindowActivationRank(tick: $0, isExactWindow: false) }
+    }
+
+    /// Reserves an ordering tick without publishing it as anyone's recency, so a window read that
+    /// started now can land in its place even if another app is activated before it returns.
+    mutating func reserveTick() -> Int {
+        defer { nextTick += 1 }
+        return nextTick
+    }
+
+    /// An activation whose focused window could not be read. Its most recently seen window is the
+    /// best guess for the current one; promoting it keeps the app's tiles at the new recency
+    /// without disturbing the order of its other windows.
+    mutating func promoteMostRecentWindow(bundleID: String, tick: Int) {
+        let prefix = "window-title|\(bundleID)|"
+        guard let latest = ticksByKey.filter({ $0.key.hasPrefix(prefix) }).max(by: { $0.value < $1.value }),
+              tick > latest.value
+        else { return }
+        ticksByKey[latest.key] = tick
     }
 
     func tick(forApp bundleID: String) -> Int? {
@@ -206,7 +229,7 @@ final class WindowActivationTracker {
     func recordActivation(bundleID: String, processIdentifier: pid_t?) {
         guard bundleID != Bundle.main.bundleIdentifier else { return }
         let tick = ledger.recordActivation(bundleID: bundleID)
-        resolveFocusedWindow(bundleID: bundleID, processIdentifier: processIdentifier, tick: tick)
+        resolveFocusedWindow(bundleID: bundleID, processIdentifier: processIdentifier, tick: tick, isActivation: true)
     }
 
     /// A switch the picker itself just performed. The window is known, so it is ranked at once:
@@ -224,17 +247,23 @@ final class WindowActivationTracker {
     /// every toggle session performs before presenting, so index 0's identity is fresh when the
     /// picker opens.
     ///
-    /// An app that already tops the order is not re-ranked until its focused window is known.
-    /// Ranking it at once would lift the app tick above every one of its window ticks, so a
-    /// session frozen before the read returns — every hold-⌥Tab — would see all its windows tie
-    /// and forget which one is current.
+    /// An app that already tops the order is not re-ranked: it only reserves a tick for the window
+    /// being read. Ranking the app at once would lift its tick above every one of its window ticks,
+    /// so a session frozen before the read returns — every hold-⌥Tab — would see all its windows
+    /// tie and forget which one is current.
     func recordFrontmostRefresh(bundleID: String?, processIdentifier: pid_t?) {
         // `NSWorkspace.frontmostApplication` is AppCat itself while the picker is key. Ranking it
         // would put AppCat in its own switcher — the same reason `AppActivityMonitor` drops
         // AppCat's activation notifications.
         guard let bundleID, bundleID != Bundle.main.bundleIdentifier else { return }
-        let tick = isTopApp(bundleID) ? nil : ledger.recordActivation(bundleID: bundleID)
-        resolveFocusedWindow(bundleID: bundleID, processIdentifier: processIdentifier, tick: tick)
+        let isActivation = !isTopApp(bundleID)
+        let tick = isActivation ? ledger.recordActivation(bundleID: bundleID) : ledger.reserveTick()
+        resolveFocusedWindow(
+            bundleID: bundleID,
+            processIdentifier: processIdentifier,
+            tick: tick,
+            isActivation: isActivation
+        )
     }
 
     private func isTopApp(_ bundleID: String) -> Bool {
@@ -251,11 +280,14 @@ final class WindowActivationTracker {
         (ledger.snapshot, ledger.frontmostKey)
     }
 
-    /// `tick` is nil for a refresh of the app that already tops the order: the tick is then spent
-    /// only once the title is in hand, and only if no other app was activated in the meantime.
-    private func resolveFocusedWindow(bundleID: String, processIdentifier: pid_t?, tick: Int?) {
-        guard let processIdentifier else { return }
+    /// `isActivation` is false for a refresh of the app that already tops the order, whose `tick`
+    /// is reserved rather than published: an unreadable window then changes nothing.
+    private func resolveFocusedWindow(bundleID: String, processIdentifier: pid_t?, tick: Int, isActivation: Bool) {
         titleResolutionTasks.removeValue(forKey: bundleID)?.cancel()
+        guard let processIdentifier else {
+            if isActivation { ledger.promoteMostRecentWindow(bundleID: bundleID, tick: tick) }
+            return
+        }
         let focusedWindowTitle = dependencies.focusedWindowTitle
         titleResolutionTasks[bundleID] = Task { @MainActor [weak self] in
             let title = await Task.detached(priority: .userInitiated) {
@@ -263,10 +295,11 @@ final class WindowActivationTracker {
             }.value
             guard let self, !Task.isCancelled else { return }
             self.titleResolutionTasks[bundleID] = nil
-            guard let title else { return }
-            guard let tick = tick ?? (self.isTopApp(bundleID) ? self.ledger.recordActivation(bundleID: bundleID) : nil)
-            else { return }
-            self.ledger.attachFocusedWindow(bundleID: bundleID, title: title, tick: tick)
+            if let title {
+                self.ledger.attachFocusedWindow(bundleID: bundleID, title: title, tick: tick)
+            } else if isActivation {
+                self.ledger.promoteMostRecentWindow(bundleID: bundleID, tick: tick)
+            }
         }
     }
 }

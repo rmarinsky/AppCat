@@ -178,4 +178,49 @@ final class WindowActivationLedgerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(snapshot.ranks[dropbox] ?? .min, appTick)
         XCTAssertLessThan(snapshot.ranks[newTab] ?? .max, snapshot.ranks[dropbox] ?? .min)
     }
+
+    /// Chrome activates but its focused window cannot be read. Its tiles must not fall below Mail,
+    /// which was used before it, and its windows keep their order among themselves.
+    func testUnreadableActivationPromotesTheAppsLatestWindow() throws {
+        var ledger = WindowActivationLedger()
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Work", tick: ledger.recordActivation(bundleID: "chrome"))
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Personal", tick: ledger.recordActivation(bundleID: "chrome"))
+        ledger.recordActivation(bundleID: "mail")
+        ledger.promoteMostRecentWindow(bundleID: "chrome", tick: ledger.recordActivation(bundleID: "chrome"))
+
+        let personal = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Personal"))
+        let work = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Work"))
+        let mail = try XCTUnwrap(rank(ledger, bundleID: "mail"))
+        XCTAssertTrue(personal > mail)
+        XCTAssertTrue(mail > work)
+    }
+
+    /// The frontmost refresh reads Personal, but Mail is activated before the read returns. The
+    /// read still lands between Work and Mail instead of being dropped.
+    @MainActor
+    func testRefreshReadThatReturnsAfterAnotherActivationKeepsItsPlace() async {
+        let releaseRead = DispatchSemaphore(value: 0)
+        let tracker = WindowActivationTracker(dependencies: .init(
+            focusedWindowTitle: { _ in
+                releaseRead.wait()
+                return "Personal"
+            },
+            frontToBackWindows: { [] }
+        ))
+        tracker.recordWindowActivation(bundleID: "chrome", title: "Work")
+        tracker.recordFrontmostRefresh(bundleID: "chrome", processIdentifier: 1)
+        tracker.recordWindowActivation(bundleID: "mail", title: "Inbox")
+        releaseRead.signal()
+
+        let personal = WindowActivationKey.window(bundleID: "chrome", title: "Personal")
+        for _ in 0 ..< 200 where tracker.sessionSnapshot().ranks[personal] == nil {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let ranks = tracker.sessionSnapshot().ranks
+        let work = WindowActivationKey.window(bundleID: "chrome", title: "Work")
+        let inbox = WindowActivationKey.window(bundleID: "mail", title: "Inbox")
+        XCTAssertNotNil(ranks[personal])
+        XCTAssertGreaterThan(ranks[personal] ?? .min, ranks[work] ?? .max)
+        XCTAssertLessThan(ranks[personal] ?? .max, ranks[inbox] ?? .min)
+    }
 }

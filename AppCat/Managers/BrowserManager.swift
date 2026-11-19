@@ -54,28 +54,49 @@ final class BrowserManager {
             Self.applyProfiles(
                 profileDetector.detectProfiles(for: browsers[i]),
                 savedConfig: savedConfigMap?[browsers[i].id],
+                current: state.browsers.first { $0.id == browsers[i].id },
                 to: &browsers[i]
             )
         }
 
         // Refreshes also run in the background; leave state and disk alone when nothing changed.
-        guard browsers != state.browsers else { return }
-        state.browsers = browsers
-        if canPersist {
+        // The two are compared separately so a write that failed earlier is retried.
+        if browsers != state.browsers {
+            state.browsers = browsers
+        }
+        if canPersist, savedConfigs != browsers.map(BrowserConfig.init(from:)) {
             save(browsers)
         }
     }
 
     /// Sets the browser's profiles from a detection result and restores their saved hotkeys and
-    /// visibility. When macOS denied access, the last saved profile list stands in.
+    /// visibility. When the list cannot be read, the last known one stands in: the saved snapshot,
+    /// or the one on screen when the config itself could not be loaded.
     static func applyProfiles(
         _ detection: ProfileDetection,
         savedConfig: BrowserConfig?,
+        current: InstalledBrowser? = nil,
         to browser: inout InstalledBrowser
     ) {
-        browser.profilesAccessDenied = detection.accessDenied
-        browser.profiles = detection.accessDenied ? (savedConfig?.profiles ?? []) : detection.profiles
+        browser.profilesReadFailure = detection.failure
+        guard detection.failure != nil else {
+            browser.profiles = detection.profiles
+            restoreProfileSettings(from: savedConfig, to: &browser)
+            return
+        }
+        guard let savedConfig else {
+            browser.profiles = current?.profiles ?? []
+            browser.pendingProfileSettings = current?.pendingProfileSettings
+            return
+        }
+        browser.profiles = savedConfig.profiles ?? []
+        if browser.profiles.isEmpty {
+            browser.pendingProfileSettings = PendingProfileSettings(savedConfig)
+        }
+        restoreProfileSettings(from: savedConfig, to: &browser)
+    }
 
+    private static func restoreProfileSettings(from savedConfig: BrowserConfig?, to browser: inout InstalledBrowser) {
         guard let savedConfig else { return }
         for j in browser.profiles.indices {
             let dirName = browser.profiles[j].directoryName

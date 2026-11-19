@@ -1329,7 +1329,11 @@ final class SmokeTests: XCTestCase {
     }
 
     func testWindowFilterRejectsChromiumFindBar() {
-        let candidates = ["Find on page for\n    Diduny Calendar · 1", "Diduny Calendar · 1"].enumerated().map { index, title in
+        let candidates = [
+            "Find on page for\n    Diduny Calendar · 1",
+            "Diduny Calendar · 1",
+            "Find on Page Setup - Google Chrome",
+        ].enumerated().map { index, title in
             WindowEnumerator.WindowCandidate(
                 bundleID: "com.microsoft.edgemac",
                 title: title,
@@ -1342,7 +1346,10 @@ final class SmokeTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(WindowEnumerator.filteredWindowCandidates(candidates).map(\.title), ["Diduny Calendar · 1"])
+        XCTAssertEqual(
+            WindowEnumerator.filteredWindowCandidates(candidates).map(\.title),
+            ["Diduny Calendar · 1", "Find on Page Setup - Google Chrome"]
+        )
     }
 
     func testChromeForTestingRegistryMatchesItsRealBundleID() {
@@ -2372,8 +2379,97 @@ final class SmokeTests: XCTestCase {
         let chrome = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
         let missing = makeBrowser(profileDataPath: "Google/Chrome Canary", profileType: .chromium)
 
-        XCTAssertEqual(detector.detectProfiles(for: chrome), ProfileDetection(accessDenied: true))
+        XCTAssertEqual(detector.detectProfiles(for: chrome), ProfileDetection(failure: .filePermissions))
         XCTAssertEqual(detector.detectProfiles(for: missing), ProfileDetection())
+    }
+
+    func testProfileReadFailureTellsPrivacyFromFilePermissions() {
+        func cocoa(_ code: Int32) -> NSError {
+            NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError, userInfo: [
+                NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(code)),
+            ])
+        }
+        XCTAssertEqual(ProfileDetector.readFailure(for: cocoa(EPERM)), .privacyBlocked)
+        XCTAssertEqual(ProfileDetector.readFailure(for: cocoa(EACCES)), .filePermissions)
+        XCTAssertNil(ProfileDetector.readFailure(for: cocoa(ENOENT)))
+    }
+
+    @MainActor
+    func testUnparseableLocalStateIsAFailureNotAnEmptyList() throws {
+        let appSupport = try makeTempDirectory()
+        let chromeDir = appSupport.appendingPathComponent("Google/Chrome", isDirectory: true)
+        try FileManager.default.createDirectory(at: chromeDir, withIntermediateDirectories: true)
+        try Data("{\"profile\": {\"info_ca".utf8).write(to: chromeDir.appendingPathComponent("Local State"))
+
+        let detector = ProfileDetector(applicationSupportDirectory: appSupport)
+        let chrome = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+
+        XCTAssertEqual(detector.detectProfiles(for: chrome), ProfileDetection(failure: .unreadable))
+    }
+
+    /// An upgrade from a build that saved no profile snapshot, first run while access is blocked:
+    /// the saved hotkeys and visibility must survive being written back.
+    @MainActor
+    func testBlockedAccessWithoutSnapshotKeepsLegacyProfileSettings() throws {
+        let legacy = try JSONDecoder().decode(BrowserConfig.self, from: Data("""
+        {"id": "test.browser", "displayName": "Test", "isVisible": true, "sortOrder": 0,
+         "profileHotkeys": {"Profile 1": "w"}, "profileHotkeyKeyCodes": {"Profile 1": 13},
+         "profileVisibility": {"Default": true, "Profile 1": false}}
+        """.utf8))
+
+        var denied = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        BrowserManager.applyProfiles(ProfileDetection(failure: .privacyBlocked), savedConfig: legacy, to: &denied)
+        let written = BrowserConfig(from: denied)
+
+        XCTAssertTrue(denied.profiles.isEmpty)
+        XCTAssertEqual(written.profileHotkeys, ["Profile 1": "w"])
+        XCTAssertEqual(written.profileHotkeyKeyCodes, ["Profile 1": 13])
+        XCTAssertEqual(written.profileVisibility, ["Default": true, "Profile 1": false])
+
+        var granted = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        BrowserManager.applyProfiles(
+            ProfileDetection(profiles: [BrowserProfile(directoryName: "Profile 1", displayName: "Work", email: nil)]),
+            savedConfig: written,
+            to: &granted
+        )
+        XCTAssertEqual(granted.profiles.first?.hotkey, "w")
+        XCTAssertEqual(granted.profiles.first?.isVisible, false)
+        XCTAssertNil(granted.pendingProfileSettings)
+    }
+
+    @MainActor
+    func testBlockedAccessWithUnreadableConfigKeepsProfilesOnScreen() {
+        var current = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        current.profiles = [BrowserProfile(directoryName: "Default", displayName: "Roma", email: nil, hotkey: "r")]
+
+        var refreshed = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
+        BrowserManager.applyProfiles(
+            ProfileDetection(failure: .privacyBlocked),
+            savedConfig: nil,
+            current: current,
+            to: &refreshed
+        )
+
+        XCTAssertEqual(refreshed.profiles, current.profiles)
+    }
+
+    /// A refresh that finds nothing new must still write the config when the file on disk is
+    /// behind, e.g. after an earlier write failed.
+    @MainActor
+    func testRefreshRewritesAStaleConfigEvenWhenStateIsUnchanged() throws {
+        let fileURL = try makeTempDirectory().appendingPathComponent("browsers.json")
+        let manager = BrowserManager(configStorage: BrowserConfigStorage(fileURL: fileURL))
+        let state = AppState()
+        manager.refreshBrowsers(into: state)
+        XCTAssertFalse(state.browsers.isEmpty)
+
+        try Data("[]".utf8).write(to: fileURL)
+        manager.refreshBrowsers(into: state)
+
+        guard case let .loaded(configs) = BrowserConfigStorage(fileURL: fileURL).load() else {
+            return XCTFail("config should load")
+        }
+        XCTAssertEqual(Set(configs.map(\.id)), Set(state.browsers.map(\.id)))
     }
 
     @MainActor
@@ -2392,9 +2488,9 @@ final class SmokeTests: XCTestCase {
         )
 
         var denied = makeBrowser(profileDataPath: "Google/Chrome", profileType: .chromium)
-        BrowserManager.applyProfiles(ProfileDetection(accessDenied: true), savedConfig: saved, to: &denied)
+        BrowserManager.applyProfiles(ProfileDetection(failure: .privacyBlocked), savedConfig: saved, to: &denied)
 
-        XCTAssertTrue(denied.profilesAccessDenied)
+        XCTAssertEqual(denied.profilesReadFailure, .privacyBlocked)
         XCTAssertEqual(denied.profiles.map(\.directoryName), ["Default", "Profile 1"])
         XCTAssertEqual(denied.profiles[1].hotkey, "w")
         XCTAssertFalse(denied.profiles[1].isVisible)

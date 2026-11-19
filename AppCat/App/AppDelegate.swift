@@ -141,8 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // hotkey no longer rescans, so this keeps the app list current in the background.
         appActivityMonitor.onAppListChanged = { [weak self] in
             guard let self else { return }
-            self.appManager.refreshAppsInBackground(into: self.appState)
+            // Browsers first: the app scan excludes the current browser list.
             self.browserManager.refreshBrowsers(into: self.appState)
+            self.appManager.refreshAppsInBackground(into: self.appState)
         }
         appActivityMonitor.onManualPickerNeedsRefresh = { [weak self] in
             self?.pickerCoordinator.refreshManualPickerSession()

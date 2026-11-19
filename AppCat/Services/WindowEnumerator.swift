@@ -119,8 +119,9 @@ enum WindowEnumerator {
         kAXSystemFloatingWindowSubrole as String,
     ]
     /// Chromium (Edge) reports its ⌘F find bar as a separate AX window titled
-    /// "Find on page for <page title>".
-    private static let findBarTitlePrefixes = ["find on page"]
+    /// "Find on page for\n    <page title>". Page titles never carry a line break, so the break
+    /// keeps a real window such as "Find on Page Setup" listed.
+    private static let findBarTitlePrefix = "find on page for"
     private static let nonWindowMenuTitles: Set<String> = [
         "minimize",
         "minimise",
@@ -710,8 +711,7 @@ enum WindowEnumerator {
     }
 
     private static func isFindBarTitle(_ title: String) -> Bool {
-        let folded = title.lowercased()
-        return findBarTitlePrefixes.contains { folded.hasPrefix($0) }
+        title.lowercased().hasPrefix(findBarTitlePrefix) && title.contains(where: \.isNewline)
     }
 
     static func isApplicationWindowRole(_ role: String?) -> Bool {

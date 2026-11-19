@@ -115,11 +115,25 @@ final class BrowserLauncher {
         }
     }
 
+    /// How a manual switch landed: on the requested window, or on the app because that window
+    /// could not be raised (it closed, or was never given).
+    enum ActivationResult: Equatable {
+        case window, application, failed
+
+        var succeeded: Bool {
+            self != .failed
+        }
+    }
+
     @discardableResult
-    func activate(browser: InstalledBrowser, profile: BrowserProfile? = nil, windowTarget: AppWindowTarget? = nil) -> Bool {
+    func activate(
+        browser: InstalledBrowser,
+        profile: BrowserProfile? = nil,
+        windowTarget: AppWindowTarget? = nil
+    ) -> ActivationResult {
         if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.browser.info("Activated \(browser.displayName) window '\(windowTarget.title)'")
-            return true
+            return .window
         }
 
         if let profile {
@@ -130,21 +144,21 @@ final class BrowserLauncher {
             bundleID: browser.id,
             displayName: browser.displayName,
             reopenWindowlessWith: browser.appURL
-        )
+        ) ? .application : .failed
     }
 
     @discardableResult
-    func activate(app: InstalledApp, windowTarget: AppWindowTarget? = nil) -> Bool {
+    func activate(app: InstalledApp, windowTarget: AppWindowTarget? = nil) -> ActivationResult {
         if let windowTarget, dependencies.activateWindowTarget(windowTarget) {
             Log.apps.info("Activated \(app.displayName) window '\(windowTarget.title)'")
-            return true
+            return .window
         }
 
         return activateApplication(
             bundleID: app.id,
             displayName: app.displayName,
             reopenWindowlessWith: app.appURL
-        )
+        ) ? .application : .failed
     }
 
     private func openNormal(

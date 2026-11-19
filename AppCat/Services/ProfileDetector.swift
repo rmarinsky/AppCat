@@ -1,11 +1,20 @@
 import Foundation
 import os
 
+/// Why a browser's profile list could not be read. Any failure keeps the last known profiles.
+enum ProfileReadFailure: Equatable {
+    /// macOS privacy protection (EPERM). Since macOS 27 another app's data is protected until the
+    /// user allows it in Privacy & Security; the system never prompts.
+    case privacyBlocked
+    /// The file's own permissions (EACCES), which Privacy & Security cannot change.
+    case filePermissions
+    /// The file exists but could not be parsed, e.g. while the browser rewrites it.
+    case unreadable
+}
+
 struct ProfileDetection: Equatable {
     var profiles: [BrowserProfile] = []
-    /// macOS refused to read the browser's profile list. Since macOS 27 another app's data is
-    /// protected until the user allows it in Privacy & Security; the system never prompts.
-    var accessDenied = false
+    var failure: ProfileReadFailure?
 }
 
 @MainActor
@@ -34,20 +43,27 @@ final class ProfileDetector {
             detection = detectFirefoxProfiles(dataPath: profileDataPath)
         }
 
-        if detection.accessDenied {
-            Log.profiles.error("macOS denied access to the profiles of \(browser.displayName)")
+        if let failure = detection.failure {
+            Log.profiles.error("Could not read the profiles of \(browser.displayName): \(String(describing: failure))")
         } else if !detection.profiles.isEmpty {
             Log.profiles.info("Detected \(detection.profiles.count) profiles for \(browser.displayName)")
         }
         return detection
     }
 
-    private static func isPermissionError(_ error: Error) -> Bool {
-        let error = error as NSError
-        if error.domain == NSCocoaErrorDomain, error.code == NSFileReadNoPermissionError {
-            return true
+    /// EPERM is a mandatory-access (privacy) denial and EACCES a file-permission one; Foundation
+    /// wraps both in the same Cocoa error, so the POSIX code underneath decides.
+    nonisolated static func readFailure(for error: Error) -> ProfileReadFailure? {
+        var error = error as NSError
+        if error.domain == NSCocoaErrorDomain, let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            error = underlying
         }
-        return error.domain == NSPOSIXErrorDomain && [Int(EPERM), Int(EACCES)].contains(error.code)
+        guard error.domain == NSPOSIXErrorDomain else { return nil }
+        switch Int32(error.code) {
+        case EPERM: return .privacyBlocked
+        case EACCES: return .filePermissions
+        default: return nil
+        }
     }
 
     private static func defaultApplicationSupportDirectory(fileManager: FileManager) -> URL {
@@ -75,7 +91,7 @@ final class ProfileDetector {
             data = try Data(contentsOf: localStatePath)
         } catch {
             Log.profiles.debug("No Chromium Local State found at \(localStatePath.path)")
-            return ProfileDetection(accessDenied: Self.isPermissionError(error))
+            return ProfileDetection(failure: Self.readFailure(for: error))
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -83,7 +99,7 @@ final class ProfileDetector {
               let infoCache = profile["info_cache"] as? [String: Any]
         else {
             Log.profiles.debug("Unreadable Chromium Local State at \(localStatePath.path)")
-            return ProfileDetection()
+            return ProfileDetection(failure: .unreadable)
         }
 
         var profiles: [BrowserProfile] = []
@@ -156,7 +172,7 @@ final class ProfileDetector {
             content = try String(contentsOf: profilesIniPath, encoding: .utf8)
         } catch {
             Log.profiles.debug("No Firefox profiles.ini found at \(profilesIniPath.path)")
-            return ProfileDetection(accessDenied: Self.isPermissionError(error))
+            return ProfileDetection(failure: Self.readFailure(for: error))
         }
 
         var profiles: [BrowserProfile] = []

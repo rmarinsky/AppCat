@@ -397,3 +397,4 @@
 "macOS is blocking access to this browser's profiles." = "macOS блокує доступ до профілів цього браузера.";
 "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat." = "Увімкніть AppCat у розділі «Файли та теки». Якщо профілі не з'являться, перезапустіть AppCat.";
 "Open Privacy Settings" = "Відкрити налаштування приватності";
+"The browser's profile file can't be read because of its file permissions." = "Файл профілів браузера не читається через права доступу до файлу.";

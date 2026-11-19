@@ -57,8 +57,8 @@ struct BrowsersSettingsView: View {
                 }
                 row(browser, index: index)
 
-                if browser.profilesAccessDenied {
-                    profilesAccessDeniedRow
+                if let failure = browser.profilesReadFailure, failure != .unreadable {
+                    profilesAccessDeniedRow(failure)
                 }
                 if browser.hasProfiles {
                     ForEach(browser.profiles) { profile in
@@ -230,8 +230,9 @@ struct BrowsersSettingsView: View {
         .background(Color("SurfaceInset").opacity(0.35))
     }
 
-    /// macOS never prompts for another app's data, so the only way in is System Settings.
-    private var profilesAccessDeniedRow: some View {
+    /// macOS never prompts for another app's data, so the only way in is System Settings. A
+    /// file-permission denial is not fixed there, so it gets neither that advice nor the button.
+    private func profilesAccessDeniedRow(_ failure: ProfileReadFailure) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "lock")
                 .font(.system(size: 11))
@@ -243,7 +244,9 @@ struct BrowsersSettingsView: View {
                 Text(String(localized: "macOS is blocking access to this browser's profiles."))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
-                Text(String(localized: "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat."))
+                Text(failure == .privacyBlocked
+                    ? String(localized: "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat.")
+                    : String(localized: "The browser's profile file can't be read because of its file permissions."))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -251,12 +254,14 @@ struct BrowsersSettingsView: View {
 
             Spacer(minLength: 8)
 
-            Button(String(localized: "Open Privacy Settings")) {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
-                    NSWorkspace.shared.open(url)
+            if failure == .privacyBlocked {
+                Button(String(localized: "Open Privacy Settings")) {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
+                .controlSize(.small)
             }
-            .controlSize(.small)
         }
         .padding(.trailing, 12)
         .padding(.vertical, 6)

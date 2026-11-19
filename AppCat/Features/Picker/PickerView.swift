@@ -478,12 +478,7 @@ struct PickerItem: Identifiable {
         /// Rank of one tile in the frozen most-recently-used snapshot.
         func rank(_ tile: SwitcherTile) -> WindowActivationRank? {
             let keys = tile.item.activationRankKeys
-            let windowTick = keys.window.flatMap { windowActivationRanks[$0] }
-            let appTick = keys.app.flatMap { windowActivationRanks[$0] }
-            // A window keeps its own place: activating a sibling moves only that sibling to the
-            // front. The app tick stands in solely for a window that was never seen focused.
-            if let windowTick { return WindowActivationRank(tick: windowTick, isExactWindow: true) }
-            return appTick.map { WindowActivationRank(tick: $0, isExactWindow: false) }
+            return WindowActivationLedger.rank(windowKey: keys.window, appKey: keys.app, in: windowActivationRanks)
         }
 
         /// Most recently frontmost window first — tiles are ranked individually, so two windows of
@@ -978,7 +973,8 @@ struct PickerView: View {
         .buttonStyle(.plain)
         .focusable(PickerCellFocusPolicy.allowsNativeFocus)
         .accessibilityIdentifier("picker.item.\(item.id)")
-        .accessibilityLabel(item.displayName)
+        // The visual title drops the profile tail; VoiceOver keeps it to tell profiles apart.
+        .accessibilityLabel(item.windowProfile == nil ? item.displayName : item.windowTarget?.title ?? item.displayName)
         .accessibilityValue(shortcut.map { String($0.key) } ?? "")
         .contentShape(Rectangle())
         .pickerClickableCursor()

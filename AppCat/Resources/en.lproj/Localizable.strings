@@ -397,3 +397,4 @@
 "macOS is blocking access to this browser's profiles." = "macOS is blocking access to this browser's profiles.";
 "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat." = "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat.";
 "Open Privacy Settings" = "Open Privacy Settings";
+"The browser's profile file can't be read because of its file permissions." = "The browser's profile file can't be read because of its file permissions.";
