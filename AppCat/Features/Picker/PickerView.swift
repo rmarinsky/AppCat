@@ -34,7 +34,25 @@ struct PickerItem: Identifiable {
         windowTarget != nil
     }
 
+    /// Teams tiles in the switcher: a call window, or a signed-in account (shown or not).
+    enum TeamsTile: Equatable {
+        case call
+        case account(email: String)
+    }
+
+    var teamsTile: TeamsTile? {
+        guard let windowTarget, windowTarget.bundleID == TeamsAccounts.bundleID else { return nil }
+        if let email = windowTarget.teamsAccount { return .account(email: email) }
+        if let email = TeamsAccounts.accountEmail(inWindowTitle: windowTarget.title) { return .account(email: email) }
+        return .call
+    }
+
     var displayName: String {
+        if let windowTarget, teamsTile != nil {
+            return windowTarget.teamsAccount == nil
+                ? TeamsAccounts.leadingSegment(ofWindowTitle: windowTarget.title)
+                : (app?.displayName ?? "Teams")
+        }
         if let windowTarget { return windowPageTitle ?? windowTarget.title }
         if let profile, let browser { return "\(browser.displayName) - \(profile.displayName)" }
         if let browser { return browser.displayName }
@@ -50,6 +68,15 @@ struct PickerItem: Identifiable {
         }
         if profile != nil { return browser?.displayName }
         return nil
+    }
+
+    /// Second line under a switcher tile. Only Teams tiles have one: the account or "Call".
+    var switcherSubtitle: String? {
+        switch teamsTile {
+        case let .account(email): TeamsAccounts.shortName(ofEmail: email)
+        case .call: String(localized: "Call")
+        case nil: nil
+        }
     }
 
     var searchableStrings: [String] {
@@ -510,7 +537,17 @@ struct PickerItem: Identifiable {
             return x.order < y.order
         }
 
-        return dedupedForDisplay(tiles.sorted(by: before).map(\.item))
+        return withTeamsCallSecond(dedupedForDisplay(tiles.sorted(by: before).map(\.item)))
+    }
+
+    /// While a Teams call is open, its window sits right after the current window (index 1), so a
+    /// quick ⌥Tab from anywhere returns to the call. A call that is already in front stays first.
+    static func withTeamsCallSecond(_ items: [PickerItem]) -> [PickerItem] {
+        guard let callIndex = items.firstIndex(where: { $0.teamsTile == .call }), callIndex > 1 else { return items }
+        var reordered = items
+        let call = reordered.remove(at: callIndex)
+        reordered.insert(call, at: 1)
+        return reordered
     }
 
     /// One rendered switcher tile plus the app-group facts its fallback tiers still need.
@@ -1216,7 +1253,8 @@ struct PickerCell: View {
             AppCell(
                 app: app,
                 title: item.displayName,
-                subtitle: style == .appSwitcher ? nil : item.secondaryDisplayName,
+                subtitle: style == .appSwitcher ? item.switcherSubtitle : item.secondaryDisplayName,
+                teamsTile: item.teamsTile,
                 isFocused: isFocused,
                 shortcut: shortcut,
                 compact: compact,
@@ -1233,6 +1271,7 @@ struct AppCell: View {
     let app: InstalledApp
     let title: String
     let subtitle: String?
+    let teamsTile: PickerItem.TeamsTile?
     let isFocused: Bool
     let shortcut: PickerShortcut?
     var compact: Bool = false
@@ -1243,6 +1282,7 @@ struct AppCell: View {
         app: InstalledApp,
         title: String? = nil,
         subtitle: String? = nil,
+        teamsTile: PickerItem.TeamsTile? = nil,
         isFocused: Bool,
         shortcut: PickerShortcut? = nil,
         compact: Bool = false,
@@ -1252,6 +1292,7 @@ struct AppCell: View {
         self.app = app
         self.title = title ?? app.displayName
         self.subtitle = subtitle
+        self.teamsTile = teamsTile
         self.isFocused = isFocused
         self.shortcut = shortcut
         self.compact = compact
@@ -1277,7 +1318,7 @@ struct AppCell: View {
         let showsSecondaryRow = shortcut != nil || subtitle?.isEmpty == false
 
         return VStack(spacing: PickerMetrics.shortcutVerticalGap(scale: scale)) {
-            ZStack {
+            ZStack(alignment: .bottomLeading) {
                 if let icon = app.icon {
                     Image(nsImage: icon)
                         .resizable()
@@ -1288,6 +1329,9 @@ struct AppCell: View {
                         .font(.system(size: compactFallbackIconSize))
                         .frame(width: compactIconSize, height: compactIconSize)
                 }
+
+                teamsBadge
+                    .offset(x: 4 * scale, y: -4 * scale)
             }
             .frame(width: compactIconSize, height: compactIconSize)
             .frame(width: compactIconChromeSize, height: compactIconChromeSize)
@@ -1342,6 +1386,33 @@ struct AppCell: View {
         .frame(width: compactCellWidth, height: compactCellHeight)
         .contentShape(Rectangle())
         .help(subtitle.map { "\(title) · \($0)" } ?? title)
+    }
+
+    /// Account initial (same badge as a browser profile) or a call mark on a Teams tile.
+    @ViewBuilder
+    private var teamsBadge: some View {
+        let size = PickerMetrics.profileBadgeSize(scale: scale)
+        switch teamsTile {
+        case let .account(email):
+            ProfileAvatarBadge(
+                profile: BrowserProfile(
+                    directoryName: email,
+                    displayName: TeamsAccounts.shortName(ofEmail: email),
+                    email: email
+                ),
+                size: size,
+                borderWidth: PickerMetrics.profileBadgeBorderWidth(scale: scale)
+            )
+        case .call:
+            Image(systemName: "phone.fill")
+                .font(.system(size: size * 0.45, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(Circle().fill(.green))
+                .overlay(Circle().strokeBorder(.white, lineWidth: PickerMetrics.profileBadgeBorderWidth(scale: scale)))
+        case nil:
+            EmptyView()
+        }
     }
 
     private var normalBody: some View {

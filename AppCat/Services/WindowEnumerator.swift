@@ -9,6 +9,9 @@ struct AppWindowTarget: Hashable, Identifiable {
     /// Set only for a window of an extra process of `bundleID` (e.g. a Chrome that Playwright or an
     /// AI agent started with its own `--user-data-dir`). Activation must reach that exact process.
     var pid: pid_t?
+    /// Set only for a Teams account the main window does not show. Activation switches Teams to
+    /// this account first (see `TeamsAccounts`).
+    var teamsAccount: String?
 
     var id: String {
         if let pid { return "\(bundleID)#\(pid):\(index):\(title)" }
@@ -218,6 +221,12 @@ enum WindowEnumerator {
                 }
                 result[extraInstanceKey(bundleID: id, pid: app.processIdentifier)] = windows
             } else {
+                if id == TeamsAccounts.bundleID {
+                    windows = TeamsAccounts.addingAccountTargets(
+                        to: windows,
+                        accounts: TeamsAccounts.accounts(pid: app.processIdentifier)
+                    )
+                }
                 result[id] = windows
             }
         }
@@ -355,6 +364,10 @@ enum WindowEnumerator {
               ?? NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
         else { return false }
 
+        if let email = target.teamsAccount {
+            return activateTeamsAccount(email, app: app)
+        }
+
         let windows = applicationWindows(forPID: app.processIdentifier)
         guard !windows.isEmpty else {
             return activateFromWindowMenu(target, app: app)
@@ -370,6 +383,22 @@ enum WindowEnumerator {
 
         _ = restoreIfMinimized(window)
         focusAndActivate(window, app: app)
+        return true
+    }
+
+    /// Switches Teams to `email`, then raises its main window (the one titled with an account), not
+    /// a call window that may be in front.
+    private static func activateTeamsAccount(_ email: String, app: NSRunningApplication) -> Bool {
+        guard TeamsAccounts.switchAccount(to: email, pid: app.processIdentifier) else { return false }
+        let windows = applicationWindows(forPID: app.processIdentifier)
+        guard let mainWindow = windows.first(where: {
+            title(of: $0).flatMap(TeamsAccounts.accountEmail(inWindowTitle:)) != nil
+        }) ?? windows.first else {
+            forceActivate(app)
+            return true
+        }
+        _ = restoreIfMinimized(mainWindow)
+        focusAndActivate(mainWindow, app: app)
         return true
     }
 

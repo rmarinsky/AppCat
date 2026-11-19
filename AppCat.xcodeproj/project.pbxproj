@@ -35,6 +35,7 @@
 		3304843EFED30C9C4DC8A261 /* SuggestionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F2AE4F92362502E6C1178F /* SuggestionsManager.swift */; };
 		368924A9FF96D797D446DF3E /* AppDefinitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277F6230370B38BD7D0BA0DF /* AppDefinitionTests.swift */; };
 		3A83468C9E685F0A46AA5994 /* PickerShortcutAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54EFE67B4ECDB1CD0007C3F /* PickerShortcutAssigner.swift */; };
+		3E5389F349113CE8F197AE49 /* TeamsAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0F1970D3B5A495341EB747A /* TeamsAccounts.swift */; };
 		3E61AB885A0AC34CA12ADCD8 /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89425B0295425212502D99D7 /* AppConfigTests.swift */; };
 		41A0F602A9813FE41520018B /* URLBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F5C2AFE82D5ADA2A9E1DA4 /* URLBar.swift */; };
 		45864F98A35181B854EFDB95 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CAD3DBE64F3FB0C45CA99E5E /* Assets.xcassets */; };
@@ -48,6 +49,7 @@
 		58C46CD1E6DA191C7C15ADBF /* SettingsViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF12D0169FF3814063B000A /* SettingsViewHelpers.swift */; };
 		62877887BADE0F144723D021 /* SettingsStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F736BF3E7C90149146A8F6 /* SettingsStorage.swift */; };
 		65897B9DFECBB096ED00D119 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 8086C1C813BEC629F492F003 /* LaunchAtLogin */; };
+		65EB4DA1E7CBACD953A2B821 /* TeamsAccountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AC31BCDEB00EB62619EA50 /* TeamsAccountsTests.swift */; };
 		674680CC4542F0E790248301 /* PickerDiagnosticJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA7DEEE633E70FAEE856E7F /* PickerDiagnosticJournal.swift */; };
 		67DF010549ACAE53220A66CE /* HistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13638E9042BBEFA24B4E6CE9 /* HistoryStorage.swift */; };
 		693C6958BDF69AD9F4D2F690 /* BrowserLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0491754C74C89372721C048 /* BrowserLauncherTests.swift */; };
@@ -274,9 +276,11 @@
 		E2AC10C504A8A5ED03065FD3 /* TapSequenceCounterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapSequenceCounterTests.swift; sourceTree = "<group>"; };
 		E64C18E783BB1C182CCF8F65 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		E6E3A46B7C02346C676ABCDB /* WindowActivationLedgerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowActivationLedgerTests.swift; sourceTree = "<group>"; };
+		E8AC31BCDEB00EB62619EA50 /* TeamsAccountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsAccountsTests.swift; sourceTree = "<group>"; };
 		E8D4821EF374AAD3B3CEC4C4 /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		ED69C288B44D1896CBEF49D9 /* OpenSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSource.swift; sourceTree = "<group>"; };
 		EF05BAED94E631CFC4D205F0 /* WindowEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowEnumerator.swift; sourceTree = "<group>"; };
+		F0F1970D3B5A495341EB747A /* TeamsAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamsAccounts.swift; sourceTree = "<group>"; };
 		F21DB40F791F9B04B4CD5695 /* AppCatUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppCatUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3B6ACACA3D2DDABA34C0C36 /* StatsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsManagerTests.swift; sourceTree = "<group>"; };
 		F49DE343F0E262201DD67C25 /* AppConfigStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigStorage.swift; sourceTree = "<group>"; };
@@ -381,6 +385,7 @@
 				84AB0E11E67A48CFD62DB526 /* SuggestionEngine.swift */,
 				F948D5ABF58D5B36C2805663 /* SuggestionStateStorage.swift */,
 				08E0ADD66085F935FB72F6CC /* TapSequenceCounter.swift */,
+				F0F1970D3B5A495341EB747A /* TeamsAccounts.swift */,
 				27A40BE3FD1DE461371B0E3C /* TimeSavedFormatter.swift */,
 				C3BEC844E1BAAFD4B677AF48 /* URLResolver.swift */,
 				053E8BC3AD00901B8AF0124F /* URLRuleMatcher.swift */,
@@ -579,6 +584,7 @@
 				F3B6ACACA3D2DDABA34C0C36 /* StatsManagerTests.swift */,
 				51460B90429DE53D95E4FAC1 /* SuggestionEngineTests.swift */,
 				E2AC10C504A8A5ED03065FD3 /* TapSequenceCounterTests.swift */,
+				E8AC31BCDEB00EB62619EA50 /* TeamsAccountsTests.swift */,
 				791CE5144C85EFFC99FFF08F /* URLRuleMatcherTests.swift */,
 				E04AA1CA3739BC1004BC59C4 /* URLRulesManagerTests.swift */,
 				B4C1179E4B2556CF972FD212 /* URLUnwrapperTests.swift */,
@@ -768,6 +774,7 @@
 				A46BFDEB58E1353FD2220B32 /* StatsManagerTests.swift in Sources */,
 				FB1E3CE417E2AAB213D484A4 /* SuggestionEngineTests.swift in Sources */,
 				1B6512DB210067E333DAE0B3 /* TapSequenceCounterTests.swift in Sources */,
+				65EB4DA1E7CBACD953A2B821 /* TeamsAccountsTests.swift in Sources */,
 				08A29C17CA3484E30A9F19DC /* URLRuleMatcherTests.swift in Sources */,
 				A4E40DBD81E3022C6213ECDB /* URLRulesManagerTests.swift in Sources */,
 				185BE899A9AAB01840C6D04E /* URLUnwrapperTests.swift in Sources */,
@@ -866,6 +873,7 @@
 				3304843EFED30C9C4DC8A261 /* SuggestionsManager.swift in Sources */,
 				BCB45CD6DCD48DE7F1D5C9A1 /* SuggestionsView.swift in Sources */,
 				9845414FDB376DD6A835159E /* TapSequenceCounter.swift in Sources */,
+				3E5389F349113CE8F197AE49 /* TeamsAccounts.swift in Sources */,
 				2AF721E1AAEE9F4E5E52F2C8 /* TimeSavedFormatter.swift in Sources */,
 				E7736EC4F6630CD56A89BDCF /* UITestLaunchScenario.swift in Sources */,
 				41A0F602A9813FE41520018B /* URLBar.swift in Sources */,
