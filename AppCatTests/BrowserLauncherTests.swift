@@ -566,6 +566,18 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
+    func testActivationReportsAppFallbackWhenTheWindowIsGone() {
+        let world = FakeBrowserLauncherWorld(runningApplication: FakeRunningApplication(), hasOpenWindows: true)
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let target = AppWindowTarget(bundleID: "test.browser", title: "Closed", index: 0)
+
+        world.activateWindowTargetResult = false
+        XCTAssertEqual(launcher.activate(browser: makeBrowser(), windowTarget: target), .application)
+        world.activateWindowTargetResult = true
+        XCTAssertEqual(launcher.activate(browser: makeBrowser(), windowTarget: target), .window)
+    }
+
+    @MainActor
     func testManualActivationOfWindowlessRunningBrowserSendsReopenEventToExistingApp() {
         let app = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld(runningApplication: app, hasOpenWindows: false)

@@ -27,8 +27,9 @@ final class BrowserManager {
             canPersist = false
         }
 
+        var browsers: [InstalledBrowser]
         if let savedConfigs {
-            state.browsers = mergeDetectedWithSaved(
+            browsers = mergeDetectedWithSaved(
                 detected: detected,
                 saved: savedConfigs,
                 configID: \.id,
@@ -42,37 +43,71 @@ final class BrowserManager {
                 browser.displayName = config.displayName
             }
         } else {
-            state.browsers = detected
+            browsers = detected
         }
 
         // Detect profiles for each browser and restore saved hotkeys
         let savedConfigMap = savedConfigs.map {
             Dictionary($0.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         }
-        for i in state.browsers.indices {
-            state.browsers[i].profiles = profileDetector.detectProfiles(for: state.browsers[i])
-
-            let savedConfig = savedConfigMap?[state.browsers[i].id]
-            if let savedConfig {
-                let profileKeys = savedConfig.profileHotkeys
-                let profileKeyCodes = savedConfig.profileHotkeyKeyCodes
-                let profileVisibility = savedConfig.profileVisibility
-                for j in state.browsers[i].profiles.indices {
-                    let dirName = state.browsers[i].profiles[j].directoryName
-                    if let key = profileKeys?[dirName] {
-                        state.browsers[i].profiles[j].hotkey = key.first
-                        state.browsers[i].profiles[j].hotkeyKeyCode =
-                            profileKeyCodes?[dirName] ?? key.first.flatMap { KeyCodeMap.keyCode(for: $0) }
-                    }
-                    if let visible = profileVisibility?[dirName] {
-                        state.browsers[i].profiles[j].isVisible = visible
-                    }
-                }
-            }
+        for i in browsers.indices {
+            Self.applyProfiles(
+                profileDetector.detectProfiles(for: browsers[i]),
+                savedConfig: savedConfigMap?[browsers[i].id],
+                current: state.browsers.first { $0.id == browsers[i].id },
+                to: &browsers[i]
+            )
         }
 
-        if canPersist {
-            save(state.browsers)
+        // Refreshes also run in the background; leave state and disk alone when nothing changed.
+        // The two are compared separately so a write that failed earlier is retried.
+        if browsers != state.browsers {
+            state.browsers = browsers
+        }
+        if canPersist, savedConfigs != browsers.map(BrowserConfig.init(from:)) {
+            save(browsers)
+        }
+    }
+
+    /// Sets the browser's profiles from a detection result and restores their saved hotkeys and
+    /// visibility. When the list cannot be read, the last known one stands in: the saved snapshot,
+    /// or the one on screen when the config itself could not be loaded.
+    static func applyProfiles(
+        _ detection: ProfileDetection,
+        savedConfig: BrowserConfig?,
+        current: InstalledBrowser? = nil,
+        to browser: inout InstalledBrowser
+    ) {
+        browser.profilesReadFailure = detection.failure
+        guard detection.failure != nil else {
+            browser.profiles = detection.profiles
+            restoreProfileSettings(from: savedConfig, to: &browser)
+            return
+        }
+        guard let savedConfig else {
+            browser.profiles = current?.profiles ?? []
+            browser.pendingProfileSettings = current?.pendingProfileSettings
+            return
+        }
+        browser.profiles = savedConfig.profiles ?? []
+        if browser.profiles.isEmpty {
+            browser.pendingProfileSettings = PendingProfileSettings(savedConfig)
+        }
+        restoreProfileSettings(from: savedConfig, to: &browser)
+    }
+
+    private static func restoreProfileSettings(from savedConfig: BrowserConfig?, to browser: inout InstalledBrowser) {
+        guard let savedConfig else { return }
+        for j in browser.profiles.indices {
+            let dirName = browser.profiles[j].directoryName
+            if let key = savedConfig.profileHotkeys?[dirName] {
+                browser.profiles[j].hotkey = key.first
+                browser.profiles[j].hotkeyKeyCode =
+                    savedConfig.profileHotkeyKeyCodes?[dirName] ?? key.first.flatMap { KeyCodeMap.keyCode(for: $0) }
+            }
+            if let visible = savedConfig.profileVisibility?[dirName] {
+                browser.profiles[j].isVisible = visible
+            }
         }
     }
 

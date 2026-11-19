@@ -189,11 +189,17 @@ final class PickerCoordinator {
             #endif
             // Activate first: dismissing snapshots the picker for its exit animation, which costs
             // ~200 ms of main-thread time, and the switch must not wait behind it.
-            let didActivate = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            let activation = browserLauncher.activate(browser: browser, profile: profile, windowTarget: windowTarget)
+            let didActivate = activation.succeeded
             dismissPicker(state: state, animated: false)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
+            // A closed window falls back to activating the app; ranking its stale title then would
+            // name a window that no tile represents.
+            if activation == .window, let windowTarget {
+                windowActivationTracker?.recordWindowActivation(bundleID: windowTarget.bundleID, title: windowTarget.title)
+            }
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? browser.id)
             }
@@ -255,11 +261,17 @@ final class PickerCoordinator {
             #endif
             // Activate first: dismissing snapshots the picker for its exit animation, which costs
             // ~200 ms of main-thread time, and the switch must not wait behind it.
-            let didActivate = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            let activation = browserLauncher.activate(app: app, windowTarget: windowTarget)
+            let didActivate = activation.succeeded
             dismissPicker(state: state, animated: false)
             #if DEV_BUILD
                 diagnostics?.record("launch.activationResult", detail: "success=\(didActivate)", context: diagnosticContext)
             #endif
+            // A closed window falls back to activating the app; ranking its stale title then would
+            // name a window that no tile represents.
+            if activation == .window, let windowTarget {
+                windowActivationTracker?.recordWindowActivation(bundleID: windowTarget.bundleID, title: windowTarget.title)
+            }
             if shouldRecordManualSwitch, didActivate {
                 statsManager?.recordManualPickerSwitch(targetID: windowTarget?.instanceTrackingID ?? app.id)
             }

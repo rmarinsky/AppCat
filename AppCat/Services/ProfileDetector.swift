@@ -1,6 +1,22 @@
 import Foundation
 import os
 
+/// Why a browser's profile list could not be read. Any failure keeps the last known profiles.
+enum ProfileReadFailure: Equatable {
+    /// macOS privacy protection (EPERM). Since macOS 27 another app's data is protected until the
+    /// user allows it in Privacy & Security; the system never prompts.
+    case privacyBlocked
+    /// The file's own permissions (EACCES), which Privacy & Security cannot change.
+    case filePermissions
+    /// The file exists but could not be parsed, e.g. while the browser rewrites it.
+    case unreadable
+}
+
+struct ProfileDetection: Equatable {
+    var profiles: [BrowserProfile] = []
+    var failure: ProfileReadFailure?
+}
+
 @MainActor
 final class ProfileDetector {
     private let fileManager: FileManager
@@ -12,25 +28,42 @@ final class ProfileDetector {
             ?? Self.defaultApplicationSupportDirectory(fileManager: fileManager)
     }
 
-    func detectProfiles(for browser: InstalledBrowser) -> [BrowserProfile] {
+    func detectProfiles(for browser: InstalledBrowser) -> ProfileDetection {
         guard let profileType = browser.profileType,
               let profileDataPath = browser.profileDataPath
         else {
-            return []
+            return ProfileDetection()
         }
 
-        let profiles: [BrowserProfile]
+        let detection: ProfileDetection
         switch profileType {
         case .chromium:
-            profiles = detectChromiumProfiles(dataPath: profileDataPath)
+            detection = detectChromiumProfiles(dataPath: profileDataPath)
         case .firefox:
-            profiles = detectFirefoxProfiles(dataPath: profileDataPath)
+            detection = detectFirefoxProfiles(dataPath: profileDataPath)
         }
 
-        if !profiles.isEmpty {
-            Log.profiles.info("Detected \(profiles.count) profiles for \(browser.displayName)")
+        if let failure = detection.failure {
+            Log.profiles.error("Could not read the profiles of \(browser.displayName): \(String(describing: failure))")
+        } else if !detection.profiles.isEmpty {
+            Log.profiles.info("Detected \(detection.profiles.count) profiles for \(browser.displayName)")
         }
-        return profiles
+        return detection
+    }
+
+    /// EPERM is a mandatory-access (privacy) denial and EACCES a file-permission one; Foundation
+    /// wraps both in the same Cocoa error, so the POSIX code underneath decides.
+    nonisolated static func readFailure(for error: Error) -> ProfileReadFailure? {
+        var error = error as NSError
+        if error.domain == NSCocoaErrorDomain, let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            error = underlying
+        }
+        guard error.domain == NSPOSIXErrorDomain else { return nil }
+        switch Int32(error.code) {
+        case EPERM: return .privacyBlocked
+        case EACCES: return .filePermissions
+        default: return nil
+        }
     }
 
     private static func defaultApplicationSupportDirectory(fileManager: FileManager) -> URL {
@@ -47,19 +80,26 @@ final class ProfileDetector {
 
     // MARK: - Chromium
 
-    private func detectChromiumProfiles(dataPath: String) -> [BrowserProfile] {
+    private func detectChromiumProfiles(dataPath: String) -> ProfileDetection {
         let browserDataDirectory = applicationSupportDirectory
             .appendingPathComponent(dataPath, isDirectory: true)
         let localStatePath = browserDataDirectory
             .appendingPathComponent("Local State")
 
-        guard let data = try? Data(contentsOf: localStatePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let data: Data
+        do {
+            data = try Data(contentsOf: localStatePath)
+        } catch {
+            Log.profiles.debug("No Chromium Local State found at \(localStatePath.path)")
+            return ProfileDetection(failure: Self.readFailure(for: error))
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let profile = json["profile"] as? [String: Any],
               let infoCache = profile["info_cache"] as? [String: Any]
         else {
-            Log.profiles.debug("No Chromium Local State found at \(localStatePath.path)")
-            return []
+            Log.profiles.debug("Unreadable Chromium Local State at \(localStatePath.path)")
+            return ProfileDetection(failure: .unreadable)
         }
 
         var profiles: [BrowserProfile] = []
@@ -82,7 +122,7 @@ final class ProfileDetector {
             ))
         }
 
-        return profiles.sorted(by: sortProfiles)
+        return ProfileDetection(profiles: profiles.sorted(by: sortProfiles))
     }
 
     private func chromiumAvatarPath(
@@ -122,14 +162,17 @@ final class ProfileDetector {
 
     // MARK: - Firefox
 
-    private func detectFirefoxProfiles(dataPath: String) -> [BrowserProfile] {
+    private func detectFirefoxProfiles(dataPath: String) -> ProfileDetection {
         let profilesIniPath = applicationSupportDirectory
             .appendingPathComponent(dataPath)
             .appendingPathComponent("profiles.ini")
 
-        guard let content = try? String(contentsOf: profilesIniPath, encoding: .utf8) else {
+        let content: String
+        do {
+            content = try String(contentsOf: profilesIniPath, encoding: .utf8)
+        } catch {
             Log.profiles.debug("No Firefox profiles.ini found at \(profilesIniPath.path)")
-            return []
+            return ProfileDetection(failure: Self.readFailure(for: error))
         }
 
         var profiles: [BrowserProfile] = []
@@ -170,7 +213,7 @@ final class ProfileDetector {
 
         flushCurrentProfile()
 
-        return profiles.sorted(by: sortProfiles)
+        return ProfileDetection(profiles: profiles.sorted(by: sortProfiles))
     }
 
     private func cleanString(_ value: String?) -> String? {

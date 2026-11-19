@@ -15,6 +15,11 @@ struct InstalledBrowser: Identifiable, Equatable {
     var profileDataPath: String?
     var profileType: ProfileType?
     var profiles: [BrowserProfile] = []
+    /// Why the profile list could not be read; `profiles` then holds the last known list.
+    var profilesReadFailure: ProfileReadFailure?
+    /// Saved per-profile settings with no known profile to hold them yet (the list was never read
+    /// while access is blocked). Written back unchanged so they survive until profiles are read.
+    var pendingProfileSettings: PendingProfileSettings?
 
     // Non-codable, loaded at runtime
     var icon: NSImage?
@@ -35,12 +40,28 @@ struct InstalledBrowser: Identifiable, Equatable {
             && lhs.sortOrder == rhs.sortOrder
             && lhs.supportsPrivateMode == rhs.supportsPrivateMode
             && lhs.profiles == rhs.profiles
+            && lhs.profilesReadFailure == rhs.profilesReadFailure
+            && lhs.pendingProfileSettings == rhs.pendingProfileSettings
     }
 }
 
 // MARK: - Codable support (without icon)
 
-struct BrowserConfig: Codable {
+struct PendingProfileSettings: Equatable {
+    var hotkeys: [String: String]?
+    var hotkeyKeyCodes: [String: UInt16]?
+    var visibility: [String: Bool]?
+
+    init?(_ config: BrowserConfig) {
+        guard config.profileHotkeys != nil || config.profileHotkeyKeyCodes != nil || config.profileVisibility != nil
+        else { return nil }
+        hotkeys = config.profileHotkeys
+        hotkeyKeyCodes = config.profileHotkeyKeyCodes
+        visibility = config.profileVisibility
+    }
+}
+
+struct BrowserConfig: Codable, Equatable {
     let id: String
     var displayName: String
     var isVisible: Bool
@@ -51,6 +72,7 @@ struct BrowserConfig: Codable {
     var profileHotkeys: [String: String]? // directoryName -> hotkey character
     var profileHotkeyKeyCodes: [String: UInt16]? // directoryName -> keyCode
     var profileVisibility: [String: Bool]? // directoryName -> isVisible
+    var profiles: [BrowserProfile]? // last detected list, shown while macOS blocks detection
 
     init(from browser: InstalledBrowser) {
         id = browser.id
@@ -75,6 +97,13 @@ struct BrowserConfig: Codable {
 
         let visibility = browser.profiles.map { ($0.directoryName, $0.isVisible) }
         profileVisibility = visibility.isEmpty ? nil : Dictionary(visibility, uniquingKeysWith: { first, _ in first })
+        profiles = browser.profiles.isEmpty ? nil : browser.profiles
+
+        if browser.profiles.isEmpty, let pending = browser.pendingProfileSettings {
+            profileHotkeys = pending.hotkeys
+            profileHotkeyKeyCodes = pending.hotkeyKeyCodes
+            profileVisibility = pending.visibility
+        }
     }
 
     init(from decoder: Decoder) throws {
@@ -89,5 +118,6 @@ struct BrowserConfig: Codable {
         profileHotkeys = try container.decodeIfPresent([String: String].self, forKey: .profileHotkeys)
         profileHotkeyKeyCodes = try container.decodeIfPresent([String: UInt16].self, forKey: .profileHotkeyKeyCodes)
         profileVisibility = try container.decodeIfPresent([String: Bool].self, forKey: .profileVisibility)
+        profiles = try container.decodeIfPresent([BrowserProfile].self, forKey: .profiles)
     }
 }

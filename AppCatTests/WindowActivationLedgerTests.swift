@@ -50,20 +50,20 @@ final class WindowActivationLedgerTests: XCTestCase {
         XCTAssertTrue(resolved > sibling)
     }
 
-    /// When a resolution fails, the app tick moves on without its window. Preferring the window key
-    /// unconditionally would then sort unresolved siblings *above* the resolved window; taking the
-    /// newer of the two ticks degrades honestly to "somewhere in this app" instead.
-    func testStaleWindowTickDoesNotSinkBelowItsOwnAppTick() throws {
+    /// Activating one window of an app must not drag its sibling windows to the front with it:
+    /// the sibling stays where its own last activation put it.
+    func testActivatingAWindowLeavesItsSiblingInPlace() throws {
         var ledger = WindowActivationLedger()
-        let firstTick = ledger.recordActivation(bundleID: "editor")
-        ledger.attachFocusedWindow(bundleID: "editor", title: "Resolved", tick: firstTick)
-        ledger.recordActivation(bundleID: "editor") // resolution failed: no window attached
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Work", tick: ledger.recordActivation(bundleID: "chrome"))
+        let mailTick = ledger.recordActivation(bundleID: "mail")
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Personal", tick: ledger.recordActivation(bundleID: "chrome"))
 
-        let resolved = try XCTUnwrap(rank(ledger, bundleID: "editor", title: "Resolved"))
-        let sibling = try XCTUnwrap(rank(ledger, bundleID: "editor", title: "Other"))
-        XCTAssertEqual(resolved.tick, sibling.tick)
-        XCTAssertFalse(resolved > sibling)
-        XCTAssertFalse(sibling > resolved)
+        let personal = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Personal"))
+        let work = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Work"))
+        let mail = try XCTUnwrap(rank(ledger, bundleID: "mail"))
+        XCTAssertEqual(mail.tick, mailTick)
+        XCTAssertTrue(personal > mail)
+        XCTAssertTrue(mail > work, "The sibling window stays behind the app used after it")
     }
 
     func testCapacityTrimKeepsTheMostRecentEntries() {
@@ -149,5 +149,78 @@ final class WindowActivationLedgerTests: XCTestCase {
             isSystemApp: false,
             icon: nil
         )
+    }
+
+    /// Two windows of one app, switched between through the picker. Opening the picker again must
+    /// still know which window is current, even though its just-in-time focused-window read has
+    /// not come back yet when the session order is frozen.
+    @MainActor
+    func testPickerSwitchBetweenSiblingWindowsSurvivesPendingRefresh() {
+        let releaseRead = DispatchSemaphore(value: 0)
+        defer { releaseRead.signal() }
+        let tracker = WindowActivationTracker(dependencies: .init(
+            focusedWindowTitle: { _ in
+                releaseRead.wait()
+                return nil
+            },
+            frontToBackWindows: { [] }
+        ))
+        let newTab = WindowActivationKey.window(bundleID: "chrome", title: "New tab")
+        let dropbox = WindowActivationKey.window(bundleID: "chrome", title: "Dropbox")
+
+        tracker.recordWindowActivation(bundleID: "chrome", title: "New tab")
+        tracker.recordWindowActivation(bundleID: "chrome", title: "Dropbox")
+        tracker.recordFrontmostRefresh(bundleID: "chrome", processIdentifier: 1)
+        let snapshot = tracker.sessionSnapshot()
+
+        XCTAssertEqual(snapshot.frontmostKey, dropbox)
+        let appTick = snapshot.ranks[WindowActivationKey.app("chrome")] ?? .max
+        XCTAssertGreaterThanOrEqual(snapshot.ranks[dropbox] ?? .min, appTick)
+        XCTAssertLessThan(snapshot.ranks[newTab] ?? .max, snapshot.ranks[dropbox] ?? .min)
+    }
+
+    /// Chrome activates but its focused window cannot be read. Its tiles must not fall below Mail,
+    /// which was used before it, and its windows keep their order among themselves.
+    func testUnreadableActivationPromotesTheAppsLatestWindow() throws {
+        var ledger = WindowActivationLedger()
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Work", tick: ledger.recordActivation(bundleID: "chrome"))
+        ledger.attachFocusedWindow(bundleID: "chrome", title: "Personal", tick: ledger.recordActivation(bundleID: "chrome"))
+        ledger.recordActivation(bundleID: "mail")
+        ledger.promoteMostRecentWindow(bundleID: "chrome", tick: ledger.recordActivation(bundleID: "chrome"))
+
+        let personal = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Personal"))
+        let work = try XCTUnwrap(rank(ledger, bundleID: "chrome", title: "Work"))
+        let mail = try XCTUnwrap(rank(ledger, bundleID: "mail"))
+        XCTAssertTrue(personal > mail)
+        XCTAssertTrue(mail > work)
+    }
+
+    /// The frontmost refresh reads Personal, but Mail is activated before the read returns. The
+    /// read still lands between Work and Mail instead of being dropped.
+    @MainActor
+    func testRefreshReadThatReturnsAfterAnotherActivationKeepsItsPlace() async {
+        let releaseRead = DispatchSemaphore(value: 0)
+        let tracker = WindowActivationTracker(dependencies: .init(
+            focusedWindowTitle: { _ in
+                releaseRead.wait()
+                return "Personal"
+            },
+            frontToBackWindows: { [] }
+        ))
+        tracker.recordWindowActivation(bundleID: "chrome", title: "Work")
+        tracker.recordFrontmostRefresh(bundleID: "chrome", processIdentifier: 1)
+        tracker.recordWindowActivation(bundleID: "mail", title: "Inbox")
+        releaseRead.signal()
+
+        let personal = WindowActivationKey.window(bundleID: "chrome", title: "Personal")
+        for _ in 0 ..< 200 where tracker.sessionSnapshot().ranks[personal] == nil {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let ranks = tracker.sessionSnapshot().ranks
+        let work = WindowActivationKey.window(bundleID: "chrome", title: "Work")
+        let inbox = WindowActivationKey.window(bundleID: "mail", title: "Inbox")
+        XCTAssertNotNil(ranks[personal])
+        XCTAssertGreaterThan(ranks[personal] ?? .min, ranks[work] ?? .max)
+        XCTAssertLessThan(ranks[personal] ?? .max, ranks[inbox] ?? .min)
     }
 }

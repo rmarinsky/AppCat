@@ -40,6 +40,11 @@ struct BrowsersSettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color("SurfaceWindow"))
+        .onAppear { browserManager?.refreshBrowsers(into: appState) }
+        // Coming back from System Settings after allowing access picks the profiles up.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            browserManager?.refreshBrowsers(into: appState)
+        }
     }
 
     private var card: some View {
@@ -52,6 +57,9 @@ struct BrowsersSettingsView: View {
                 }
                 row(browser, index: index)
 
+                if let failure = browser.profilesReadFailure, failure != .unreadable {
+                    profilesAccessDeniedRow(failure)
+                }
                 if browser.hasProfiles {
                     ForEach(browser.profiles) { profile in
                         profileRow(browser, profile)
@@ -218,6 +226,45 @@ struct BrowsersSettingsView: View {
         }
         .padding(.trailing, 12)
         .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(Color("SurfaceInset").opacity(0.35))
+    }
+
+    /// macOS never prompts for another app's data, so the only way in is System Settings. A
+    /// file-permission denial is not fixed there, so it gets neither that advice nor the button.
+    private func profilesAccessDeniedRow(_ failure: ProfileReadFailure) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+                .padding(.leading, 35)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(String(localized: "macOS is blocking access to this browser's profiles."))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text(failure == .privacyBlocked
+                    ? String(localized: "Turn on AppCat under Files & Folders. If the profiles don't appear, restart AppCat.")
+                    : String(localized: "The browser's profile file can't be read because of its file permissions."))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if failure == .privacyBlocked {
+                Button(String(localized: "Open Privacy Settings")) {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(.trailing, 12)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
         .background(Color("SurfaceInset").opacity(0.35))
     }

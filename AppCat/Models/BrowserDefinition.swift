@@ -40,7 +40,7 @@ struct BrowserDefinition {
                 profileType: .chromium
             ),
             BrowserDefinition(
-                bundleID: "com.google.Chrome.for.Testing",
+                bundleID: "com.google.chrome.for.testing",
                 displayName: "Google Chrome for Testing",
                 privateModeArgs: ["--incognito"],
                 profileDataPath: "Google/Chrome for Testing",
