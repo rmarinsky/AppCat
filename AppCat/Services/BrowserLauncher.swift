@@ -30,6 +30,7 @@ final class BrowserLauncher {
         var openURLs: @MainActor ([URL], URL, NSWorkspace.OpenConfiguration, @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
         var sendReopenEvent: @MainActor (BrowserLauncherRunningApplication, String) -> Void
         var runExecutable: @MainActor (String, [String]) throws -> Void
+        var launchApplication: @MainActor (URL, [String], @escaping @MainActor (BrowserLauncherRunningApplication?, Error?) -> Void) -> Void
         var schedule: @MainActor (TimeInterval, @escaping @MainActor () -> Void) -> Void
 
         static let live = Dependencies(
@@ -62,6 +63,17 @@ final class BrowserLauncher {
                 process.executableURL = URL(fileURLWithPath: executablePath)
                 process.arguments = arguments
                 try process.run()
+            },
+            launchApplication: { appURL, arguments, completion in
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                configuration.arguments = arguments
+                // Arguments reach only a new instance. If the app started since the running check,
+                // the new instance hands them to it (as a direct executable launch would) and exits.
+                configuration.createsNewApplicationInstance = true
+                NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
+                    Task { @MainActor in completion(app, error) }
+                }
             },
             schedule: { delay, action in
                 Task { @MainActor in
@@ -248,6 +260,27 @@ final class BrowserLauncher {
         }
 
         args.append(contentsOf: urls.map(\.absoluteString))
+
+        // A bare executable launch bypasses LaunchServices, so a browser that is not running
+        // starts without coming to the front. Launch it as an app; arguments apply on launch.
+        guard dependencies.runningApplication(browser.id) != nil else {
+            dependencies.launchApplication(browser.appURL, args) { [weak self] launchedApp, error in
+                guard let self else { return }
+                if let error {
+                    Log.browser.error("Failed to launch \(browser.displayName) with profile '\(profile.displayName)': \(error.localizedDescription)")
+                    openNormal(urls: urls, browser: browser, inBackground: false, completion: completion)
+                    return
+                }
+                Log.browser.info("Launched \(browser.displayName) with profile '\(profile.displayName)' for \(urls.count) URL(s)")
+                if let launchedApp {
+                    activateRunningApplication(launchedApp, displayName: browser.displayName)
+                } else {
+                    activateRunningApp(bundleID: browser.id)
+                }
+                completion(true)
+            }
+            return
+        }
 
         do {
             try dependencies.runExecutable(executablePath, args)
