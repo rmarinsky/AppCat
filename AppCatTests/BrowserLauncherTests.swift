@@ -750,8 +750,29 @@ final class BrowserLauncherTests: XCTestCase {
     }
 
     @MainActor
-    func testProfileURLOpenStillUsesProfileExecutable() throws {
+    func testProfileURLOpenLaunchesBrowserThatIsNotRunning() throws {
+        let launched = FakeRunningApplication()
         let world = FakeBrowserLauncherWorld()
+        world.launchedApplication = launched
+        let launcher = BrowserLauncher(dependencies: world.dependencies())
+        let profile = BrowserProfile(directoryName: "Profile 1", displayName: "Work", email: nil)
+        let url = try XCTUnwrap(URL(string: "https://example.com/path"))
+        let browser = makeBrowser(profileType: .chromium)
+        var result: Bool?
+
+        launcher.open(urls: [url], with: browser, profile: profile) { result = $0 }
+
+        XCTAssertEqual(result, true)
+        XCTAssertTrue(world.executableRuns.isEmpty)
+        XCTAssertEqual(world.applicationLaunches.count, 1)
+        XCTAssertEqual(world.applicationLaunches[0].appURL, browser.appURL)
+        XCTAssertEqual(world.applicationLaunches[0].arguments, ["--profile-directory=Profile 1", url.absoluteString])
+        XCTAssertEqual(launched.activateCount, 1)
+    }
+
+    @MainActor
+    func testProfileURLOpenStillUsesProfileExecutable() throws {
+        let world = FakeBrowserLauncherWorld(runningApplication: FakeRunningApplication())
         let launcher = BrowserLauncher(dependencies: world.dependencies())
         let profile = BrowserProfile(directoryName: "Default", displayName: "Work", email: nil)
         let url = try XCTUnwrap(URL(string: "https://example.com/path"))
@@ -846,11 +867,18 @@ private final class FakeBrowserLauncherWorld {
         let arguments: [String]
     }
 
+    struct ApplicationLaunch {
+        let appURL: URL
+        let arguments: [String]
+    }
+
     var runningApplication: FakeRunningApplication?
     var hasOpenWindows: Bool?
     var openedURLs: [OpenedURLs] = []
     var reopenEvents: [String] = []
     var executableRuns: [ExecutableRun] = []
+    var applicationLaunches: [ApplicationLaunch] = []
+    var launchedApplication: FakeRunningApplication?
     var openErrors: [Error?] = []
     var activatedApplicationWindowAppIDs: [String] = []
     var didActivateApplicationWindow = false
@@ -893,6 +921,10 @@ private final class FakeBrowserLauncherWorld {
             },
             runExecutable: { [self] path, arguments in
                 executableRuns.append(ExecutableRun(path: path, arguments: arguments))
+            },
+            launchApplication: { [self] appURL, arguments, completion in
+                applicationLaunches.append(ApplicationLaunch(appURL: appURL, arguments: arguments))
+                completion(launchedApplication, nil)
             },
             schedule: { [self] _, action in
                 scheduledActions.append(action)
