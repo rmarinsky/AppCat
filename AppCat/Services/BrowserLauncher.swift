@@ -68,6 +68,9 @@ final class BrowserLauncher {
                 let configuration = NSWorkspace.OpenConfiguration()
                 configuration.activates = true
                 configuration.arguments = arguments
+                // Arguments reach only a new instance. If the app started since the running check,
+                // the new instance hands them to it (as a direct executable launch would) and exits.
+                configuration.createsNewApplicationInstance = true
                 NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
                     Task { @MainActor in completion(app, error) }
                 }
